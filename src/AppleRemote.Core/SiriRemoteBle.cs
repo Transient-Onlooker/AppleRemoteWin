@@ -16,7 +16,8 @@ namespace AppleRemote;
 /// <param name="onBattery">Battery level in %: on each connection, then on each change. Transport thread.</param>
 /// <param name="adapterName">Adapter driven, shown in the status messages (logs).</param>
 public sealed class SiriRemoteBle(HciHost hci, BondStore bonds,
-    Action<double, byte[]?> onReport, Action<string> onStatus, Action<int>? onBattery = null, string adapterName = "?")
+    Action<double, byte[]?> onReport, Action<string> onStatus, Action<int>? onBattery = null,
+    string adapterName = "?", IReadOnlySet<byte>? inputReportIds = null)
 {
     const ushort HidService = 0x1812, Report = 0x2A4D, ReportReference = 0x2908, ClientConfiguration = 0x2902,
         BatteryService = 0x180F, BatteryLevel = 0x2A19;
@@ -90,7 +91,7 @@ public sealed class SiriRemoteBle(HciHost hci, BondStore bonds,
                     else if (valueHandle == battery && value.Length > 0) onBattery?.Invoke(value[0]);
                 };
                 List<GattService> services = await gatt.DiscoverPrimaryServicesAsync();
-                await SetUpHidAsync(gatt, services, inputs);
+                await SetUpHidAsync(gatt, services, inputs, inputReportIds);
                 battery = await SetUpBatteryAsync(gatt, services);
                 onStatus(Loc.T("Status.ConnectedDirect"));
 
@@ -144,7 +145,8 @@ public sealed class SiriRemoteBle(HciHost hci, BondStore bonds,
     }
 
     /// <summary>Finds the HID reports through their Report Reference descriptor, subscribes to the inputs then unlocks.</summary>
-    static async Task SetUpHidAsync(GattClient gatt, List<GattService> services, Dictionary<ushort, byte> inputs)
+    static async Task SetUpHidAsync(GattClient gatt, List<GattService> services,
+        Dictionary<ushort, byte> inputs, IReadOnlySet<byte>? inputReportIds)
     {
         GattService hid = services.FirstOrDefault(s => GattClient.Is(s.Uuid, HidService))
             ?? throw new InvalidOperationException("Service HID introuvable.");
@@ -166,6 +168,11 @@ public sealed class SiriRemoteBle(HciHost hci, BondStore bonds,
 
             if (idAndType[1] == InputReport)
             {
+                // Optional allowlist for diagnostic probes: never subscribe to
+                // the microphone report just to decode buttons and touch.
+                // A null allowlist preserves the original gen-1 behavior.
+                if (inputReportIds is not null && !inputReportIds.Contains(idAndType[0]))
+                    continue;
                 inputs[c.Value] = idAndType[0];
                 var cccd = descriptors.FirstOrDefault(d => GattClient.Is(d.Uuid, ClientConfiguration));
                 if (cccd.Uuid is not null) subscriptions.Add(cccd.Handle);
