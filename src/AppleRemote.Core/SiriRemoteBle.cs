@@ -16,7 +16,8 @@ namespace AppleRemote;
 /// <param name="onBattery">Battery level in %: on each connection, then on each change. Transport thread.</param>
 /// <param name="adapterName">Adapter driven, shown in the status messages (logs).</param>
 public sealed class SiriRemoteBle(HciHost hci, BondStore bonds,
-    Action<double, byte[]?> onReport, Action<string> onStatus, Action<int>? onBattery = null, string adapterName = "?")
+    Action<double, byte[]?> onReport, Action<string> onStatus, Action<int>? onBattery = null,
+    string adapterName = "?", RemoteModel model = RemoteModel.Gen1)
 {
     const ushort HidService = 0x1812, Report = 0x2A4D, ReportReference = 0x2908, ClientConfiguration = 0x2902,
         BatteryService = 0x180F, BatteryLevel = 0x2A19;
@@ -90,7 +91,7 @@ public sealed class SiriRemoteBle(HciHost hci, BondStore bonds,
                     else if (valueHandle == battery && value.Length > 0) onBattery?.Invoke(value[0]);
                 };
                 List<GattService> services = await gatt.DiscoverPrimaryServicesAsync();
-                await SetUpHidAsync(gatt, services, inputs);
+                await SetUpHidAsync(gatt, services, inputs, model);
                 battery = await SetUpBatteryAsync(gatt, services);
                 onStatus(Loc.T("Status.ConnectedDirect"));
 
@@ -144,13 +145,15 @@ public sealed class SiriRemoteBle(HciHost hci, BondStore bonds,
     }
 
     /// <summary>Finds the HID reports through their Report Reference descriptor, subscribes to the inputs then unlocks.</summary>
-    static async Task SetUpHidAsync(GattClient gatt, List<GattService> services, Dictionary<ushort, byte> inputs)
+    static async Task SetUpHidAsync(GattClient gatt, List<GattService> services,
+        Dictionary<ushort, byte> inputs, RemoteModel model)
     {
         GattService hid = services.FirstOrDefault(s => GattClient.Is(s.Uuid, HidService))
             ?? throw new InvalidOperationException("Service HID introuvable.");
         List<GattCharacteristic> characteristics = await gatt.DiscoverCharacteristicsAsync(hid);
 
         var subscriptions = new List<ushort>();
+        var a2854UnlockCandidates = new List<ushort>();
         ushort? unlock = null;
         for (int i = 0; i < characteristics.Count; i++)
         {
@@ -166,18 +169,53 @@ public sealed class SiriRemoteBle(HciHost hci, BondStore bonds,
 
             if (idAndType[1] == InputReport)
             {
+                // Do not subscribe to microphone 0xFA in A2854 mode.
+                if (model == RemoteModel.A2854 && idAndType[0] is not (0xFB or 0xFC))
+                    continue;
                 inputs[c.Value] = idAndType[0];
                 var cccd = descriptors.FirstOrDefault(d => GattClient.Is(d.Uuid, ClientConfiguration));
                 if (cccd.Uuid is not null) subscriptions.Add(cccd.Handle);
             }
-            else if (idAndType[1] == FeatureReport && idAndType[0] == UnlockReportId)
+            else if (model == RemoteModel.A2854 && idAndType[1] is 2 or 3
+                     && (c.Properties & 0x08) != 0)
+            {
+                // A2854 Linux experiments found more than one writable
+                // non-input feature. Do not assume the gen-1 0xF0 layout.
+                a2854UnlockCandidates.Add(c.Value);
+            }
+            else if (model == RemoteModel.Gen1 && idAndType[1] == FeatureReport
+                     && idAndType[0] == UnlockReportId)
             {
                 unlock = c.Value;
             }
         }
 
-        foreach (ushort cccd in subscriptions) await gatt.WriteAsync(cccd, 0x01, 0x00);   // notifications
-        await gatt.WriteAsync(unlock ?? throw new InvalidOperationException("Unlock report 0xF0 not found."), UnlockValue);
+        if (model == RemoteModel.A2854
+            && (!inputs.Values.Contains((byte)0xFB) || !inputs.Values.Contains((byte)0xFC)))
+            throw new InvalidOperationException("Expected A2854 input reports 0xFB and 0xFC not found.");
+
+        foreach (ushort cccd in subscriptions) await gatt.WriteAsync(cccd, 0x01, 0x00); // notifications
+        if (model == RemoteModel.Gen1)
+        {
+            await gatt.WriteAsync(unlock ?? throw new InvalidOperationException("Unlock report 0xF0 not found."), UnlockValue);
+        }
+        else
+        {
+            if (a2854UnlockCandidates.Count == 0)
+                throw new InvalidOperationException("A2854 has no writable Feature/Output HID reports.");
+            int successful = 0;
+            foreach (ushort valueHandle in a2854UnlockCandidates)
+            {
+                try
+                {
+                    await gatt.WriteAsync(valueHandle, UnlockValue);
+                    successful++;
+                }
+                catch (AttException) { /* try the other writable features */ }
+            }
+            if (successful == 0)
+                throw new InvalidOperationException("A2854 input-enable 0xAF failed on all writable reports.");
+        }
     }
 
     /// <summary>
