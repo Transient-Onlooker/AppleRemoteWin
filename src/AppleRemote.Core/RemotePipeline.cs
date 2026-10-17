@@ -11,14 +11,17 @@ namespace AppleRemote;
 public sealed class RemotePipeline
 {
     readonly Decoder _decoder = new();
+    readonly A2854Decoder _a2854Decoder = new();
+    readonly RemoteModel _model;
     readonly Gestures _gestures;
     double _now;
 
     public event Action<RemoteEvent>? Event;
     public event Action<GestureEvent>? Gesture;
 
-    public RemotePipeline()
+    public RemotePipeline(RemoteModel model = RemoteModel.Gen1)
     {
+        _model = model;
         _gestures = new Gestures(g => Gesture?.Invoke(g), () => _now);
     }
 
@@ -29,7 +32,7 @@ public sealed class RemotePipeline
     public void Feed(double hostTime, byte[]? report)
     {
         _now = hostTime;
-        foreach (var ev in _decoder.Decode(report))
+        foreach (var ev in _model == RemoteModel.A2854 ? _a2854Decoder.Decode(report) : _decoder.Decode(report))
         {
             Event?.Invoke(ev);
             if (ev is TouchEvent t) _gestures.Frame(t.T, t.X, t.Y, t.Down);
