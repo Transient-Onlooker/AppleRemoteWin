@@ -10,7 +10,12 @@ namespace AppleRemote.Windows;
 public sealed class RemoteSession : IDisposable
 {
     readonly object _gate = new();
-    readonly RemotePipeline _pipeline = new();
+    // Explicit opt-in during hardware experiments; the original gen-1 behavior
+    // remains the default for every existing user and test.
+    readonly RemoteModel _model =
+        string.Equals(Environment.GetEnvironmentVariable("APPLE_REMOTE_MODEL"),
+            "A2854", StringComparison.OrdinalIgnoreCase) ? RemoteModel.A2854 : RemoteModel.Gen1;
+    readonly RemotePipeline _pipeline;
     readonly KeyboardInjector _injector = new();
     readonly KeyBinder _binder;
     bool _keyboardEnabled;
@@ -27,6 +32,7 @@ public sealed class RemoteSession : IDisposable
 
     public RemoteSession(KeyMap? map = null)
     {
+        _pipeline = new RemotePipeline(_model);
         _binder = new KeyBinder(map ?? KeyMap.Default(), _injector);
         _pipeline.Event += ev =>
         {
@@ -98,7 +104,7 @@ public sealed class RemoteSession : IDisposable
         var ct = _cts.Token;
 
         // ESP32-S3 dongle first: it holds the remote by itself, no adapter driver or filter needed.
-        if (EspDongle.Find() is not null)
+        if (_model == RemoteModel.Gen1 && EspDongle.Find() is not null)
         {
             var dongle = _dongle = new EspDongle(Feed, s => Status?.Invoke(s), l => Battery?.Invoke(l));
             UsesBluetoothDirect = false;
@@ -116,7 +122,8 @@ public sealed class RemoteSession : IDisposable
         if (hci is not null)
         {
             hci.Failed += s => Status?.Invoke(s);
-            var driver = new SiriRemoteBle(hci.Host, new BondStore(BondsPath), Feed, s => Status?.Invoke(s), l => Battery?.Invoke(l), hci.Name);
+            var driver = new SiriRemoteBle(hci.Host, new BondStore(BondsPath), Feed,
+                s => Status?.Invoke(s), l => Battery?.Invoke(l), hci.Name, _model);
             _driverTask = Task.Run(async () =>
             {
                 try { await driver.RunAsync(ct); }
@@ -126,6 +133,15 @@ public sealed class RemoteSession : IDisposable
         }
         else
         {
+            if (_model == RemoteModel.A2854)
+            {
+                // A2854 raw GATT is protected by Windows; do not silently fall
+                // back to the gen-1 HID driver or touch the built-in adapter.
+                Status?.Invoke("A2854 requires a dedicated USB Bluetooth adapter under WinUSB; native Windows HID GATT is protected.");
+                _cts.Dispose();
+                _cts = null;
+                return;
+            }
             var driver = new SiriRemoteDriver(Feed, s => Status?.Invoke(s), l => Battery?.Invoke(l));
             _driverTask = Task.Run(() => driver.RunAsync(ct));
         }
