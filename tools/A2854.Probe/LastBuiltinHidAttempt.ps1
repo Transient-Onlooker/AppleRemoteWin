@@ -59,7 +59,8 @@ function Test-IsDescendant([string]$child, [string]$parent) {
 # target object so the unique instance path never appears in console output.
 $target = $null
 try {
-    $all = @(Get-PnpDevice -ErrorAction Stop)
+    // Only enumerate currently present devices; stale/phantom Bluetooth nodes must not be restart targets.
+    $all = @(Get-PnpDevice -PresentOnly -ErrorAction Stop)
     $remotes = @($all | Where-Object {
         $_.Class -eq 'Bluetooth' -and
         $_.FriendlyName -match '(?i)^(DL1|Siri Remote)'
@@ -103,12 +104,13 @@ if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administra
 
 $id = [string]$target.InstanceId
 Write-Output 'Restarting only the verified FAILED A2854 HID child. The Intel AX200/BTHUSB adapter is not being restarted.'
-& pnputil.exe /restart-device $id | Out-Null
+# Suppress native stdout and stderr to avoid exposing the host-specific PnP instance ID.
+& pnputil.exe /restart-device $id 2>&1 | Out-Null
 $code = $LASTEXITCODE
 Write-Output ('PnP restart exit code: {0}' -f $code)
 Start-Sleep -Seconds 5
 
-$after = Get-PnpDevice -InstanceId $id -ErrorAction SilentlyContinue
+$after = Get-PnpDevice -PresentOnly -InstanceId $id -ErrorAction SilentlyContinue
 if ($null -eq $after) {
     Write-Output 'After restart: remote HID node not currently enumerated.'
     exit 1
