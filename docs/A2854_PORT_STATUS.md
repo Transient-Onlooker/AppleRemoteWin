@@ -109,6 +109,30 @@ owner, not simulated CI. The direct BLE adapter route and A2854 connection
 have **not yet been run on hardware**. The core decoder's historical hardware
 fixtures passed; no microphone or kernel-driver experiment was conducted.
 
+## 2026-10-18 Windows direct-controller probe result
+
+Owner executed from PowerShell:
+
+```text
+dotnet run --no-build -c Release --project tools/A2854.Probe/A2854.Probe.csproj -- --seconds 30
+WinUSB controller unavailable: InvalidOperationException.
+An additional USB Bluetooth dongle must be under WinUSB.
+Do NOT change the laptop's built-in Bluetooth adapter driver.
+```
+
+**Interpretation:** The diagnostic executable starts successfully, but
+`UsbHci.Open()` found no eligible Bluetooth USB interface bound to WinUSB.
+No connection or GATT request was attempted; this is **not** an A2854
+transport failure, HID denial, or decoder failure. The built-in Intel AX200
+remains under Windows' normal Bluetooth driver. Repeating this command
+without supplying an independent WinUSB HCI controller cannot test A2854.
+
+Next experiments depend on the user's requirement: use a separate supported
+USB Bluetooth dongle under WinUSB for fully native Windows HCI, or use the
+already demonstrated Linux/BlueZ input receiver inside WSL2 and forward
+events to a Windows application (Windows frontend, Linux Bluetooth backend).
+Never silently swap the built-in AX200's driver.
+
 ## Next hardware experiment
 
 Use an independent WinUSB Bluetooth controller, run this console, and share
