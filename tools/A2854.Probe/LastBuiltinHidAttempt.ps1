@@ -94,8 +94,9 @@ if (-not $Restart) {
     exit 0
 }
 
-$admin = [Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()
-if (-not $admin.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
+$identity = [Security.Principal.WindowsIdentity]::GetCurrent()
+$principal = [Security.Principal.WindowsPrincipal]::new($identity)
+if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
     Write-Output 'Administrator PowerShell required for targeted restart. No change made.'
     exit 2
 }
