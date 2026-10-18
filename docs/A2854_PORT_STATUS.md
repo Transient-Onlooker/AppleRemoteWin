@@ -133,6 +133,37 @@ already demonstrated Linux/BlueZ input receiver inside WSL2 and forward
 events to a Windows application (Windows frontend, Linux Bluetooth backend).
 Never silently swap the built-in AX200's driver.
 
+## 2026-10-18 Intel AX200 Windows USB driver confirmation
+
+Owner provided these Windows PowerShell diagnostics after the WinUSB
+diagnostic exited without detecting a controller:
+
+```text
+Get-PnpDevice -PresentOnly (VID_8087&PID_0029):
+FriendlyName : Intel(R) Wireless Bluetooth(R)
+Status       : OK
+Class        : Bluetooth
+InstanceId   : USB\\VID_8087&PID_0029\\[host-specific instance omitted]
+
+Get-PnpDeviceProperty:
+DEVPKEY_Device_Service       BTHUSB
+DEVPKEY_Device_DriverInfPath oem116.inf
+
+usbipd list:
+BUSID 1-3, VID:PID 8087:0029, Intel Wireless Bluetooth, Not shared
+```
+
+**Conclusion:** Windows detects the Intel AX200 and binds it to **BTHUSB**
+(not **WinUSB**). Consequently the WinUSB-only `UsbHci.Open()` does not
+open this device. The `usbipd` status is unrelated to WinUSB eligibility:
+`Not shared` only indicates the device is not currently shared for
+USB/IP/WSL. This is a controller-access precondition failure, not evidence
+of an A2854 BLE/GATT connection failure.
+
+Do not replace the laptop's internal Bluetooth USB driver merely to
+test this probe. A separate USB adapter under WinUSB is the safe direct-HCI
+experiment; a distinct native BTHUSB integration would be a new backend.
+
 ## Next hardware experiment
 
 Use an independent WinUSB Bluetooth controller, run this console, and share
