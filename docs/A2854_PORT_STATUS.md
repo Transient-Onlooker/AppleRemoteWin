@@ -1,5 +1,8 @@
 # Siri Remote A2854 (third generation) — development branch
 
+> **Full handoff (Korean, 2026-10-18):** [HANDOFF_2026-10-18_A2854.md](HANDOFF_2026-10-18_A2854.md). Read that document first when resuming after a conversation reset; the notes below are the chronological engineering log.
+
+
 This feature branch explores A2854 support without altering the original
 first-generation Siri Remote path. **No native Windows A2854 hardware success
 has been claimed.** As of 2026-10-18, the owner's physical A2854 was decoded
