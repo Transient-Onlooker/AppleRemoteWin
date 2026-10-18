@@ -86,6 +86,29 @@ Measurements and provenance:
 [hardware sample fixtures](https://github.com/Transient-Onlooker/siri-remote-for-windows/blob/main/docs/windows-port/OBSERVED_REPORT_FIXTURES.md),
 [protocol findings](https://github.com/Transient-Onlooker/siri-remote-for-windows/blob/main/docs/windows-port/PROTOCOL_FINDINGS.md).
 
+## 2026-10-18 Windows 11 owner-run build and test validation
+
+Owner ran these commands in Windows PowerShell on a physical laptop after
+installing Microsoft .NET SDK 10.0.402:
+
+```text
+dotnet --list-sdks
+10.0.402 [C:\\Program Files\\dotnet\\sdk]
+dotnet test tests/AppleRemote.Tests -c Release
+Total: 89, Failed: 0, Passed: 89, Skipped: 0
+Build succeeded.
+dotnet build tools/A2854.Probe/A2854.Probe.csproj -c Release
+AppleRemote.Core succeeded.
+AppleRemote.Windows succeeded.
+A2854.Probe succeeded.
+Build succeeded.
+```
+
+These are **real Windows compile and unit-test results** provided by the
+owner, not simulated CI. The direct BLE adapter route and A2854 connection
+have **not yet been run on hardware**. The core decoder's historical hardware
+fixtures passed; no microphone or kernel-driver experiment was conducted.
+
 ## Next hardware experiment
 
 Use an independent WinUSB Bluetooth controller, run this console, and share
