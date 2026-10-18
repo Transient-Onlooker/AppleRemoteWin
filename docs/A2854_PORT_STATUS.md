@@ -164,6 +164,36 @@ Do not replace the laptop's internal Bluetooth USB driver merely to
 test this probe. A separate USB adapter under WinUSB is the safe direct-HCI
 experiment; a distinct native BTHUSB integration would be a new backend.
 
+## Final attempt: built-in Windows HID child only (2026-10-18)
+
+A guarded PowerShell script has been added at
+`tools/A2854.Probe/LastBuiltinHidAttempt.ps1`. It runs on the **native
+Windows** host; it does not require an independent WinUSB Bluetooth
+adapter. It is a targeted attempt to recover the existing **failed Windows
+HIDClass device**, not a way to bypass protected GATT access.
+
+1. Run `git pull --ff-only` on `feat/a2854-support`.
+2. In normal PowerShell run the script **without arguments** for a
+   read-only preflight.
+3. If and only if it reports exactly one matching `DL1`/Siri Remote
+   descendant (`HIDClass` + `mshidumdf` + Code 10 + NTSTATUS
+   `0xC00000B9`), explicitly launch elevated PowerShell and run
+   the script with `-Restart` once.
+4. It restarts **only** that HID child via the documented
+   `pnputil /restart-device <instance id>`; it never restarts the Intel
+   AX200 controller itself, changes `BTHUSB`, reinstalls drivers,
+   changes pairing, or modifies registry entries.
+5. It reports whether the child reached `OK`; it **does not** prove raw
+   `0xFB` or `0xFC` delivery. If `OK`, check a newly usable Windows
+   HID interface in a separate follow-up; otherwise stop.
+
+No GitHub Actions or real PowerShell parser were available in the authoring
+environment for this script. The owner must first confirm the preflight
+output on physical Windows and should not treat this as hardware-validated.
+
+Microsoft documentation:
+https://learn.microsoft.com/en-us/windows-hardware/drivers/devtest/pnputil-command-syntax
+
 ## Next hardware experiment
 
 Use an independent WinUSB Bluetooth controller, run this console, and share
