@@ -1,5 +1,8 @@
 # Siri Remote (gen 1) for Windows 11
 
+> **A2854 (Siri Remote 3rd gen) experimental fork branch:** [2026-10-18 comprehensive Korean handoff](docs/HANDOFF_2026-10-18_A2854.md) and [current A2854 status](docs/A2854_PORT_STATUS.md). This is **not a tested Windows A2854 release**. All existing gen-1 instructions below refer to the upstream project.
+
+
 *[Version française](README.fr.md)*
 
 A **WPF (.NET 10)** application plus a user-mode driver to use the gen 1 Siri Remote (Apple TV 2015/2017, A1513/A1962)
