@@ -24,10 +24,12 @@ sealed class FakeRemote
     public int Pairings;
     readonly SortedDictionary<ushort, (byte[] Type, byte[] Value)> _db = new();
     bool _connected;
+    readonly byte _addressType;
     byte[] _preq = [], _pres = [], _mconfirm = [], _srand = [], _stk = [];
 
-    public FakeRemote()
+    public FakeRemote(bool randomAddress = false)
     {
+        _addressType = randomAddress ? (byte)1 : (byte)0;
         Hci = new HciHost(OnCommand, OnAcl);
         Service(0x0001, 0x1800); Service(0x0006, 0x1801); Service(0x000A, 0x180A);
         Service(0x0015, 0x1812);
@@ -64,6 +66,7 @@ sealed class FakeRemote
         switch (op)
         {
             case HciOpcode.LeCreateConnection:
+                Assert.Equal(_addressType, c[8]); // HCI peer address type, public=0/random=1
                 Status();
                 if (_connected) return;   // a single connection in this test: then we wait (cancellation)
                 _connected = true;
@@ -86,7 +89,7 @@ sealed class FakeRemote
             case HciOpcode.LeSetScanEnable when c[3] == 1:
                 Event(0x0E, 0x04, 0x01, c[0], c[1], 0x00);
                 Advertise(0x01, BdAddr.Parse("7D:7B:01:30:5A:4E"), PhoneAdvertisement);   // random, no HID: ignored
-                Advertise(0x00, BdAddr.Parse(Address), PairingAdvertisement);
+                Advertise(_addressType, BdAddr.Parse(Address), PairingAdvertisement);
                 break;
             case HciOpcode.ReadBdAddr:
                 Event([0x0E, 0x0A, 0x01, c[0], c[1], 0x00, .. BdAddr.Parse(PcAddress)]);
@@ -136,7 +139,7 @@ sealed class FakeRemote
     void OnSmp(byte[] pdu)
     {
         byte[] tk = new byte[16];
-        byte[] Confirm(byte[] r) => SmpCrypto.C1(tk, r, _preq, _pres, 0, BdAddr.Parse(PcAddress), 0, BdAddr.Parse(Address));
+        byte[] Confirm(byte[] r) => SmpCrypto.C1(tk, r, _preq, _pres, 0, BdAddr.Parse(PcAddress), _addressType, BdAddr.Parse(Address));
         switch (pdu[0])
         {
             case 0x01:   // Pairing Request -> response: no input/output, bonding, 16-byte key, distributes its LTK
@@ -228,6 +231,40 @@ public class SiriRemoteBleTests
             Assert.Equal(new[] { "fce0206002", "fc0020", "" }, reports);         // "": link lost, release everything
             Assert.Equal(new[] { 87, 86 }, battery);                             // read on connection, then notified
             Assert.DoesNotContain(statuses, s => Loc.StartsWith(s, "Status.Error") || Loc.StartsWith(s, "Status.BtError"));
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public async Task Random_address_peer_is_discovered_connected_and_paired_with_correct_smp_address_type()
+    {
+        string path = Path.Combine(Path.GetTempPath(), $"appleremote-random-peer-{Guid.NewGuid():N}.json");
+        try
+        {
+            var remote = new FakeRemote(randomAddress: true);
+            var connected = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+
+            var driver = new SiriRemoteBle(remote.Hci, new BondStore(path),
+                (_, _) => { },
+                status =>
+                {
+                    if (Loc.StartsWith(status, "Status.ConnectedDirect")) connected.TrySetResult();
+                },
+                adapterName: "test", inputReportIds: new HashSet<byte> { 0xFB, 0xFC },
+                allowRandomAddress: true);
+
+            Task run = driver.RunAsync(cts.Token);
+            await connected.Task.WaitAsync(cts.Token);
+            Assert.Equal(1, remote.Pairings);
+            Assert.Contains("0x0024 0100", remote.Writes); // only matching 0xFC report subscribed
+            Assert.Contains("0x001D AF", remote.Writes);   // feature unlock
+
+            cts.Cancel();
+            await run;
         }
         finally
         {
