@@ -56,6 +56,9 @@ public sealed class BondStore(string path)
     JsonObject Read() => File.Exists(path) ? JsonNode.Parse(File.ReadAllText(path)) as JsonObject ?? new() : new();
 }
 
+/// <summary>Peer address and HCI address type (0 = public, 1 = random).</summary>
+public readonly record struct LePeer(string Address, byte AddressType);
+
 /// <summary>
 /// LE "central" role on top of <see cref="HciHost"/>: controller initialisation, connection to a public address,
 /// encryption with known keys, disconnection tracking, L2CAP frames. One connection at a time.
@@ -69,7 +72,7 @@ public sealed class LeCentral
     readonly HciHost _hci;
     readonly List<byte> _rx = new();   // trame L2CAP en cours de reconstitution
     TaskCompletionSource<ushort>? _connecting;
-    (Func<byte[], bool> Match, TaskCompletionSource<string> Found)? _scan;
+    (Func<byte[], bool> Match, TaskCompletionSource<LePeer> Found, bool AllowRandom)? _scan;
     TaskCompletionSource? _encrypting;
 
     public LeCentral(HciHost hci)
@@ -124,8 +127,9 @@ public sealed class LeCentral
     /// Connects as soon as the device (public address) shows up: advertising in pairing mode, or a button press
     /// after sleep. Waits indefinitely; cancellation abandons the attempt. Returns the connection handle.
     /// </summary>
-    public async Task<ushort> ConnectAsync(string address, CancellationToken ct = default)
+    public async Task<ushort> ConnectAsync(string address, CancellationToken ct = default, byte peerAddressType = 0)
     {
+        if (peerAddressType is not (0 or 1)) throw new ArgumentOutOfRangeException(nameof(peerAddressType));
         var connecting = _connecting = new TaskCompletionSource<ushort>(TaskCreationOptions.RunContinuationsAsynchronously);
         byte[] scan = [0x60, 0x00, 0x30, 0x00];   // scan: 60 ms interval, 30 ms window
         byte[] link =
@@ -138,9 +142,9 @@ public sealed class LeCentral
         // No filter list: the device's public address; our public address: the remote (BT 4.0) reconnects poorly to a changing one.
         if (Extended)
             await _hci.CommandAsync(HciOpcode.LeExtendedCreateConnection,
-                [0x00, 0x00, 0x00, .. BdAddr.Parse(address), 0x01 /* 1M PHY */, .. scan, .. link]);
+                [0x00, 0x00, peerAddressType, .. BdAddr.Parse(address), 0x01 /* 1M PHY */, .. scan, .. link]);
         else
-            await _hci.CommandAsync(HciOpcode.LeCreateConnection, [.. scan, 0x00, 0x00, .. BdAddr.Parse(address), 0x00, .. link]);
+            await _hci.CommandAsync(HciOpcode.LeCreateConnection, [.. scan, 0x00, peerAddressType, .. BdAddr.Parse(address), 0x00, .. link]);
         await using var cancel = ct.Register(() => _ = _hci.CommandAsync(HciOpcode.LeCreateConnectionCancel));
         try
         {
@@ -152,13 +156,18 @@ public sealed class LeCentral
         }
     }
 
+    /// <summary>Legacy scan: first matching public-address advertiser (preserves gen-1 behavior).</summary>
+    public async Task<string> ScanAsync(Func<byte[], bool> match, CancellationToken ct = default) =>
+        (await ScanPeerAsync(match, allowRandom: false, ct)).Address;
+
     /// <summary>
-    /// Scans advertisements until one whose data matches is found; returns the sender's (public) address.
+    /// Scan for a matching peer. Optional random-address acceptance is needed for BLE privacy addresses;
+    /// the address type must be forwarded to the connection and SMP pairing procedure.
     /// </summary>
-    public async Task<string> ScanAsync(Func<byte[], bool> match, CancellationToken ct = default)
+    public async Task<LePeer> ScanPeerAsync(Func<byte[], bool> match, bool allowRandom, CancellationToken ct = default)
     {
-        var found = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
-        _scan = (match, found);
+        var found = new TaskCompletionSource<LePeer>(TaskCreationOptions.RunContinuationsAsynchronously);
+        _scan = (match, found, allowRandom);
         try
         {
             // Active (the scan response may carry data), 60 ms / 30 ms, our public address, no filtering.
@@ -242,11 +251,12 @@ public sealed class LeCentral
         }
     }
 
-    void OnAdvertisement((Func<byte[], bool> Match, TaskCompletionSource<string> Found) scan, byte addressType, byte[] address,
+    void OnAdvertisement((Func<byte[], bool> Match, TaskCompletionSource<LePeer> Found, bool AllowRandom) scan, byte addressType, byte[] address,
         sbyte rssi, byte[] data)
     {
         Advertisement?.Invoke(address, rssi, data);
-        if (addressType == 0x00 && scan.Match(data)) scan.Found.TrySetResult(BdAddr.Format(address));
+        if (addressType is 0x00 or 0x01 && (addressType == 0x00 || scan.AllowRandom) && scan.Match(data))
+            scan.Found.TrySetResult(new LePeer(BdAddr.Format(address), addressType));
     }
 
     void OnEvent(byte code, byte[] p)
