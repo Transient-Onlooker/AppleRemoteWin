@@ -49,8 +49,10 @@ public static class SmpPairing
         EncryptionInformation = 0x06, MasterIdentification = 0x07;
     const byte NoInputNoOutput = 0x03, Bonding = 0x01, EncKey = 0x01;
 
-    public static async Task<BondKeys> PairAsync(LeCentral central, ushort handle, byte[] localAddress, byte[] remoteAddress)
+    public static async Task<BondKeys> PairAsync(LeCentral central, ushort handle, byte[] localAddress, byte[] remoteAddress,
+        byte remoteAddressType = 0)
     {
+        if (remoteAddressType is not (0 or 1)) throw new ArgumentOutOfRangeException(nameof(remoteAddressType));
         var inbox = Channel.CreateUnbounded<byte[]>();
         void OnData(ushort h, ushort cid, byte[] pdu) { if (h == handle && cid == LeCentral.CidSmp && pdu.Length > 0) inbox.Writer.TryWrite(pdu); }
         void Send(byte[] pdu) => central.SendL2cap(handle, LeCentral.CidSmp, pdu);
@@ -82,7 +84,7 @@ public static class SmpPairing
 
             byte[] tk = new byte[16];   // Just Works: all-zero temporary key
             byte[] mrand = RandomNumberGenerator.GetBytes(16);
-            byte[] Confirm(byte[] rand) => SmpCrypto.C1(tk, rand, preq, pres, 0, localAddress, 0, remoteAddress);
+            byte[] Confirm(byte[] rand) => SmpCrypto.C1(tk, rand, preq, pres, 0, localAddress, remoteAddressType, remoteAddress);
 
             Send([PairingConfirm, .. Confirm(mrand)]);
             byte[] sconfirm = (await Expect(PairingConfirm, 17))[1..17];
