@@ -59,7 +59,7 @@ function Test-IsDescendant([string]$child, [string]$parent) {
 # target object so the unique instance path never appears in console output.
 $target = $null
 try {
-    // Only enumerate currently present devices; stale/phantom Bluetooth nodes must not be restart targets.
+    # Only enumerate currently present devices; stale/phantom Bluetooth nodes must not be restart targets.
     $all = @(Get-PnpDevice -PresentOnly -ErrorAction Stop)
     $remotes = @($all | Where-Object {
         $_.Class -eq 'Bluetooth' -and
@@ -68,7 +68,7 @@ try {
     Write-Output ('Remote anchor candidates: {0}' -f $remotes.Count)
     if ($remotes.Count -ne 1) { throw 'No unique remote anchor; stopping.' }
     $remoteId = [string]$remotes[0].InstanceId
-    $matches = @(
+    $matchingHidNodes = @(
         foreach ($node in $all) {
             $id = [string]$node.InstanceId
             if ($node.Class -ne 'HIDClass' -or
@@ -80,9 +80,9 @@ try {
             if ($problem -eq '10' -and $status -eq $expectedStatus) { $node }
         }
     )
-    Write-Output ('Unique failed HID candidates: {0}' -f $matches.Count)
-    if ($matches.Count -ne 1) { throw 'No unique matching failed HID child; stopping.' }
-    $target = $matches[0]
+    Write-Output ('Unique failed HID candidates: {0}' -f $matchingHidNodes.Count)
+    if ($matchingHidNodes.Count -ne 1) { throw 'No unique matching failed HID child; stopping.' }
+    $target = $matchingHidNodes[0]
 } catch {
     Write-Output ('Preflight: STOP ({0}). No changes made.' -f $_.Exception.GetType().Name)
     Write-Output 'Run the earlier read-only PnP diagnostics to investigate.'
