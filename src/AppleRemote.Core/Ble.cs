@@ -124,7 +124,7 @@ public sealed class LeCentral
     }
 
     /// <summary>
-    /// Connects as soon as the device (public address) shows up: advertising in pairing mode, or a button press
+    /// Connects as soon as the peer (public or random address) shows up: advertising in pairing mode, or a button press
     /// after sleep. Waits indefinitely; cancellation abandons the attempt. Returns the connection handle.
     /// </summary>
     public async Task<ushort> ConnectAsync(string address, CancellationToken ct = default, byte peerAddressType = 0)
@@ -255,7 +255,7 @@ public sealed class LeCentral
         sbyte rssi, byte[] data)
     {
         Advertisement?.Invoke(address, rssi, data);
-        if (addressType is 0x00 or 0x01 && (addressType == 0x00 || scan.AllowRandom) && scan.Match(data))
+        if ((addressType is 0x00 or 0x01) && (addressType == 0x00 || scan.AllowRandom) && scan.Match(data))
             scan.Found.TrySetResult(new LePeer(BdAddr.Format(address), addressType));
     }
 
