@@ -208,3 +208,44 @@ the new decoder into the main GUI.
 The fork and original project are AGPL-3.0-or-later; preserve original
 copyright and licensing notices. This branch has not been submitted to the
 upstream maintainer.
+
+## 2026-10-19: One-time built-in HID restart failed; prepare direct-HCI privacy-address support
+
+Owner-provided native Windows result on the physical A2854:
+
+```text
+Remote anchor candidates: 1
+Unique failed HID candidates: 1
+Target checks passed: one remote descendant, HIDClass, mshidumdf, Code 10, NTSTATUS 0xC00000B9.
+PnP restart exit code: 0
+After restart: device status=Error; problem code=10; NTSTATUS=0xC00000B9
+HID not recovered (or not proven recovered).
+```
+
+Preflight matched exactly one failed Siri Remote HID descendant, and an administrator
+restarted **that HID child exactly once**. The restart command returned 0, but
+the node remained Code 10 / 0xC00000B9. The built-in Intel AX200 remained
+healthy with BTHUSB and driver 23.160.0.9. No raw Windows 0xFB or 0xFC
+input was received; do not repeat this same restart or install the gen-1
+kernel filter in an attempt to recover A2854.
+
+The next hardware path is a *separate*, USB Bluetooth controller under
+WinUSB. The original upstream has tested the TP-Link UB500 Realtek
+RTL8761B/RTL8761BU controller family for gen 1, but that does not
+constitute an A2854 compatibility claim. Verify the adapter's actual USB
+VID/PID and provide a driver restoration plan before changing the **external**
+controller's driver; preserve the built-in AX200.
+
+Ahead of this experiment, the feature branch now passes discovered BLE
+peer address type (public or random) to HCI Create Connection and
+legacy SMP confirm generation when the A2854 probe opts in.
+The rotating/random address is freshly scanned rather than blindly
+reconnecting to a stale stored address. This is a proposed
+code path, **not yet build-verified or hardware-verified** at the time
+of writing; its single-remote LTK reuse assumes only one A2854 in range.
+A simulated peer regression test was added. The gen-1 path continues
+using public-address scanning by default.
+
+A2854 pairing security mode, advertisement fragmentation, possible
+resolvable-private-address identity handling and actual 0xFB/0xFC
+receipt over the new controller remain open.
