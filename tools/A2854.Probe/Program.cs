@@ -127,7 +127,7 @@ internal static partial class Program
 
             var driver = new SiriRemoteBle(usb.Host, new BondStore(bondsPath),
                 OnReport, OnStatus, adapterName: "WinUSB",
-                inputReportIds: new HashSet<byte> { 0xFB, 0xFC });
+                inputReportIds: new HashSet<byte> { 0xFB, 0xFC }, allowRandomAddress: true);
 
             Task run = driver.RunAsync(cts.Token);
             try
