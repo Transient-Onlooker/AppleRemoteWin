@@ -17,7 +17,8 @@ namespace AppleRemote;
 /// <param name="adapterName">Adapter driven, shown in the status messages (logs).</param>
 public sealed class SiriRemoteBle(HciHost hci, BondStore bonds,
     Action<double, byte[]?> onReport, Action<string> onStatus, Action<int>? onBattery = null,
-    string adapterName = "?", IReadOnlySet<byte>? inputReportIds = null)
+    string adapterName = "?", IReadOnlySet<byte>? inputReportIds = null,
+    bool allowRandomAddress = false)
 {
     const ushort HidService = 0x1812, Report = 0x2A4D, ReportReference = 0x2908, ClientConfiguration = 0x2902,
         BatteryService = 0x180F, BatteryLevel = 0x2A19;
@@ -56,10 +57,21 @@ public sealed class SiriRemoteBle(HciHost hci, BondStore bonds,
         {
             gone = new TaskCompletionSource<byte>(TaskCreationOptions.RunContinuationsAsynchronously);
             string address;
+            byte peerAddressType = 0;
             ushort handle;
             try
             {
-                if (bonds.Addresses.FirstOrDefault() is { } known)
+                if (allowRandomAddress)
+                {
+                    // A2854 can advertise under a rotating random BLE address. A stored bond
+                    // address is not a reliable reconnect target; scan again for the live peer.
+                    onStatus(Loc.T("Status.WaitPairing"));
+                    LePeer peer = await central.ScanPeerAsync(IsSiriRemoteAdvertisement, allowRandom: true, ct);
+                    address = peer.Address;
+                    peerAddressType = peer.AddressType;
+                    onStatus(Loc.T("Status.Found", address, adapterName));
+                }
+                else if (bonds.Addresses.FirstOrDefault() is { } known)
                 {
                     address = known;
                     onStatus(Loc.T("Status.WaitBonded"));
@@ -70,7 +82,7 @@ public sealed class SiriRemoteBle(HciHost hci, BondStore bonds,
                     address = await central.ScanAsync(IsSiriRemoteAdvertisement, ct);
                     onStatus(Loc.T("Status.Found", address, adapterName));
                 }
-                handle = await central.ConnectAsync(address, ct);
+                handle = await central.ConnectAsync(address, ct, peerAddressType);
             }
             catch (OperationCanceledException) when (ct.IsCancellationRequested)
             {
@@ -80,7 +92,7 @@ public sealed class SiriRemoteBle(HciHost hci, BondStore bonds,
             GattClient? gatt = null;
             try
             {
-                await SecureAsync(central, handle, address);
+                await SecureAsync(central, handle, address, peerAddressType);
 
                 gatt = new GattClient(central, handle);
                 var inputs = new Dictionary<ushort, byte>();   // handle de valeur -> ID du rapport
@@ -120,9 +132,16 @@ public sealed class SiriRemoteBle(HciHost hci, BondStore bonds,
     /// Encrypts with the stored keys; without keys, or if the remote rejects them (it was paired elsewhere meanwhile),
     /// pairs "Just Works" on the same connection and stores the new LTK.
     /// </summary>
-    async Task SecureAsync(LeCentral central, ushort handle, string address)
+    async Task SecureAsync(LeCentral central, ushort handle, string address, byte peerAddressType)
     {
-        if (bonds.Load(address) is { } bond)
+        // A2854 privacy addresses may rotate between connections. This experimental,
+        // single-remote probe can reuse its one saved LTK after scanning a fresh address.
+        string? priorAddress = bonds.Addresses.FirstOrDefault();
+        BondKeys? priorKeys = bonds.Load(address);
+        if (priorKeys is null && allowRandomAddress && bonds.Addresses.Count == 1 && priorAddress is not null)
+            priorKeys = bonds.Load(priorAddress);
+
+        if (priorKeys is { } bond)
         {
             try
             {
@@ -140,7 +159,11 @@ public sealed class SiriRemoteBle(HciHost hci, BondStore bonds,
         {
             onStatus(Loc.T("Status.PairingFirst"));
         }
-        BondKeys keys = await SmpPairing.PairAsync(central, handle, central.LocalAddress, BdAddr.Parse(address));
+        BondKeys keys = await SmpPairing.PairAsync(central, handle, central.LocalAddress,
+            BdAddr.Parse(address), peerAddressType);
+        if (allowRandomAddress && priorAddress is not null &&
+            !priorAddress.Equals(address, StringComparison.OrdinalIgnoreCase))
+            bonds.Clear();
         bonds.Save(address, keys);
     }
 
