@@ -41,15 +41,26 @@ public static class WinUsbDriver
         string output = Ps("""
             [Console]::OutputEncoding = [Text.Encoding]::UTF8
             Get-PnpDevice -PresentOnly -ErrorAction SilentlyContinue |
-                Where-Object { $_.InstanceId -like 'USB\VID_*' -and $_.CompatibleID -contains 'USB\Class_E0&SubClass_01&Prot_01' } |
-                ForEach-Object { "$($_.InstanceId)|$($_.Service)|$($_.FriendlyName)" }
+                Where-Object { $_.InstanceId -like 'USB\VID_*' } |
+                ForEach-Object {
+                    $id = $_.InstanceId
+                    $compatible = @((
+                        Get-PnpDeviceProperty -InstanceId $id -KeyName 'DEVPKEY_Device_CompatibleIds' -ErrorAction SilentlyContinue
+                    ).Data)
+                    if ($compatible -contains 'USB\Class_E0&SubClass_01&Prot_01') {
+                        $service = (
+                            Get-PnpDeviceProperty -InstanceId $id -KeyName 'DEVPKEY_Device_Service' -ErrorAction SilentlyContinue
+                        ).Data
+                        "$id|$service|$($_.FriendlyName)"
+                    }
+                }
             exit 0
             """, Encoding.UTF8);
         var adapters = new List<Adapter>();
         foreach (string line in output.Split('\n', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries))
         {
             string[] f = line.Split('|', 3);
-            var m = System.Text.RegularExpressions.Regex.Match(f[0], @"VID_([0-9A-F]{4})&PID_([0-9A-F]{4})");
+            var m = System.Text.RegularExpressions.Regex.Match(f[0], @"VID_([0-9A-F]{4})&PID_([0-9A-F]{4})", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
             if (f.Length < 3 || !m.Success) continue;
             adapters.Add(new Adapter(f[0], f[2],
                 new UsbHci.UsbId(Convert.ToUInt16(m.Groups[1].Value, 16), Convert.ToUInt16(m.Groups[2].Value, 16)),
