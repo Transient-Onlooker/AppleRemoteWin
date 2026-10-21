@@ -13,6 +13,7 @@
 | [Architecture](ARCHITECTURE.md) | Ownership and boundaries of Windows, Linux and hardware paths |
 | [Protocol and evidence](PROTOCOL_AND_EVIDENCE.md) | Known A2854 reports, provenance and unresolved behavior |
 | [Hardware validation](HARDWARE_VALIDATION.md) | Safe experimental order / stop conditions |
+| [Purchased BR8652A12 dongle](BARROT_BR8652A12.md) | Axxen/Barrot chipset evidence, version ambiguity and Windows USB read-only preflight |
 | [Consolidation record](CONSOLIDATION.md) | Source commit, copied-file SHA checks, licenses and Git history |
 
 ## Latest verified status
@@ -26,7 +27,7 @@
 | Windows C# A2854 decoder and diagnostic program | **Implemented**; earlier 89 tests passed and probe built before latest BLE privacy-address changes |
 | Current privacy-address implementation | **Committed but post-change Windows tests not yet reported** |
 | ThinkPad T490s built-in Bluetooth | Owner confirmed **Intel Wireless-AC 9560**; A2854 test **not conducted** |
-| USB Bluetooth dongles | Investigated, **no A2854 WinUSB device input result** |
+| **Purchased Axxen USB dongle** | Owner reports **Barrot BR8652A12**; USB VID:PID/WinUSB/A2854 test still **pending** |
 | Working Windows mouse / media remote | **Not yet delivered** |
 
 ## What to do next
