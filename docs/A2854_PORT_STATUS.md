@@ -1,5 +1,7 @@
 # Siri Remote A2854 (third generation) — development branch
 
+> **Latest checkpoint (2026-10-21):** [current consolidated Korean handoff](HANDOFF_2026-10-21_A2854.md). The one-time HID child restart ran on the actual Windows PC but Code 10 / 0xC00000B9 persisted. The recent random-address BLE changes remain **unverified by the next Windows test run**. A ThinkPad T490s with AC 9560 was reported but has **not** been tested with A2854; external dongle chipsets remain candidates, not proven support.
+
 > **Full handoff (Korean, 2026-10-18):** [HANDOFF_2026-10-18_A2854.md](HANDOFF_2026-10-18_A2854.md). Read that document first when resuming after a conversation reset; the notes below are the chronological engineering log.
 
 
