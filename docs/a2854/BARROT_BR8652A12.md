@@ -138,3 +138,29 @@ Before installation, the signing certificate lifetime was reduced to **30 days**
 **If not**: do not infer that the remote is incompatible. Report the actual blocked layer and weigh a different USB controller or a separate backend.
 
 This document distinguishes the purchased device, external research, code-read facts and all still unverified hypotheses.
+
+## 2026-10-22 milestone: WinUSB HCI on purchased 33FA:0001 — **real hardware SUCCESS**
+
+The local Windows agent installed the fork's **WinUSB OEM package `oem86.inf`** on the one external Barrot USB dongle. The PnP device now presents as **`USB2.0-BT` / Started**, with the original Intel `8087:0029` still **Started**. This is the **first physically proven native Windows HCI-over-USB communication** for the project, rather than simply a driver-enumeration success.
+
+The agent executed a previously built Release diagnostic executable with `--no-build --usb 33FA:0001 --hci-only` (the latest source did **not** build successfully during this run) and observed:
+
+```text
+USB controller: USB2.0-BT (33FA:0001); HCI EP0 request=0x21.
+HCI Reset OK
+Read Local Version OK:
+  HCI=0x09, revision=0x0202
+  LMP=0x09, manufacturer=0x08E7, subversion=0x0002
+HCI-only complete: no BLE scan or pairing attempted.
+```
+
+**Interpretation:**
+- USB WinUSB discovery/open, interface 0 endpoints, HCI EP0 class/interface request **0x21**, interrupt-event receive, `Reset` and `Read Local Version` have now been demonstrated on the **physical device**.
+- Bluetooth SIG [Assigned Numbers](https://www.bluetooth.com/wp-content/uploads/Files/Specification/HTML/Assigned_Numbers/out/en/index-en.html) maps HCI/LMP version `0x09` to **Bluetooth 5.0**, and manufacturer `0x08E7` to **Barrot Technology Co.,Ltd.**. This is a measured **reported controller stack version**, differing from the dongle's retail 5.3 label; do not infer chipset identity or BLE radio capabilities beyond measured HCI values.
+- **LE feature bit support, BLE scan/advertising, device connection, pairing, GATT, unlock and 0xFB/0xFC input are still untested.** HCI-only success cannot be described as Windows Siri Remote success.
+- The agent confirms the **experimental signing certificate** was installed in LocalMachine `My`, `Root` and `TrustedPublisher`, with matching recorded thumbprint. Certificate expiry: **2026-11-21**. Limit experiments to the intended adapter. The restore path has been implemented and documented but **has not been exercised on this physical dongle**.
+- **Build/test regression still unresolved:** this run's plain `dotnet run -c Release` build failed; `dotnet test -c Release` did not return and was stopped. The earlier **96/96** pass is historical and cannot be reported as a new pass at HEAD `8256a5aaa8c12b63cb697df66edad7491a6dd4e4`. The report does not include full compiler/restore logs, so there is **no grounded root-cause determination yet**. Request exact first build failure plus test hang stage before attempting speculative fixes. Do **not** overwrite the known-good binaries when evaluating source changes.
+- Local Git at the end of that experiment: branch `feat/a2854-support`, HEAD `8256a5aaa8c12b63cb697df66edad7491a6dd4e4`, clean. The new `--scan-only` code was subsequently added by ChatGPT and remains **unbuilt/untested** until the next local test.
+
+**Next order of operations:** diagnose Release build and `dotnet test` hang → produce a new clean build → run the privacy-safe **`--scan-only`** probe for 30 seconds against `--usb 33FA:0001` → only after confirmed LE scanning consider A2854 connection/SMP/GATT. `--scan-only` does not connect, pair, touch `a2854-probe-bonds.json`, or log BLE addresses/serials. If no advertising packets appear, report HCI LE command successes/failures and controller features, and inspect radio/pairing mode before changing any BLE algorithm.
+
