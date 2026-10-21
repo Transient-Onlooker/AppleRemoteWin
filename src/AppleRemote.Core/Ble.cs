@@ -121,8 +121,11 @@ public sealed class LeCentral
         await _hci.CommandAsync(HciOpcode.SetEventMask, BitConverter.GetBytes(0x2000_9FFF_FFFF_FFFFUL));
         byte[] features = await _hci.CommandAsync(HciOpcode.LeReadLocalFeatures);
         Extended = features.Length > 2 && (features[2] & 0x10) != 0;   // feature bit 12
-        // Default LE events + Extended Advertising Report (bit 12), masked by default.
-        if (Extended) await _hci.CommandAsync(HciOpcode.LeSetEventMask, BitConverter.GetBytes(0x101FUL));
+        // Legacy LE events (bits 0..4), Enhanced Connection Complete (bit 9)
+        // and Extended Advertising Report (bit 12). Without bit 9, a controller
+        // that reports only enhanced completions can leave ConnectAsync waiting
+        // despite a successful link. Keep the legacy-completion bit for compatibility.
+        if (Extended) await _hci.CommandAsync(HciOpcode.LeSetEventMask, BitConverter.GetBytes(0x121FUL));
         LocalAddress = (await _hci.CommandAsync(HciOpcode.ReadBdAddr))[1..7];
     }
 
