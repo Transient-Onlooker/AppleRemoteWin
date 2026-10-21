@@ -281,6 +281,19 @@ public class SiriRemoteBleTests
         Assert.False(SiriRemoteBle.IsSiriRemoteAdvertisement([0x09, 0x03, 0x12]));                                     // truncated
     }
 
+    [Fact]
+    public void A2854_bonding_scan_rejects_generic_Apple_HID_without_known_manufacturer_prefix()
+    {
+        byte[] known = FakeRemote.PairingAdvertisement;
+        Assert.True(SiriRemoteBle.IsA2854PairingAdvertisement(known));
+
+        byte[] weak = known.ToArray();
+        weak[11] = 0xAB;  // Keep 0x004C + HID 0x1812 but break known A2854 manufacturer header.
+        Assert.True(SiriRemoteBle.IsSiriRemoteAdvertisement(weak)); // Legacy match intentionally unchanged.
+        Assert.False(SiriRemoteBle.IsA2854PairingAdvertisement(weak));
+        Assert.False(SiriRemoteBle.IsA2854PairingAdvertisement(FakeRemote.PhoneAdvertisement));
+    }
+
     sealed class BondComparer : IEqualityComparer<BondKeys?>
     {
         public bool Equals(BondKeys? a, BondKeys? b) =>
