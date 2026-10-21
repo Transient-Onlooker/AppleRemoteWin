@@ -82,7 +82,7 @@ public class BleTests
         var central = new LeCentral(hci);
         await central.InitializeAsync();
         Assert.True(central.Extended);
-        Assert.Contains(sent, c => c[0] == 0x01 && c[1] == 0x20 && c[3] == 0x1F && c[4] == 0x10);   // LE event mask: + extended report
+        Assert.Contains(sent, c => c[0] == 0x01 && c[1] == 0x20 && c[3] == 0x1F && c[4] == 0x12);   // LE event mask: enhanced connection + extended advertising
 
         var scanning = central.ScanAsync(SiriRemoteBle.IsSiriRemoteAdvertisement);
         Assert.Equal(new byte[] { 0x41, 0x20, 8, 0x00, 0x00, 0x01, 0x01, 0x60, 0x00, 0x30, 0x00 }, sent[^2]);
@@ -97,8 +97,10 @@ public class BleTests
         byte[] expected = [0x43, 0x20, 26, 0x00, 0x00, 0x00, .. BdAddr.Parse(FakeRemote.Address), 0x01, 0x60, 0x00, 0x30, 0x00,
             0x0C, 0x00, 0x18, 0x00, 0x00, 0x00, 0xC8, 0x00, 0, 0, 0, 0];
         Assert.Equal(expected, sent[^1]);
-        hci.ReceiveEventBytes([0x3E, 0x13, 0x01, 0x00, 0x40, 0x00, 0x00, 0x00, .. BdAddr.Parse(FakeRemote.Address),
-            0x18, 0x00, 0x00, 0x00, 0xC8, 0x00, 0x00]);
+        // Extended HCI v5 controller sends LE Enhanced Connection Complete (subevent 0x0A).
+        // The previously configured event mask must enable bit 9 for this to be delivered.
+        hci.ReceiveEventBytes([0x3E, 0x1F, 0x0A, 0x00, 0x40, 0x00, 0x00, 0x00, .. BdAddr.Parse(FakeRemote.Address),
+            .. new byte[12], 0x18, 0x00, 0x00, 0x00, 0xC8, 0x00, 0x00]);
         Assert.Equal((ushort)0x0040, await connecting);
     }
 
