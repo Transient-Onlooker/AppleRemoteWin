@@ -10,6 +10,16 @@
 
 **Integrity check before promotion:** the source had **100 tracked blob files, 842,467 bytes**. After import, all **100 destination blob SHA-1 hashes** and total file sizes matched the source snapshot; no missing/extra files under the snapshot prefix. Git blob SHA equality verifies copied file bytes exactly, including Rust sources, license, tests and docs.
 
+### Reproducible integrity check
+
+All individual relative paths, Git blob SHA-1 values, file modes, and byte lengths are listed in [`SNAPSHOT_MANIFEST.tsv`](SNAPSHOT_MANIFEST.tsv). From the destination repository root, run:
+
+```bash
+python tools/verify_a2854_reference.py
+```
+
+The verification hashes the current **Git-tracked** reference files byte-for-byte (excluding untracked build output) and ensures no tracked path is missing or extra. The check is also wired into the `python-probe` GitHub Actions job. GitHub source-vs-destination tree SHA comparison was performed at import time; a future CI run is **not** assumed to have succeeded without a reported result.
+
 ## Why a snapshot instead of a source-branch merge
 
 - The two repositories have unrelated build systems and Git histories. The current GitHub integration supported copying their file content and constructing a commit/tree, rather than executing an unrelated-history `git subtree` merge.
