@@ -29,6 +29,9 @@ public sealed class UsbHci : IDisposable
     /// <summary>PnP instance ID (<c>USB\VID_…&amp;PID_…\serial</c>), as in the settings.</summary>
     public string InstanceId { get; }
 
+    /// <summary>USB HCI EP0 request type (0x20 default; 0x21 for documented Barrot models).</summary>
+    public byte CommandRequestType => _commandRequestType;
+
     /// <summary>USB read error (adapter removed, driver changed…). Raised from a reader thread.</summary>
     public event Action<string>? Failed;
 
@@ -84,12 +87,16 @@ public sealed class UsbHci : IDisposable
     /// whatever its VID/PID: the one with this PnP instance ID, or the first found if null.
     /// </summary>
     /// <param name="present">The device with this instance ID is plugged in (whatever its driver).</param>
-    static UsbHci? TryOpenAdapter(string? instanceId, out bool present)
+    static UsbHci? TryOpenAdapter(string? instanceId, out bool present, UsbId? targetId = null)
     {
         present = false;
         foreach (string path in EnumerateUsbPaths())
         {
-            if (instanceId is not null && !PathInstanceId(path).Equals(instanceId, StringComparison.OrdinalIgnoreCase)) continue;
+            string candidate = PathInstanceId(path);
+            if (instanceId is not null && !candidate.Equals(instanceId, StringComparison.OrdinalIgnoreCase)) continue;
+            if (targetId is { } id &&
+                !candidate.Contains($"VID_{id.Vid:X4}&PID_{id.Pid:X4}", StringComparison.OrdinalIgnoreCase))
+                continue;
             present = true;
             var handle = CreateFile(path, GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, IntPtr.Zero,
                 OPEN_EXISTING, FILE_FLAG_OVERLAPPED, IntPtr.Zero);
@@ -118,6 +125,14 @@ public sealed class UsbHci : IDisposable
         return TryOpenAdapter(null, out _) ?? throw new InvalidOperationException(
             "No USB Bluetooth adapter under WinUSB (WinUSB driver installed, PC restarted since, adapter not already in use?).");
     }
+
+    /// <summary>
+    /// Opens only a dedicated WinUSB adapter matching the requested USB VID/PID.
+    /// Useful for avoiding inadvertent selection of unrelated adapters during experiments.
+    /// </summary>
+    public static UsbHci OpenForUsbId(UsbId id) =>
+        TryOpenAdapter(null, out _, id) ?? throw new InvalidOperationException(
+            $"No USB Bluetooth adapter {id} available under WinUSB.");
 
     static (byte Event, byte AclIn, byte AclOut) FindPipes(IntPtr usb)
     {
