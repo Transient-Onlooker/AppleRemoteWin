@@ -22,9 +22,11 @@ The earlier 89/89 tests and probe build passed **before** the latest privacy-add
 | --- | --- | --- |
 | TP-Link UB500 Realtek family, specific USB `2357:0604` | [Upstream PR #15](https://github.com/AnthoDingo/AppleRemoteWin/pull/15) reports Gen-1 direct-HCI testing | Other revisions; A2854 pairing and notification |
 | Daiso Bluetooth 5.0 (product 1035660), reported RTL8761BUV | Realtek family; plausible firmware-code reuse | Actual unit VID/PID, native HCI operation, A2854 |
-| Daiso Axxen Bluetooth 5.3, **reported** BR8651/BRLink | Related Barrot HCI implementations such as [brtusb](https://github.com/zhuzhuzihan/brtusb) | Actual unit chipset and VID/PID, proprietary init, WinUSB/A2854; **33FA:0001 is not verified for this store product** |
+| **PURCHASED: Daiso Axxen Bluetooth 5.3, owner-reported BR8652A12** | Actual external dongle is now available; BR8652A12 vendor documents list USB host interface, and [research notes](BARROT_BR8652A12.md) cover version/quirk evidence | **Read-only USB VID/PID & PnP interface enumeration pending**. No WinUSB/A2854 verification; previously guessed BR8651 is **not** the owner-reported chip |
 
 A Wi-Fi-only USB dongle is not a Bluetooth HCI controller. Bluetooth 5.3 branding alone does not establish suitability.
+
+**Current priority:** inspect the purchased Axxen BR8652A12 unit first. The discontinued Realtek Daiso option is no longer available to the owner; do not recommend repurchasing it as though it were the current test device. See the [BR8652A12 evidence and preflight](BARROT_BR8652A12.md).
 
 ## Gate 2 — direct USB HCI and BLE receive
 
