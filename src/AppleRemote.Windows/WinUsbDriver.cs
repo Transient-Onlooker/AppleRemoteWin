@@ -5,6 +5,7 @@ using System.ComponentModel;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Text;
+using Microsoft.Win32;
 
 namespace AppleRemote.Windows;
 
@@ -24,6 +25,7 @@ public enum AdapterDriver
 public static class WinUsbDriver
 {
     const string Publisher = "AppleRemoteWin", CertSubject = "CN=AppleRemoteWin WinUSB";
+    const int CertificateLifetimeDays = 30;
 
     static string HardwareId(ushort vid, ushort pid) => $@"USB\VID_{vid:X4}&PID_{pid:X4}";
 
@@ -77,10 +79,17 @@ public static class WinUsbDriver
     public static bool Install(string instanceId)
     {
         var id = Get(instanceId).Id;
+        var sameId = List().Where(a => a.Id == id).ToArray();
+        if (sameId.Length != 1 || !sameId[0].InstanceId.Equals(instanceId, StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException($"Expected one present {id} adapter matching the selected instance; found {sameId.Length}.");
         // ponytail: installs by VID/PID, so two identical adapters both switch to WinUSB; DiInstallDevice on the devnode if that matters.
         string hwid = HardwareId(id.Vid, id.Pid);
+        string statePath = $@"HKLM:\SOFTWARE\AppleRemoteWin\WinUsbDriver\{StateName(id)}";
         string root = Path.Combine(Path.GetTempPath(), "AppleRemoteWinUsb-" + Guid.NewGuid().ToString("N"));
         string pkg = Path.Combine(root, "pkg");
+        string phase = "creating the signing certificate and catalog";
+        string thumbprint = "";
+        bool updateAttempted = false;
         Directory.CreateDirectory(pkg);
         try
         {
@@ -88,22 +97,59 @@ public static class WinUsbDriver
             File.WriteAllText(inf, BuildInf(hwid), new UTF8Encoding(false));
 
             // Catalog signed with a self-signed certificate trusted by the machine (what libwdi/Zadig does).
-            Ps($$"""
+            string signingOutput = Ps($$"""
                 $c = Get-ChildItem Cert:\LocalMachine\My | Where-Object Subject -eq '{{CertSubject}}' | Select-Object -First 1
-                if (-not $c) { $c = New-SelfSignedCertificate -Type CodeSigningCert -Subject '{{CertSubject}}' -CertStoreLocation Cert:\LocalMachine\My -NotAfter (Get-Date).AddYears(10) }
+                if ($c) { throw 'An AppleRemoteWin USB signing certificate already exists. Review its thumbprint before installing.' }
+                $c = New-SelfSignedCertificate -Type CodeSigningCert -Subject '{{CertSubject}}' -CertStoreLocation Cert:\LocalMachine\My -NotAfter (Get-Date).AddDays({{CertificateLifetimeDays}})
+                Write-Output "APPLE_REMOTE_CERT_THUMBPRINT=$($c.Thumbprint)"
+                $state = '{{statePath}}'
+                New-Item -Path $state -Force | Out-Null
+                Set-ItemProperty -LiteralPath $state -Name CertificateThumbprint -Value $c.Thumbprint
                 $cer = Join-Path '{{root}}' 'cert.cer'
                 Export-Certificate -Cert $c -FilePath $cer | Out-Null
                 foreach ($s in 'Root', 'TrustedPublisher') { Import-Certificate -FilePath $cer -CertStoreLocation "Cert:\LocalMachine\$s" | Out-Null }
                 $cat = Join-Path '{{root}}' 'AppleRemoteWinUsb.cat'
                 New-FileCatalog -Path '{{pkg}}' -CatalogFilePath $cat -CatalogVersion 2.0 | Out-Null
-                Set-AuthenticodeSignature -FilePath $cat -Certificate $c | Out-Null
+                $signed = Set-AuthenticodeSignature -FilePath $cat -Certificate $c
+                if ($signed.Status -ne 'Valid') { throw "Catalog signing failed: $($signed.Status)" }
                 Copy-Item $cat '{{pkg}}'
                 """);
+            var thumbprintMatch = System.Text.RegularExpressions.Regex.Match(signingOutput, @"APPLE_REMOTE_CERT_THUMBPRINT=([0-9A-F]{40})", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+            if (!thumbprintMatch.Success) throw new InvalidOperationException("Signing phase did not return a certificate thumbprint.");
+            thumbprint = thumbprintMatch.Groups[1].Value.ToUpperInvariant();
 
             // INSTALLFLAG_FORCE: takes the current driver's place even if it ranks better (like Zadig).
+            phase = "binding WinUSB to the selected VID/PID";
+            updateAttempted = true;
             if (!Native.UpdateDriverForPlugAndPlayDevices(IntPtr.Zero, hwid, inf, 1, out bool reboot))
                 throw new Win32Exception(Marshal.GetLastWin32Error(), "Cannot install the WinUSB driver");
             return reboot;
+        }
+        catch (Exception e)
+        {
+            string activeService = "unknown";
+            if (updateAttempted)
+            {
+                try { activeService = Ps($"(Get-PnpDeviceProperty -InstanceId '{instanceId.Replace("'", "''")}' -KeyName 'DEVPKEY_Device_Service').Data").Trim(); }
+                catch { }
+            }
+            if (thumbprint.Length != 40)
+            {
+                var match = System.Text.RegularExpressions.Regex.Match(e.Message,
+                    @"APPLE_REMOTE_CERT_THUMBPRINT=([0-9A-F]{40})", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+                if (match.Success) thumbprint = match.Groups[1].Value.ToUpperInvariant();
+            }
+            bool retainedForRollback = updateAttempted &&
+                (activeService.Equals("WinUSB", StringComparison.OrdinalIgnoreCase) || activeService == "unknown");
+            if (!retainedForRollback && thumbprint.Length == 40)
+            {
+                try { RemoveRecordedCertificate(id, thumbprint); }
+                catch (Exception cleanup) { throw new InvalidOperationException($"Install failed during {phase}; certificate {thumbprint} cleanup also failed: {cleanup.Message}", e); }
+            }
+            string state = retainedForRollback
+                ? $"WinUSB is active; certificate {thumbprint} and its thumbprint record were retained for Restore()."
+                : thumbprint.Length == 40 ? $"certificate {thumbprint} was removed from the three machine stores where present." : "certificate thumbprint was not recovered; inspect the machine stores before retrying.";
+            throw new InvalidOperationException($"WinUSB install failed during {phase}; active device service={activeService}; {state}", e);
         }
         finally
         {
@@ -121,15 +167,35 @@ public static class WinUsbDriver
         string inf = Ps($"(Get-PnpDeviceProperty -InstanceId '{instanceId}' -KeyName 'DEVPKEY_Device_DriverInfPath').Data").Trim();
         if (!inf.StartsWith("oem", StringComparison.OrdinalIgnoreCase)) return true; // no third-party WinUSB (or inbox driver)
 
-        string provider = Ps($"(Get-PnpDeviceProperty -InstanceId '{instanceId}' -KeyName 'DEVPKEY_Device_DriverProvider').Data").Trim();
+        string provider = Ps($"(Get-PnpDeviceProperty -InstanceId '{instanceId.Replace("'", "''")}' -KeyName 'DEVPKEY_Device_DriverProvider').Data").Trim();
         Run("pnputil.exe", $"/delete-driver {inf} /uninstall /force");
         Run("pnputil.exe", "/scan-devices");
         if (provider == Publisher)
-            Ps($$"""
-                foreach ($s in 'My', 'Root', 'TrustedPublisher') { Get-ChildItem "Cert:\LocalMachine\$s" | Where-Object Subject -eq '{{CertSubject}}' | Remove-Item }
-                """);
+        {
+            var id = Get(instanceId).Id;
+            string thumbprint = Registry.GetValue($@"HKEY_LOCAL_MACHINE\SOFTWARE\AppleRemoteWin\WinUsbDriver\{id}", "CertificateThumbprint", "") as string ?? "";
+            if (thumbprint.Length != 40) throw new InvalidOperationException("The install certificate thumbprint is missing; left all certificates untouched.");
+            string service = Ps($"(Get-PnpDeviceProperty -InstanceId '{instanceId.Replace("'", "''")}' -KeyName 'DEVPKEY_Device_Service').Data").Trim();
+            if (service.Equals("WinUSB", StringComparison.OrdinalIgnoreCase))
+                throw new InvalidOperationException("WinUSB is still active after rescan; kept the recorded certificate for safety.");
+            RemoveRecordedCertificate(id, thumbprint);
+        }
         return false;
     }
+
+    static void RemoveRecordedCertificate(UsbHci.UsbId id, string thumbprint)
+    {
+        string stateKey = $@"SOFTWARE\AppleRemoteWin\WinUsbDriver\{StateName(id)}";
+        Ps($$"""
+            $thumb = '{{thumbprint}}'
+            foreach ($s in 'My', 'Root', 'TrustedPublisher') {
+                Get-ChildItem "Cert:\LocalMachine\$s" | Where-Object Thumbprint -eq $thumb | Remove-Item
+            }
+            Remove-ItemProperty -Path 'HKLM:\{{stateKey}}' -Name CertificateThumbprint -ErrorAction SilentlyContinue
+            """);
+    }
+
+    static string StateName(UsbHci.UsbId id) => $"VID_{id.Vid:X4}_PID_{id.Pid:X4}";
 
     static string BuildInf(string hwid) => $$"""
         [Version]

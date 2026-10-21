@@ -98,6 +98,9 @@ Console.WriteLine($"Installer completed; reboot required: {reboot}");
     $afterService = (Get-PnpDeviceProperty -InstanceId $afterDevices[0].InstanceId -KeyName DEVPKEY_Device_Service -ErrorAction SilentlyContinue).Data
     Write-Host "External adapter now: service=$afterService; PnP=$($afterDevices[0].Status)"
     if ($afterService -ne 'WinUSB' -or $afterDevices[0].Status -ne 'OK') { throw 'WinUSB did not reach PnP OK; do not run HCI probe. Inspect and restore the vendor driver if needed.' }
+    $certState = Get-ItemProperty -LiteralPath 'HKLM:\SOFTWARE\AppleRemoteWin\WinUsbDriver\VID_33FA_PID_0001' -Name CertificateThumbprint -ErrorAction Stop
+    if ($certState.CertificateThumbprint -notmatch '\A[0-9A-Fa-f]{40}\z') { throw 'Installed certificate thumbprint record is missing or invalid; stop before HCI testing.' }
+    Write-Host "Experiment certificate thumbprint: $($certState.CertificateThumbprint) (30-day validity)"
     $intelAfter = @(Get-PnpDevice -PresentOnly -ErrorAction SilentlyContinue | Where-Object { $_.InstanceId -like 'USB\VID_8087&PID_0029\*' })
     if ($intel.Count -eq 1 -and ($intelAfter.Count -ne 1 -or $intelAfter[0].Status -ne 'OK')) {
         throw 'Built-in Intel adapter state changed unexpectedly. Stop and inspect before HCI testing.'
