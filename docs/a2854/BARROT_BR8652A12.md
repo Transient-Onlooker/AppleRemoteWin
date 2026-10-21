@@ -90,6 +90,29 @@ New local-agent report at commit **`7c6d0cb8422468a3f6954a99612e933073f8f81b`**:
 
 Key official caveat: automatic inbox `winusb.inf` matching without manual selection only occurs if firmware advertises `USB\\MS_COMP_WINUSB` via Microsoft OS descriptors. The observed `E0/01/01` compatible ID **does not** establish this. [Microsoft explanation](https://learn.microsoft.com/en-us/windows-hardware/drivers/usbcon/automatic-installation-of-winusb).
 
+## PowerShell-only driver binding (2026-10-21)
+
+The fork now includes [`tools/A2854.Probe/InstallBarrotWinUsb.ps1`](../../tools/A2854.Probe/InstallBarrotWinUsb.ps1). It runs **the existing** `WinUsbDriver.Install()` from a temporary .NET 10 helper; it does not create or replace Microsoft's `winusb.sys`.
+
+To preflight without changing anything (ordinary PowerShell, repo root):
+
+```powershell
+git pull --ff-only
+& .\tools\A2854.Probe\InstallBarrotWinUsb.ps1
+```
+
+To **explicitly install**, open an **administrator PowerShell** at the repo root and run:
+
+```powershell
+& .\tools\A2854.Probe\InstallBarrotWinUsb.ps1 -Install
+```
+
+The script fails closed unless exactly one present `USB\\VID_33FA&PID_0001` exposes HCI class E0/01/01 and an existing INF/CAT/SYS export backup is found. It requires typing the literal `INSTALL 33FA:0001` after warning about trust changes. Only that VID/PID is passed to the installer's forced device driver update; the script checks internal `8087:0029` state afterward.
+
+**Tradeoff / explicit authorization:** `WinUsbDriver.Install` generates a self-signed code-signing cert and imports it to **machine-wide** `LocalMachine\\My`, `Root`, `TrustedPublisher`. This carries a broader trust-surface impact than an inbox-only manual binding; there is **no claim** of certificate-free installation. Revert the trust package and driver deliberately after experiments, and avoid automatic reruns if the first attempt fails. The installed package's actual behavior on the owner's Code 31 unit is **not validated** by documentation or unit tests. A self-signed catalog does not guarantee modern Windows code-integrity acceptance.
+
+Microsoft sources: [WinUSB INF-based installation](https://learn.microsoft.com/en-us/windows-hardware/drivers/usbcon/winusb-installation), [PnPUtil driver ranking / force limitations](https://learn.microsoft.com/en-us/windows-hardware/drivers/devtest/pnputil-command-syntax), [Windows driver signing](https://learn.microsoft.com/en-us/windows-hardware/drivers/install/windows-driver-signing-tutorial).
+
 ## Next local Windows preflight (read-only)
 
 1. Plug the Axxen dongle into a USB-A port on the **Dell Windows 11** machine. Enumerate present USB/PnP devices, distinguishing built-in Intel `8087:0029` from the newly attached dongle; inspect **USB VID:PID**, friendly name, hardware/compatible IDs, PnP class, driver service and INF/provider.
