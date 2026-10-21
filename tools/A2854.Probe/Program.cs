@@ -24,24 +24,30 @@ internal static partial class Program
 
         int seconds = 30;
         UsbHci.UsbId? targetUsbId = null;
-        for (int i = 0; i < args.Length; i += 2)
+        bool hciOnly = false;
+        for (int i = 0; i < args.Length;)
         {
-            if (i + 1 >= args.Length)
+            if (args[i] == "--hci-only")
             {
-                Console.Error.WriteLine("Usage: A2854.Probe [--seconds 30] [--usb 33FA:0001]");
-                return 2;
+                hciOnly = true;
+                i++;
             }
-            if (args[i] == "--seconds" && int.TryParse(args[i + 1], out int duration) &&
-                duration is >= 5 and <= 120)
+            else if (i + 1 < args.Length && args[i] == "--seconds" &&
+                int.TryParse(args[i + 1], out int duration) && duration is >= 5 and <= 120)
+            {
                 seconds = duration;
-            else if (args[i] == "--usb" && Regex.IsMatch(args[i + 1], @"\A[0-9A-Fa-f]{4}:[0-9A-Fa-f]{4}\z"))
+                i += 2;
+            }
+            else if (i + 1 < args.Length && args[i] == "--usb" &&
+                Regex.IsMatch(args[i + 1], @"\A[0-9A-Fa-f]{4}:[0-9A-Fa-f]{4}\z"))
             {
                 string[] id = args[i + 1].Split(':');
                 targetUsbId = new UsbHci.UsbId(Convert.ToUInt16(id[0], 16), Convert.ToUInt16(id[1], 16));
+                i += 2;
             }
             else
             {
-                Console.Error.WriteLine("Usage: A2854.Probe [--seconds 30] [--usb 33FA:0001]");
+                Console.Error.WriteLine("Usage: A2854.Probe [--seconds 30] [--usb 33FA:0001] [--hci-only]");
                 return 2;
             }
         }
@@ -56,6 +62,36 @@ internal static partial class Program
             return 2;
         }
 
+        using (usb)
+        {
+            // USB transport-only diagnosis: do not scan, pair, alter bond storage,
+            // subscribe to microphone, or send LE commands. One HCI reset and a
+            // local-version query suffice to isolate controller availability.
+            if (hciOnly)
+            {
+                Console.WriteLine($"USB controller: {usb.Name}; HCI EP0 request=0x{usb.CommandRequestType:X2}.");
+                try
+                {
+                    await usb.Host.CommandAsync(HciOpcode.Reset);
+                    byte[] version = await usb.Host.CommandAsync(HciOpcode.ReadLocalVersion);
+                    if (version.Length < 9)
+                        throw new InvalidDataException($"Unexpected Read Local Version length {version.Length} (expected >=9).");
+                    Console.WriteLine($"HCI Reset OK; Read Local Version OK: HCI=0x{version[1]:X2}, " +
+                        $"revision=0x{(version[2] | version[3] << 8):X4}, " +
+                        $"LMP=0x{version[4]:X2}, manufacturer=0x{(version[5] | version[6] << 8):X4}, " +
+                        $"subversion=0x{(version[7] | version[8] << 8):X4}.");
+                    Console.WriteLine("HCI-only complete: no BLE scan or pairing attempted.");
+                    return 0;
+                }
+                catch (Exception e)
+                {
+                    Console.Error.WriteLine($"HCI-only FAILED: {e.GetType().Name}: {BluetoothAddress().Replace(e.Message, "[redacted]")}");
+                    return 1;
+                }
+            }
+        }
+
+        // Full BLE workflow only if expressly selected without --hci-only.
         using (usb)
         using (var cts = new CancellationTokenSource())
         {
