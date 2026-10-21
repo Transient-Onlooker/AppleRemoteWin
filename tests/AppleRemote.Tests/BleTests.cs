@@ -129,4 +129,59 @@ public class BleTests
         await Assert.ThrowsAsync<InvalidOperationException>(() => encrypting);
         Assert.Equal((0x0040, 0x3E), disconnected.Single());
     }
+    [Fact]
+    public void Link_only_central_does_not_respond_to_unsolicited_L2CAP_signaling()
+    {
+        var commands = new List<byte[]>();
+        var aclOut = new List<byte[]>();
+        var hci = new HciHost(commands.Add, aclOut.Add);
+        _ = new LeCentral(hci, respondToSignaling: false);
+
+        // HCI ACL handle 0x0040, PB=0; L2CAP signaling CID 0x0005,
+        // Connection Parameter Update Request (0x12), 8-byte params.
+        hci.ReceiveAclBytes([
+            0x40, 0x00, 0x10, 0x00,
+            0x0C, 0x00, 0x05, 0x00,
+            0x12, 0x01, 0x08, 0x00,
+            0x0C, 0x00, 0x18, 0x00, 0x00, 0x00, 0xC8, 0x00
+        ]);
+
+        Assert.Empty(commands);
+        Assert.Empty(aclOut);
+    }
+
+    [Fact]
+    public async Task Link_only_central_uses_random_peer_address_and_disconnects_without_pairing()
+    {
+        var commands = new List<byte[]>();
+        var aclOut = new List<byte[]>();
+        var hci = new HciHost(commands.Add, aclOut.Add);
+        var central = new LeCentral(hci, respondToSignaling: false);
+        var disconnected = new List<(ushort Handle, byte Reason)>();
+        central.Disconnected += (handle, reason) => disconnected.Add((handle, reason));
+
+        Task<ushort> link = central.ConnectAsync("14:9D:99:26:BF:CC", peerAddressType: 1);
+        byte[] create = commands.Single();
+        Assert.Equal(new byte[] { 0x0D, 0x20, 25 }, create[..3]);
+        Assert.Equal((byte)1, create[8]); // Random peer address, not a public-address assumption.
+        Assert.Equal(BdAddr.Parse("14:9D:99:26:BF:CC"), create[9..15]);
+
+        hci.ReceiveEventBytes([0x0F, 0x04, 0x00, 0x01, 0x0D, 0x20]);
+        hci.ReceiveEventBytes([
+            0x3E, 0x13, 0x01, 0x00, 0x40, 0x00, 0x00, 0x01,
+            .. BdAddr.Parse("14:9D:99:26:BF:CC"),
+            0x18, 0x00, 0x00, 0x00, 0xC8, 0x00, 0x00
+        ]);
+        ushort handle = await link;
+        Assert.Equal((ushort)0x0040, handle);
+
+        Task disconnect = central.DisconnectAsync(handle);
+        Assert.Equal(new byte[] { 0x06, 0x04, 0x03, 0x40, 0x00, 0x13 }, commands[^1]);
+        hci.ReceiveEventBytes([0x0F, 0x04, 0x00, 0x01, 0x06, 0x04]);
+        await disconnect;
+        hci.ReceiveEventBytes([0x05, 0x04, 0x00, 0x40, 0x00, 0x16]);
+        Assert.Equal(new[] { ((ushort)0x0040, (byte)0x16) }, disconnected);
+        Assert.Empty(aclOut);
+    }
+
 }
