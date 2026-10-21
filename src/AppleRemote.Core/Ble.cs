@@ -70,14 +70,17 @@ public sealed class LeCentral
     public const ushort CidAtt = 0x0004, CidSignaling = 0x0005, CidSmp = 0x0006;
 
     readonly HciHost _hci;
+    readonly bool _respondToSignaling;
     readonly List<byte> _rx = new();   // trame L2CAP en cours de reconstitution
     TaskCompletionSource<ushort>? _connecting;
     (Func<byte[], bool> Match, TaskCompletionSource<LePeer> Found, bool AllowRandom)? _scan;
     TaskCompletionSource? _encrypting;
 
-    public LeCentral(HciHost hci)
+    /// <summary>When false, do not send automatic L2CAP signaling responses (link-only diagnostics).</summary>
+    public LeCentral(HciHost hci, bool respondToSignaling = true)
     {
         _hci = hci;
+        _respondToSignaling = respondToSignaling;
         _hci.Event += OnEvent;
         _hci.AclData += OnAcl;
     }
@@ -140,18 +143,19 @@ public sealed class LeCentral
             0x00, 0x00, 0x00, 0x00,     // event length: up to the controller
         ];
         // No filter list: the device's public address; our public address: the remote (BT 4.0) reconnects poorly to a changing one.
-        if (Extended)
-            await _hci.CommandAsync(HciOpcode.LeExtendedCreateConnection,
-                [0x00, 0x00, peerAddressType, .. BdAddr.Parse(address), 0x01 /* 1M PHY */, .. scan, .. link]);
-        else
-            await _hci.CommandAsync(HciOpcode.LeCreateConnection, [.. scan, 0x00, peerAddressType, .. BdAddr.Parse(address), 0x00, .. link]);
-        await using var cancel = ct.Register(() => _ = _hci.CommandAsync(HciOpcode.LeCreateConnectionCancel));
         try
         {
+            if (Extended)
+                await _hci.CommandAsync(HciOpcode.LeExtendedCreateConnection,
+                    [0x00, 0x00, peerAddressType, .. BdAddr.Parse(address), 0x01 /* 1M PHY */, .. scan, .. link]);
+            else
+                await _hci.CommandAsync(HciOpcode.LeCreateConnection, [.. scan, 0x00, peerAddressType, .. BdAddr.Parse(address), 0x00, .. link]);
+            using var cancel = ct.Register(() => _ = _hci.CommandAsync(HciOpcode.LeCreateConnectionCancel));
             return await connecting.Task.WaitAsync(ct);
         }
         finally
         {
+            // Also clear the pending task if the HCI command itself timed out or failed.
             _connecting = null;
         }
     }
@@ -227,7 +231,10 @@ public sealed class LeCentral
         }
         ushort cid = (ushort)(frame[2] | frame[3] << 8);
         byte[] payload = frame[4..(4 + (frame[0] | frame[1] << 8))];
-        if (cid == CidSignaling) OnSignaling(handle, payload);
+        if (cid == CidSignaling)
+        {
+            if (_respondToSignaling) OnSignaling(handle, payload);
+        }
         else L2capData?.Invoke(handle, cid, payload);
     }
 
