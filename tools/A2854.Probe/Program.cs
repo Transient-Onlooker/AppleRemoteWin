@@ -23,18 +23,31 @@ internal static partial class Program
         }
 
         int seconds = 30;
-        if (args.Length != 0)
+        UsbHci.UsbId? targetUsbId = null;
+        for (int i = 0; i < args.Length; i += 2)
         {
-            if (args.Length != 2 || args[0] != "--seconds" ||
-                !int.TryParse(args[1], out seconds) || seconds is < 5 or > 120)
+            if (i + 1 >= args.Length)
             {
-                Console.Error.WriteLine("Usage: dotnet run --project tools/A2854.Probe -- [--seconds 30]");
+                Console.Error.WriteLine("Usage: A2854.Probe [--seconds 30] [--usb 33FA:0001]");
+                return 2;
+            }
+            if (args[i] == "--seconds" && int.TryParse(args[i + 1], out int duration) &&
+                duration is >= 5 and <= 120)
+                seconds = duration;
+            else if (args[i] == "--usb" && Regex.IsMatch(args[i + 1], @"\A[0-9A-Fa-f]{4}:[0-9A-Fa-f]{4}\z"))
+            {
+                string[] id = args[i + 1].Split(':');
+                targetUsbId = new UsbHci.UsbId(Convert.ToUInt16(id[0], 16), Convert.ToUInt16(id[1], 16));
+            }
+            else
+            {
+                Console.Error.WriteLine("Usage: A2854.Probe [--seconds 30] [--usb 33FA:0001]");
                 return 2;
             }
         }
 
         UsbHci usb;
-        try { usb = UsbHci.Open(); }
+        try { usb = targetUsbId is { } id ? UsbHci.OpenForUsbId(id) : UsbHci.Open(); }
         catch (Exception e)
         {
             Console.Error.WriteLine($"WinUSB controller unavailable: {e.GetType().Name}.");
@@ -121,6 +134,8 @@ internal static partial class Program
             }
 
             Console.WriteLine("A2854 diagnostic: WinUSB HCI, buttons 0xFB + touch 0xFC only.");
+            Console.WriteLine($"USB controller: {usb.Name}; HCI EP0 request=0x{usb.CommandRequestType:X2}.");
+            Console.WriteLine("Use --usb 33FA:0001 to restrict this probe to the purchased Barrot adapter.");
             Console.WriteLine("Pairing mode if needed: hold Back + Volume Up for ~5 seconds.");
             Console.WriteLine("Existing Windows Bluetooth pairings do NOT transfer to a new controller.");
             Console.WriteLine("No HID driver, adapter driver, or microphone changes are made by this program.");
