@@ -27,7 +27,7 @@
 | Windows C# A2854 decoder and diagnostic program | **Implemented**; earlier 89 tests passed and probe built before latest BLE privacy-address changes |
 | Current privacy-address implementation | **Committed but post-change Windows tests not yet reported** |
 | ThinkPad T490s built-in Bluetooth | Owner confirmed **Intel Wireless-AC 9560**; A2854 test **not conducted** |
-| **Purchased Axxen USB dongle** | **33FA:0001 rev 8891** measured, Barrot `oem80.inf` **Code 31**; **90/90** C# tests passed at previous commit; WinUSB/HCI/A2854 still **not tested** |
+| **Purchased Axxen USB dongle** | **33FA:0001 rev 8891** measured, Barrot `oem80.inf` **Code 31** even after inbox `bth.inf` previously failed; **96/96** C# tests passed at `7c6d0cb`; USB endpoints confirmed, WinUSB/HCI/A2854 still **not tested** |
 | Working Windows mouse / media remote | **Not yet delivered** |
 
 ## What to do next
