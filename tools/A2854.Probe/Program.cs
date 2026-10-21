@@ -24,12 +24,13 @@ internal static partial class Program
 
         int seconds = 30;
         UsbHci.UsbId? targetUsbId = null;
-        bool hciOnly = false;
+        bool hciOnly = false, scanOnly = false;
         for (int i = 0; i < args.Length;)
         {
-            if (args[i] == "--hci-only")
+            if (args[i] == "--hci-only" || args[i] == "--scan-only")
             {
-                hciOnly = true;
+                if (args[i] == "--hci-only") hciOnly = true;
+                else scanOnly = true;
                 i++;
             }
             else if (i + 1 < args.Length && args[i] == "--seconds" &&
@@ -47,9 +48,15 @@ internal static partial class Program
             }
             else
             {
-                Console.Error.WriteLine("Usage: A2854.Probe [--seconds 30] [--usb 33FA:0001] [--hci-only]");
+                Console.Error.WriteLine("Usage: A2854.Probe [--seconds 30] [--usb 33FA:0001] [--hci-only | --scan-only]");
                 return 2;
             }
+        }
+
+        if (hciOnly && scanOnly)
+        {
+            Console.Error.WriteLine("Choose either --hci-only or --scan-only, not both.");
+            return 2;
         }
 
         UsbHci usb;
@@ -86,6 +93,57 @@ internal static partial class Program
                 catch (Exception e)
                 {
                     Console.Error.WriteLine($"HCI-only FAILED: {e.GetType().Name}: {BluetoothAddress().Replace(e.Message, "[redacted]")}");
+                    return 1;
+                }
+            }
+        }
+
+        // Controller/advertising smoke test. This intentionally never connects,
+        // requests SMP keys, accesses the GATT HID service or modifies bond storage.
+        // Only packet counts and protocol flags are printed: no MAC/serial/AD dump.
+        if (scanOnly)
+        {
+            using (usb)
+            using (var cts = new CancellationTokenSource(TimeSpan.FromSeconds(seconds)))
+            {
+                var central = new LeCentral(usb.Host);
+                int packets = 0, apple = 0, hid = 0, both = 0, interesting = 0;
+                central.Advertisement += (_, rssi, ad) =>
+                {
+                    bool hasApple = false, hasHid = false;
+                    foreach (var (type, value) in LeCentral.AdStructures(ad))
+                    {
+                        if (type == 0xFF && value.Length >= 2 && value[0] == 0x4C && value[1] == 0x00)
+                            hasApple = true;
+                        if (type is 0x02 or 0x03 &&
+                            Enumerable.Range(0, value.Length / 2).Any(i =>
+                                value[2 * i] == 0x12 && value[2 * i + 1] == 0x18))
+                            hasHid = true;
+                    }
+                    Interlocked.Increment(ref packets);
+                    if (hasApple) Interlocked.Increment(ref apple);
+                    if (hasHid) Interlocked.Increment(ref hid);
+                    if (hasApple && hasHid) Interlocked.Increment(ref both);
+                    if ((hasApple || hasHid) && Interlocked.Increment(ref interesting) <= 12)
+                        Console.WriteLine($"AD: apple={hasApple}, hid1812={hasHid}, RSSI={rssi} dBm (address redacted)");
+                };
+                try
+                {
+                    Console.WriteLine($"BLE scan-only: {usb.Name}; HCI EP0 request=0x{usb.CommandRequestType:X2}.");
+                    Console.WriteLine("No BLE connection/pairing/bond writes. Press remote Back + Volume Up ~5s to advertise.");
+                    await central.InitializeAsync();
+                    Console.WriteLine($"Controller initialized. LE extended advertising enabled: {central.Extended}.");
+                    // Never-match predicate keeps scanning regardless of the observed data.
+                    // Cancellation stops scanning and sends the disable-scan command.
+                    try { await central.ScanPeerAsync(_ => false, allowRandom: true, cts.Token); }
+                    catch (OperationCanceledException) when (cts.IsCancellationRequested) { }
+                    Console.WriteLine($"Scan summary: packets={packets}, apple_ad_packets={apple}, hid1812_ad_packets={hid}, both_in_one_packet={both}.");
+                    Console.WriteLine("No BLE connection or pairing was attempted.");
+                    return 0;
+                }
+                catch (Exception e)
+                {
+                    Console.Error.WriteLine($"Scan-only FAILED: {e.GetType().Name}: {BluetoothAddress().Replace(e.Message, "[redacted]")}");
                     return 1;
                 }
             }
