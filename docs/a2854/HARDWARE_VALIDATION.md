@@ -28,7 +28,9 @@ A Wi-Fi-only USB dongle is not a Bluetooth HCI controller. Bluetooth 5.3 brandin
 
 **Current priority:** investigate the purchased **33FA:0001** Code 31 and export `oem80.inf` before considering a reversible **external-only** WinUSB binding. The discontinued Realtek Daiso option is no longer available to the owner; do not recommend repurchasing it as though it were the current test device. See the [BR8652A12 evidence and preflight](BARROT_BR8652A12.md).
 
-Under a new external WinUSB HCI binding, the updated diagnostic accepts `--usb 33FA:0001` to avoid choosing another controller. This option and the Barrot-specific USB HCI class/interface EP0 request (**0x21**) still require fresh build/real-device validation.
+Under a new external WinUSB HCI binding, the updated diagnostic accepts `--usb 33FA:0001` to avoid choosing another controller. The Barrot-specific USB HCI EP0 request (**0x21**) and this option **passed software tests/build at `7c6d0cb` (96/96 tests)**, but lack *physical WinUSB/HCI verification*. Another subsequent change to WinUSB function-interface GUID discovery has not yet been built on the local Windows machine.
+
+**Updated experiment choice (2026-10-21):** UsbTreeView verified interface 0 interrupt IN `0x81` (16 B/1 ms), bulk OUT `0x02` and bulk IN `0x82` (64 B each). The Microsoft inbox driver and Barrot driver both failed Code 31. Export of `oem80.inf` (INF/CAT/SYS) was verified locally. **First attach Barrot directly to USB-A rather than the 2109:2815 hub.** If Code 31 persists, prefer [Microsoft's inbox `WinUsb Device` manual selection](https://learn.microsoft.com/en-us/windows-hardware/drivers/usbcon/winusb-installation) where available, and set the device-scoped function GUID `{6B3E8C52-9D41-4F6A-8A1E-5C0D7B2F4E19}` if permissions allow. **Do not default to the application's self-signed Root/TrustedPublisher WinUSB installer**; it changes machine-wide trust and needs separate approval. See [full hardware record](BARROT_BR8652A12.md).
 
 ## Gate 2 — direct USB HCI and BLE receive
 
