@@ -1,11 +1,12 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 """Check the exact archived Linux Rust source snapshot against its Git blob manifest.
 
-No network or external packages needed; safe on Windows, Linux and macOS.
+Offline and dependency-free except Git/Python; safe on Windows, Linux and macOS.
 """
 from __future__ import annotations
 
 import hashlib
+import subprocess
 from pathlib import Path
 import sys
 
@@ -28,7 +29,15 @@ def validate() -> int:
             raise ValueError(f"Unexpected duplicate/path mode: {rel}")
         expected[rel] = (sha, int(size))
 
-    actual = {p.relative_to(REFERENCE).as_posix(): p for p in REFERENCE.rglob("*") if p.is_file()}
+    # Ignore untracked Rust/Python build output; verify the tracked snapshot only.
+    tracked = subprocess.run(
+        ["git", "ls-files", "--cached", "-z", "--", "reference/siri-remote-for-windows/"],
+        cwd=ROOT, check=True, capture_output=True,
+    ).stdout.decode("utf-8").split("\0")
+    actual = {
+        Path(item).relative_to("reference/siri-remote-for-windows").as_posix(): ROOT / item
+        for item in tracked if item
+    }
     errors = []
     for rel in sorted(expected.keys() - actual.keys()):
         errors.append(f"MISSING: {rel}")
