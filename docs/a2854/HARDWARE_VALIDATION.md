@@ -22,11 +22,13 @@ The earlier 89/89 tests and probe build passed **before** the latest privacy-add
 | --- | --- | --- |
 | TP-Link UB500 Realtek family, specific USB `2357:0604` | [Upstream PR #15](https://github.com/AnthoDingo/AppleRemoteWin/pull/15) reports Gen-1 direct-HCI testing | Other revisions; A2854 pairing and notification |
 | Daiso Bluetooth 5.0 (product 1035660), reported RTL8761BUV | Realtek family; plausible firmware-code reuse | Actual unit VID/PID, native HCI operation, A2854 |
-| **PURCHASED: Daiso Axxen Bluetooth 5.3, owner-reported BR8652A12** | Actual external dongle is now available; BR8652A12 vendor documents list USB host interface, and [research notes](BARROT_BR8652A12.md) cover version/quirk evidence | **Read-only USB VID/PID & PnP interface enumeration pending**. No WinUSB/A2854 verification; previously guessed BR8651 is **not** the owner-reported chip |
+| **PURCHASED: Daiso Axxen Bluetooth 5.3, reported BR8652A12** | USB **33FA:0001 rev 8891** confirmed, **E0/01/01** class, Barrot driver `oem80.inf` (`brbtusb.inf`) version 21.46.25.278 | **Stock driver Code 31 / 0xC0000001**; endpoints and WinUSB/HCI/A2854 untested. [Full 33FA:0001 notes](BARROT_BR8652A12.md) |
 
 A Wi-Fi-only USB dongle is not a Bluetooth HCI controller. Bluetooth 5.3 branding alone does not establish suitability.
 
-**Current priority:** inspect the purchased Axxen BR8652A12 unit first. The discontinued Realtek Daiso option is no longer available to the owner; do not recommend repurchasing it as though it were the current test device. See the [BR8652A12 evidence and preflight](BARROT_BR8652A12.md).
+**Current priority:** investigate the purchased **33FA:0001** Code 31 and export `oem80.inf` before considering a reversible **external-only** WinUSB binding. The discontinued Realtek Daiso option is no longer available to the owner; do not recommend repurchasing it as though it were the current test device. See the [BR8652A12 evidence and preflight](BARROT_BR8652A12.md).
+
+Under a new external WinUSB HCI binding, the updated diagnostic accepts `--usb 33FA:0001` to avoid choosing another controller. This option and the Barrot-specific USB HCI class/interface EP0 request (**0x21**) still require fresh build/real-device validation.
 
 ## Gate 2 — direct USB HCI and BLE receive
 
