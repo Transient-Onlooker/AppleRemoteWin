@@ -191,3 +191,33 @@ The project already holds **two different** manufacturer header variants for the
 
 **Immediate next test:** `dotnet test tests/AppleRemote.Tests -c Release` and `dotnet build tools/A2854.Probe/A2854.Probe.csproj -c Release`, then `dotnet run -c Release --project tools/A2854.Probe/A2854.Probe.csproj -- --usb 33FA:0001 --scan-only --seconds 30`. Start scan **before** waking/advertising the actual A2854, to reduce the chance of missing its limited-duration advertising mode. Hold off on LE connection and SMP pairing until the user explicitly authorizes the next stage. Keep the existing WinUSB driver/certificate installation and Intel controller untouched.
 
+## 2026-10-22 milestone: A2854 strong advertisements observed under WinUSB
+
+The local Windows agent rebuilt recent sources in a writable temporary copy after the original repository's \`obj\` write restriction, and verified **101/101 Release tests passed** and \`A2854.Probe\` built with **0 compile errors**; the NuGet vulnerability advisory feed was unreachable (NU1900 warning, not a package restore failure). The previous source build issue was **MSB3491 \`obj\` write denial**, not evidence of a C# or NuGet code defect. The original worktree remained clean at **\`8795dfc174ffdd9cc51e57522fe2d6a65dac1981\`**.
+
+A real **30-second** BLE scan on WinUSB-bound external Barrot \`33FA:0001\` returned:
+- **595** advertisement packets total
+- **117** Apple-company \`0x004C\` packets
+- **95** HID-service \`0x1812\` packets; **95** combined Apple+HID in the same AD payload
+- **95** strong A2854 candidates with fixed manufacturer prefix \`07 0D 02 15 03 02\` (README format)
+- **0** candidates with alternate captured prefix \`8A 07 6D 02 02\`
+- **0** advertising name hints. Name is optional, not a reason to reject otherwise supported A2854 pairing advertisements.
+
+The strong-packet evidence agrees with the previously measured A2854 manufacturer/HID advertising format, and appeared after waking the remote. It is **not cryptographic authentication of the specific device**. No connection, SMP, GATT, HID subscriptions or bond writes were performed. The external dongle stayed \`Started\` / \`oem86.inf\`; built-in Intel AX200 \`8087:0029\` stayed \`Started\` / \`oem116.inf\`. No driver or certificate modifications occurred.
+
+**Next test (new code, not yet built or hardware tested):**
+
+\`\`\`powershell
+dotnet run -c Release --project tools/A2854.Probe/A2854.Probe.csproj -- --usb 33FA:0001 --connect-only --seconds 30
+\`\`\`
+
+New \`--connect-only\` implementation:
+- Enforces explicit USB ID \`33FA:0001\`, not any default adapter.
+- Initializes LE and waits up to 30 seconds for **only** the previously observed strong pairing-advertisement predicate; stores the candidate's temporary BLE address and public/random address type in process memory only.
+- Stops scanning, attempts a single \`LE Create Connection\` and waits at most **12 seconds** for the completion event, then sends HCI Disconnect and waits up to **5 seconds** for Disconnection Complete.
+- For this mode, suppresses automatic L2CAP connection-parameter responses; **never calls SMP, GATT, HID or bond storage**.
+- On interrupted or failed connection/disconnect, attempts HCI Reset **only on the selected external WinUSB controller** as a cleanup fallback.
+- Does **not** print candidate addresses, address-bearing advertising payloads, keys or remote identity.
+
+Code changes and two supplementary mock-controller tests were committed after the verified 101/101 run. **Those tests and the new CLI require fresh local compilation and hardware validation**; do not treat their existence as proof the physical link succeeds. PowerShell/MSBuild \`obj\` access restrictions may require repeating the controlled writable-copy build workflow. The installed experimental signing certificate and driver must remain unchanged for this gate.
+
