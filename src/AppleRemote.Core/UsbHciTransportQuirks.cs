@@ -16,7 +16,7 @@ public static class UsbHciTransportQuirks
     /// Hardware validation on the owner's BR8652A12 unit is still pending.
     /// </summary>
     public static byte CommandRequestType(ushort vendorId, ushort productId) =>
-        vendorId == 0x33FA && productId is 0x0001 or 0x0010
+        vendorId == 0x33FA && (productId is 0x0001 or 0x0010)
             ? (byte)0x21
             : (byte)0x20;
 }
