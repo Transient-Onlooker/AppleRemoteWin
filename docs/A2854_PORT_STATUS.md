@@ -257,3 +257,11 @@ receipt over the new controller remain open.
 Owner reports buying the available **Daiso Axxen Bluetooth 5.3 USB adapter**, after the older Realtek 5.0 adapter was unavailable, and identifies the chipset as **Barrot / BRLink BR8652A12** (not the previously speculated BR8651). USB VID/PID, descriptor class, Windows driver status and A2854 native receive have **not** been obtained yet. This changes the next test target, not the success status.
 
 See [BR8652A12-specific evidence, known Barrot HCI quirks and safe Windows preflight](a2854/BARROT_BR8652A12.md). Do not force Realtek firmware onto this controller or replace the built-in Intel AX200 driver. The external dongle's original driver binding should be recorded before considering a reversible WinUSB-only experiment.
+
+## 2026-10-21 Axxen Barrot 33FA:0001 native Windows PnP result
+
+Local agent physically enumerated the purchased Daiso Axxen dongle: **USB 33FA:0001 rev 8891**, class compatible ID **E0/01/01**, manufacturer Barrot Technology Co.,Ltd., product BARROT Bluetooth Adapter. Windows binds **BTHUSB** via **oem80.inf / brbtusb.inf** v**21.46.25.278** but the node shows **Code 31 / CM_PROB_FAILED_ADD / NTSTATUS 0xC0000001**. The USB path traverses a **2109:2815 hub**; endpoint descriptors and WinUSB native operation are still unmeasured. Internal Intel AX200 **8087:0029** remains BTHUSB, driver 23.160.0.9, OK.
+
+After BLE random-address changes, the local agent ran **90/90 .NET Release unit tests PASS** and **A2854.Probe Release build clean** at **6093954**. Subsequent **Barrot EP0 class/interface request 0x21** and **explicit `--usb 33FA:0001` diagnostic selection** were added to source, but have *not* yet been validated with fresh Windows build/tests or physical HCI input. Upstream Linux Barrot reverse-engineering supports H:2 for this VID/PID; it does not prove this dongle receives A2854 on Windows.
+
+Next steps: backup `oem80.inf`, inspect redacted Windows setup failure, consider direct USB port instead of hub, only then a reversible **external-dongle-only** WinUSB binding with established restoration route; never alter internal Intel Bluetooth. See [BR8652A12/33FA:0001 report](a2854/BARROT_BR8652A12.md).
