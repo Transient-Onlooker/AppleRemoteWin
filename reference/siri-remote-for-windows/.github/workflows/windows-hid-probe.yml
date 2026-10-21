@@ -1,0 +1,202 @@
+name: Windows HID probe checks
+on:
+  push:
+    paths:
+      - 'tools/windows-probe/**'
+      - 'tools/protocol/**'
+      - '.github/workflows/windows-hid-probe.yml'
+  pull_request:
+    paths:
+      - 'tools/windows-probe/**'
+      - 'tools/protocol/**'
+      - '.github/workflows/windows-hid-probe.yml'
+jobs:
+  probe-smoke:
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.11', '3.13']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Compile and run pure HID decoder fixtures
+        shell: pwsh
+        run: |
+          python -m compileall -q tools/windows-probe
+          python -m unittest discover -s tools/windows-probe -v
+          python -m compileall -q tools/protocol
+          python -m unittest discover -s tools/protocol -v
+      - name: Independent HID parser comparison (synthetic, no private descriptor)
+        shell: pwsh
+        run: |
+          python -m pip install "hid-parser==0.1.0"
+          @'
+          import sys
+          sys.path.insert(0, "tools/protocol")
+          from test_descriptor_variants import synthetic_descriptor
+          from descriptor_variants import make_variants
+          from byte_alignment_matrix import make_alignment_matrix, alignment_findings
+          from third_party_variant_check import check
+          from hid_parser import ReportDescriptor
+          # Verify the external parser can process a conventional valid report.
+          ReportDescriptor(list(bytes.fromhex("05 01 09 02 A1 01 09 30 15 00 25 7F 75 08 95 01 81 02 C0")))
+          for name, binary in make_variants(synthetic_descriptor()).items():
+              result, detail = check(binary)
+              print(f"synthetic/{name}: {result}; {detail}")
+          for name, binary in make_alignment_matrix(synthetic_descriptor()).items():
+              result, detail = check(binary)
+              flags = alignment_findings(binary)
+              print(f"alignment-matrix/{name}: {result}; {detail}; unaligned={len(flags['unaligned'])}; missing_usage={flags['data_variable_input_missing_usage_fields']}")
+          print("CI results are NOT Windows HIDCLASS acceptance tests.")
+          '@ | python -
+      - name: Test offline descriptor source patch against pinned Microsoft UMDF2 sample
+        shell: pwsh
+        run: |
+          $url = 'https://raw.githubusercontent.com/microsoft/Windows-driver-samples/2dc3fd3a0cc84a2933f2194e7ec0871584979071/hid/vhidmini2/driver/vhidmini.c'
+          $sample = Join-Path $env:RUNNER_TEMP 'official-vhidmini.c'
+          Invoke-WebRequest -Uri $url -OutFile $sample -TimeoutSec 30
+          @'
+          import os
+          import sys
+          from pathlib import Path
+          sys.path.insert(0, "tools/protocol")
+          from vhidmini2_source_matrix import patch_sample_source, SOURCE_RE
+          from test_descriptor_variants import synthetic_descriptor
+          sample = (Path(os.environ["RUNNER_TEMP"]) / "official-vhidmini.c").read_text(encoding="utf-8")
+          patched = patch_sample_source(sample, synthetic_descriptor())
+          assert patched.count("A2854 isolated VM experiment") == 1
+          assert "status = CheckRegistryForDescriptor(device);" not in patched
+          assert len(SOURCE_RE.findall(patched)) == 1
+          print("Pinned Microsoft UMDF2 sample: controlled HID array substitution and strict no-fallback patch verified")
+          '@ | python -
+      - name: Parse bounded HIDCLASS ETW capture script
+        shell: pwsh
+        run: |
+          $tokens = $null
+          $errors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile(
+            (Join-Path $pwd 'tools/windows-probe/hidclass_trace.ps1'),
+            [ref]$tokens, [ref]$errors
+          ) | Out-Null
+          if ($errors.Count -gt 0) {
+            $errors | ForEach-Object { Write-Error $_.ToString() }
+            exit 1
+          }
+      - name: Parse bounded HIDCLASS ETW inspection script
+        shell: pwsh
+        run: |
+          $tokens = $null
+          $errors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile(
+            (Join-Path $pwd 'tools/windows-probe/hidclass_trace_inspect.ps1'),
+            [ref]$tokens, [ref]$errors
+          ) | Out-Null
+          if ($errors.Count -gt 0) {
+            $errors | ForEach-Object { Write-Error $_.ToString() }
+            exit 1
+          }
+      - name: Parse HIDCLASS status-correlation script
+        shell: pwsh
+        run: |
+          $tokens = $null
+          $errors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile(
+            (Join-Path $pwd 'tools/windows-probe/hidclass_trace_status.ps1'),
+            [ref]$tokens, [ref]$errors
+          ) | Out-Null
+          if ($errors.Count -gt 0) {
+            $errors | ForEach-Object { Write-Error $_.ToString() }
+            exit 1
+          }
+      - name: Parse bounded targeted HIDCLASS restart trace script
+        shell: pwsh
+        run: |
+          $tokens = $null
+          $errors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile(
+            (Join-Path $pwd 'tools/windows-probe/hidclass_restart_trace.ps1'),
+            [ref]$tokens, [ref]$errors
+          ) | Out-Null
+          if ($errors.Count -gt 0) {
+            $errors | ForEach-Object { Write-Error $_.ToString() }
+            exit 1
+          }
+      - name: Parse offline HIDCLASS descriptor extraction script
+        shell: pwsh
+        run: |
+          $tokens = $null
+          $errors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile(
+            (Join-Path $pwd 'tools/windows-probe/hidclass_extract_descriptor.ps1'),
+            [ref]$tokens, [ref]$errors
+          ) | Out-Null
+          if ($errors.Count -gt 0) {
+            $errors | ForEach-Object { Write-Error $_.ToString() }
+            exit 1
+          }
+      - name: Parse A2854 home lab and guarded WPP scripts
+        shell: pwsh
+        run: |
+          foreach ($name in @('a2854_home_lab.ps1', 'a2854_wpp.ps1', 'a2854_wpp_review.ps1', 'a2854_etl_provider_audit.ps1', 'a2854_vm_host_check.ps1', 'a2854_vm_prepare.ps1')) {
+            $tokens = $null
+            $errors = $null
+            [System.Management.Automation.Language.Parser]::ParseFile(
+              (Join-Path $pwd "tools/windows-probe/$name"),
+              [ref]$tokens, [ref]$errors
+            ) | Out-Null
+            if ($errors.Count -gt 0) {
+              $errors | ForEach-Object { Write-Error $_.ToString() }
+              exit 1
+            }
+          }
+          Write-Host "All A2854 lab script syntaxes valid"
+      - name: A2854 WPP read-only preflight smoke test
+        shell: pwsh
+        run: |
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File tools/windows-probe/a2854_wpp.ps1 -Mode Check
+      - name: Read-only WPP review launcher smoke
+        shell: pwsh
+        run: powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File tools/windows-probe/a2854_wpp_review.ps1
+      - name: Verify PowerShell 5.1 package detection without Python -c
+        shell: pwsh
+        run: |
+          $packages = @(& py.exe -3 -m pip list --format=freeze)
+          if ($LASTEXITCODE -ne 0) { throw 'pip list failed' }
+          $parserInstalled = @($packages | Where-Object { $_ -match '(?i)^hid-parser==0\.1\.0$' }).Count -gt 0
+          Write-Output ("hid-parser 0.1.0 installed: {0}" -f $parserInstalled)
+      - name: Validate pinned Microsoft input WPP XML profile (download only)
+        shell: pwsh
+        run: |
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File tools/windows-probe/a2854_wpp.ps1 -Mode Prepare
+      - name: Read-only virtual HID test host capability preflight
+        shell: pwsh
+        run: powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File tools/windows-probe/a2854_vm_host_check.ps1
+      - name: Import Windows APIs and display CLI help
+        shell: pwsh
+        run: |
+          python tools/windows-probe/hid_probe.py --help
+          python tools/windows-probe/gatt_probe.py --help
+          python tools/windows-probe/adv_probe.py --help
+      - name: Install BLE Windows Runtime and validate imports
+        shell: pwsh
+        run: |
+          python -m pip install "bleak>=2,<4"
+          python -c "from bleak import BleakScanner; assert callable(BleakScanner); print('Bleak scanner import OK')"
+          python -c "from winrt.windows.devices.bluetooth import BluetoothLEDevice, BluetoothCacheMode; from winrt.windows.devices.enumeration import DeviceInformation; assert hasattr(DeviceInformation, 'find_all_async_aqs_filter'); assert hasattr(BluetoothLEDevice, 'get_device_selector_from_pairing_state'); print('WinRT AQS overloads OK')"
+      - name: Test PnP quick mode and bounded detail lookups
+        shell: pwsh
+        run: powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File tools/windows-probe/test_pnp_probe.ps1
+      - name: Test PnP parent/container association (mocked hardware)
+        shell: pwsh
+        run: powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File tools/windows-probe/test_pnp_correlate.ps1
+      - name: Test remote Code 10 and Kernel-PnP event redaction
+        shell: pwsh
+        run: powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File tools/windows-probe/test_pnp_failure.ps1
+      - name: Check native PowerShell PnP read-only diagnostics
+        shell: pwsh
+        timeout-minutes: 2
+        run: powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File tools/windows-probe/pnp_probe.ps1
+      # Physical BLE adapter/remote is not available on CI runners.
