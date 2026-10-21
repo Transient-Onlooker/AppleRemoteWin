@@ -107,25 +107,22 @@ internal static partial class Program
             using (var cts = new CancellationTokenSource(TimeSpan.FromSeconds(seconds)))
             {
                 var central = new LeCentral(usb.Host);
-                int packets = 0, apple = 0, hid = 0, both = 0, interesting = 0;
+                int packets = 0, apple = 0, hid = 0, both = 0, strong = 0;
+                int readmePrefix = 0, capturedPrefix = 0, nameHint = 0, interesting = 0;
                 central.Advertisement += (_, rssi, ad) =>
                 {
-                    bool hasApple = false, hasHid = false;
-                    foreach (var (type, value) in LeCentral.AdStructures(ad))
-                    {
-                        if (type == 0xFF && value.Length >= 2 && value[0] == 0x4C && value[1] == 0x00)
-                            hasApple = true;
-                        if (type is 0x02 or 0x03 &&
-                            Enumerable.Range(0, value.Length / 2).Any(i =>
-                                value[2 * i] == 0x12 && value[2 * i + 1] == 0x18))
-                            hasHid = true;
-                    }
+                    A2854AdvertisementSignals signals = A2854Advertisement.Classify(ad);
                     Interlocked.Increment(ref packets);
-                    if (hasApple) Interlocked.Increment(ref apple);
-                    if (hasHid) Interlocked.Increment(ref hid);
-                    if (hasApple && hasHid) Interlocked.Increment(ref both);
-                    if ((hasApple || hasHid) && Interlocked.Increment(ref interesting) <= 12)
-                        Console.WriteLine($"AD: apple={hasApple}, hid1812={hasHid}, RSSI={rssi} dBm (address redacted)");
+                    if (signals.AppleCompany) Interlocked.Increment(ref apple);
+                    if (signals.HidService) Interlocked.Increment(ref hid);
+                    if (signals.AppleCompany && signals.HidService) Interlocked.Increment(ref both);
+                    if (signals.ReadmeManufacturerPrefix) Interlocked.Increment(ref readmePrefix);
+                    if (signals.CapturedManufacturerPrefix) Interlocked.Increment(ref capturedPrefix);
+                    if (signals.RemoteNameHint) Interlocked.Increment(ref nameHint);
+                    if (signals.StrongCandidate) Interlocked.Increment(ref strong);
+                    if ((signals.StrongCandidate || signals.RemoteNameHint) &&
+                        Interlocked.Increment(ref interesting) <= 12)
+                        Console.WriteLine($"A2854 candidate: known_prefix={signals.ReadmeManufacturerPrefix || signals.CapturedManufacturerPrefix}, name_hint={signals.RemoteNameHint}, RSSI={rssi} dBm (no address/identity logged)");
                 };
                 try
                 {
@@ -138,6 +135,8 @@ internal static partial class Program
                     try { await central.ScanPeerAsync(_ => false, allowRandom: true, cts.Token); }
                     catch (OperationCanceledException) when (cts.IsCancellationRequested) { }
                     Console.WriteLine($"Scan summary: packets={packets}, apple_ad_packets={apple}, hid1812_ad_packets={hid}, both_in_one_packet={both}.");
+                    Console.WriteLine($"A2854 indicators: strong_candidates={strong}, readme_prefix={readmePrefix}, captured_prefix={capturedPrefix}, name_hints={nameHint}.");
+                    Console.WriteLine("Strong candidate = Apple 0x004C + HID 0x1812 + a known A2854 manufacturer header, all in one AD packet.");
                     Console.WriteLine("No BLE connection or pairing was attempted.");
                     return 0;
                 }
