@@ -57,25 +57,36 @@ public sealed class UsbHci : IDisposable
     }
 
     /// <summary>Paths of the present USB devices.</summary>
+    // Must match WinUsbDriver.BuildInf DeviceInterfaceGUIDs. The USB hub's
+    // GUID_DEVINTERFACE_USB_DEVICE is not a substitute for the WinUSB function
+    // device interface (see Microsoft's WinUSB installation documentation).
+    public static readonly Guid WinUsbAdapterInterfaceGuid =
+        new("6B3E8C52-9D41-4F6A-8A1E-5C0D7B2F4E19");
+
     static IEnumerable<string> EnumerateUsbPaths()
     {
-        Guid guid = GUID_DEVINTERFACE_USB_DEVICE;
-        IntPtr set = SetupDiGetClassDevs(ref guid, IntPtr.Zero, IntPtr.Zero, DIGCF_PRESENT | DIGCF_DEVICEINTERFACE);
-        if (set == IntPtr.Zero || set == new IntPtr(-1))
-            throw new Win32Exception(Marshal.GetLastWin32Error(), "SetupDiGetClassDevs failed");
-        try
+        // Look under the actual WinUSB function interface first. Retain the
+        // legacy enumeration as a compatibility fallback for older installs.
+        foreach (Guid interfaceGuid in new[] { WinUsbAdapterInterfaceGuid, GUID_DEVINTERFACE_USB_DEVICE })
         {
-            for (uint index = 0; ; index++)
+            Guid guid = interfaceGuid;
+            IntPtr set = SetupDiGetClassDevs(ref guid, IntPtr.Zero, IntPtr.Zero, DIGCF_PRESENT | DIGCF_DEVICEINTERFACE);
+            if (set == IntPtr.Zero || set == new IntPtr(-1))
+                throw new Win32Exception(Marshal.GetLastWin32Error(), "SetupDiGetClassDevs failed");
+            try
             {
-                var data = new SP_DEVICE_INTERFACE_DATA { cbSize = Marshal.SizeOf<SP_DEVICE_INTERFACE_DATA>() };
-                if (!SetupDiEnumDeviceInterfaces(set, IntPtr.Zero, ref guid, index, ref data)) yield break;
-                string? path = HidEnumerator.GetInterfacePath(set, ref data);
-                if (path is not null) yield return path;
+                for (uint index = 0; ; index++)
+                {
+                    var data = new SP_DEVICE_INTERFACE_DATA { cbSize = Marshal.SizeOf<SP_DEVICE_INTERFACE_DATA>() };
+                    if (!SetupDiEnumDeviceInterfaces(set, IntPtr.Zero, ref guid, index, ref data)) break;
+                    string? path = HidEnumerator.GetInterfacePath(set, ref data);
+                    if (path is not null) yield return path;
+                }
             }
-        }
-        finally
-        {
-            SetupDiDestroyDeviceInfoList(set);
+            finally
+            {
+                SetupDiDestroyDeviceInfoList(set);
+            }
         }
     }
 
