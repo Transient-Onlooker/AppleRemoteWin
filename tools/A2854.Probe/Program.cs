@@ -24,13 +24,14 @@ internal static partial class Program
 
         int seconds = 30;
         UsbHci.UsbId? targetUsbId = null;
-        bool hciOnly = false, scanOnly = false;
+        bool hciOnly = false, scanOnly = false, connectOnly = false;
         for (int i = 0; i < args.Length;)
         {
-            if (args[i] == "--hci-only" || args[i] == "--scan-only")
+            if (args[i] is "--hci-only" or "--scan-only" or "--connect-only")
             {
                 if (args[i] == "--hci-only") hciOnly = true;
-                else scanOnly = true;
+                else if (args[i] == "--scan-only") scanOnly = true;
+                else connectOnly = true;
                 i++;
             }
             else if (i + 1 < args.Length && args[i] == "--seconds" &&
@@ -48,14 +49,21 @@ internal static partial class Program
             }
             else
             {
-                Console.Error.WriteLine("Usage: A2854.Probe [--seconds 30] [--usb 33FA:0001] [--hci-only | --scan-only]");
+                Console.Error.WriteLine("Usage: A2854.Probe [--seconds 30] [--usb 33FA:0001] [--hci-only | --scan-only | --connect-only]");
                 return 2;
             }
         }
 
-        if (hciOnly && scanOnly)
+        if ((hciOnly ? 1 : 0) + (scanOnly ? 1 : 0) + (connectOnly ? 1 : 0) > 1)
         {
-            Console.Error.WriteLine("Choose either --hci-only or --scan-only, not both.");
+            Console.Error.WriteLine("Choose only one of --hci-only, --scan-only, or --connect-only.");
+            return 2;
+        }
+        // The experimental link-only mode is deliberately limited to the measured,
+        // independently controlled external Barrot adapter. Never select the built-in Intel adapter.
+        if (connectOnly && targetUsbId != new UsbHci.UsbId(0x33FA, 0x0001))
+        {
+            Console.Error.WriteLine("--connect-only requires --usb 33FA:0001 (the dedicated external WinUSB dongle).");
             return 2;
         }
 
@@ -144,6 +152,95 @@ internal static partial class Program
                 {
                     Console.Error.WriteLine($"Scan-only FAILED: {e.GetType().Name}: {BluetoothAddress().Replace(e.Message, "[redacted]")}");
                     return 1;
+                }
+            }
+        }
+
+        // The next hardware gate is intentionally link-only. Do not start the full
+        // SiriRemoteBle driver: that would initiate SMP pairing, write a bond,
+        // discover GATT HID and subscribe to reports.
+        if (connectOnly)
+        {
+            using (usb)
+            using (var stop = new CancellationTokenSource())
+            {
+                ConsoleCancelEventHandler onCancel = (_, e) =>
+                {
+                    e.Cancel = true;
+                    stop.Cancel();
+                };
+                Console.CancelKeyPress += onCancel;
+                bool connectionAttempted = false, cleanDisconnect = false;
+                string stage = "controller initialization";
+                try
+                {
+                    // Suppress even automatic L2CAP connection-parameter signaling
+                    // to ensure this mode sends only link-layer HCI commands.
+                    var central = new LeCentral(usb.Host, respondToSignaling: false);
+                    var disconnected = new TaskCompletionSource<byte>(TaskCreationOptions.RunContinuationsAsynchronously);
+                    central.Disconnected += (_, reason) => disconnected.TrySetResult(reason);
+
+                    Console.WriteLine($"LE connect-only: {usb.Name}; EP0=0x{usb.CommandRequestType:X2}.");
+                    Console.WriteLine("No pairing, SMP, GATT, HID, bond reads/writes, or user data output.");
+                    await central.InitializeAsync();
+                    Console.WriteLine($"Controller initialized. Extended LE commands: {central.Extended}.");
+
+                    stage = "strong A2854 advertisement scan";
+                    using var scanWindow = CancellationTokenSource.CreateLinkedTokenSource(stop.Token);
+                    scanWindow.CancelAfter(TimeSpan.FromSeconds(seconds));
+                    Console.WriteLine("Starting scan for known A2854 manufacturer prefix + Apple 0x004C + HID 0x1812.");
+                    Console.WriteLine("Wake the remote / hold Back + Volume Up ~5s once scan begins.");
+                    // ScanPeerAsync stops scanning in its own finally before ConnectAsync begins.
+                    LePeer peer = await central.ScanPeerAsync(
+                        ad => A2854Advertisement.Classify(ad).StrongCandidate,
+                        allowRandom: true, scanWindow.Token);
+                    Console.WriteLine($"Strong candidate acquired; address redacted; peer type={(peer.AddressType == 1 ? "random" : "public")}.");
+
+                    stage = "LE Create Connection / LE Connection Complete";
+                    using var connectionWindow = CancellationTokenSource.CreateLinkedTokenSource(stop.Token);
+                    connectionWindow.CancelAfter(TimeSpan.FromSeconds(12));
+                    // Mark this BEFORE issuing the command; even an interrupted or timed-out
+                    // initiation is cleaned up with an external-controller HCI Reset.
+                    connectionAttempted = true;
+                    ushort handle = await central.ConnectAsync(peer.Address, connectionWindow.Token, peer.AddressType);
+                    Console.WriteLine("LE Connection Complete OK (peer address redacted).");
+
+                    stage = "HCI Disconnect / Disconnection Complete";
+                    await central.DisconnectAsync(handle);
+                    byte reason = await disconnected.Task.WaitAsync(TimeSpan.FromSeconds(5), stop.Token);
+                    cleanDisconnect = true;
+                    Console.WriteLine($"Disconnection Complete OK (reason=0x{reason:X2}).");
+                    Console.WriteLine("Link-only complete: no SMP pairing, GATT, HID reports, or bond writes.");
+                    return 0;
+                }
+                catch (OperationCanceledException)
+                {
+                    Console.Error.WriteLine($"Connect-only cancelled/timed out at {stage}. No pairing was attempted.");
+                    return 1;
+                }
+                catch (Exception e)
+                {
+                    Console.Error.WriteLine($"Connect-only FAILED at {stage}: {e.GetType().Name}: {BluetoothAddress().Replace(e.Message, "[redacted]")}");
+                    return 1;
+                }
+                finally
+                {
+                    if (connectionAttempted && !cleanDisconnect)
+                    {
+                        // An in-flight LE create-connection can complete late. Resetting
+                        // ONLY this dedicated WinUSB controller is the fallback to avoid
+                        // leaving an unpaired link alive after errors or Ctrl+C.
+                        try
+                        {
+                            await usb.Host.CommandAsync(HciOpcode.Reset);
+                            Console.WriteLine("Cleanup: external Barrot controller HCI Reset OK.");
+                        }
+                        catch (Exception e)
+                        {
+                            Console.Error.WriteLine($"Cleanup Reset failed: {e.GetType().Name}. Check dongle state before retry.");
+                        }
+                    }
+                    Console.CancelKeyPress -= onCancel;
                 }
             }
         }
