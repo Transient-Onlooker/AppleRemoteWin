@@ -62,12 +62,12 @@ internal static partial class Program
             return 2;
         }
 
-        using (usb)
+        // USB transport-only diagnosis: do not scan, pair, alter bond storage,
+        // subscribe to microphone, or send LE commands. One HCI reset and a
+        // local-version query suffice to isolate controller availability.
+        if (hciOnly)
         {
-            // USB transport-only diagnosis: do not scan, pair, alter bond storage,
-            // subscribe to microphone, or send LE commands. One HCI reset and a
-            // local-version query suffice to isolate controller availability.
-            if (hciOnly)
+            using (usb)
             {
                 Console.WriteLine($"USB controller: {usb.Name}; HCI EP0 request=0x{usb.CommandRequestType:X2}.");
                 try
