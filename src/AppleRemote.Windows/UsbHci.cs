@@ -17,7 +17,7 @@ public sealed class UsbHci : IDisposable
 {
     readonly SafeFileHandle _file;
     readonly IntPtr _usb;
-    readonly byte _eventPipe, _aclInPipe, _aclOutPipe;
+    readonly byte _eventPipe, _aclInPipe, _aclOutPipe, _commandRequestType;
     readonly Thread _eventReader, _aclReader;
     volatile bool _disposed;
 
@@ -38,7 +38,10 @@ public sealed class UsbHci : IDisposable
         _file = file;
         _usb = usb;
         (_eventPipe, _aclInPipe, _aclOutPipe) = FindPipes(usb);
-        Name = ReadName(usb);
+        Name = ReadName(usb, out UsbId? deviceId);
+        _commandRequestType = deviceId is { } id
+            ? UsbHciTransportQuirks.CommandRequestType(id.Vid, id.Pid)
+            : (byte)0x20;
         Host = new HciHost(SendCommand, SendAcl);
         _eventReader = StartReader(_eventPipe, 260, Host.ReceiveEventBytes, "events");
         _aclReader = StartReader(_aclInPipe, 1024, Host.ReceiveAclBytes, "ACL");
@@ -134,11 +137,14 @@ public sealed class UsbHci : IDisposable
         return (evt, aclIn, aclOut);
     }
 
-    static string ReadName(IntPtr usb)
+    static string ReadName(IntPtr usb, out UsbId? identity)
     {
+        identity = null;
         var device = new byte[18];
-        if (!WinUsb_GetDescriptor(usb, 0x01, 0, 0, device, (uint)device.Length, out uint read) || read < 18) return "USB adapter";
-        string id = $"{device[8] | device[9] << 8:X4}:{device[10] | device[11] << 8:X4}";
+        if (!WinUsb_GetDescriptor(usb, 0x01, 0, 0, device, (uint)device.Length, out uint read) || read < 18)
+            return "USB adapter";
+        identity = new UsbId((ushort)(device[8] | device[9] << 8), (ushort)(device[10] | device[11] << 8));
+        string id = identity.Value.ToString();
         var text = new byte[255];
         // iProduct (byte 15), US English; string descriptor = length, type, UTF-16LE.
         if (device[15] == 0 || !WinUsb_GetDescriptor(usb, 0x03, device[15], 0x0409, text, (uint)text.Length, out read) || read < 2)
@@ -148,8 +154,9 @@ public sealed class UsbHci : IDisposable
 
     void SendCommand(byte[] packet)
     {
-        // HCI command: class request to the device (bmRequestType 0x20, bRequest 0).
-        var setup = new WINUSB_SETUP_PACKET { RequestType = 0x20, Length = (ushort)packet.Length };
+        // Barrot 33FA:0001/0010 uses class/interface (0x21) on EP0; the original
+        // Realtek/gen-1 path retains class/device (0x20).
+        var setup = new WINUSB_SETUP_PACKET { RequestType = _commandRequestType, Length = (ushort)packet.Length };
         if (!WinUsb_ControlTransfer(_usb, setup, packet, (uint)packet.Length, out _, IntPtr.Zero))
             throw new Win32Exception(Marshal.GetLastWin32Error(), "Cannot send the HCI command");
     }
