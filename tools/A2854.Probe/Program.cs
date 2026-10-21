@@ -56,7 +56,7 @@ internal static partial class Program
         try { usb = targetUsbId is { } id ? UsbHci.OpenForUsbId(id) : UsbHci.Open(); }
         catch (Exception e)
         {
-            Console.Error.WriteLine($"WinUSB controller unavailable: {e.GetType().Name}.");
+            Console.Error.WriteLine($"USB WinUSB interface discovery/open failed: {e.GetType().Name}.");
             Console.Error.WriteLine("An additional USB Bluetooth dongle must be under WinUSB.");
             Console.Error.WriteLine("Do NOT change the laptop's built-in Bluetooth adapter driver.");
             return 2;

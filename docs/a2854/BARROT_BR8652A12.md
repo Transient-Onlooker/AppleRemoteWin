@@ -107,11 +107,17 @@ To **explicitly install**, open an **administrator PowerShell** at the repo root
 & .\tools\A2854.Probe\InstallBarrotWinUsb.ps1 -Install
 ```
 
-The script fails closed unless exactly one present `USB\\VID_33FA&PID_0001` exposes HCI class E0/01/01 and an existing INF/CAT/SYS export backup is found. It requires typing the literal `INSTALL 33FA:0001` after warning about trust changes. Only that VID/PID is passed to the installer's forced device driver update; the script checks internal `8087:0029` state afterward.
+The script fails closed unless exactly one present `USB\\VID_33FA&PID_0001` exposes HCI class E0/01/01 and an existing INF/CAT/SYS export backup has valid Microsoft WHCP signatures and an INF matching the exact VID/PID. It requires typing the literal `INSTALL 33FA:0001` after warning about trust changes. Only that VID/PID is passed to the installer's forced device driver update; the script requires a single healthy internal `8087:0029` before installation and checks it again afterward.
 
 **Tradeoff / explicit authorization:** `WinUsbDriver.Install` generates a self-signed code-signing cert and imports it to **machine-wide** `LocalMachine\\My`, `Root`, `TrustedPublisher`. This carries a broader trust-surface impact than an inbox-only manual binding; there is **no claim** of certificate-free installation. Revert the trust package and driver deliberately after experiments, and avoid automatic reruns if the first attempt fails. The installed package's actual behavior on the owner's Code 31 unit is **not validated** by documentation or unit tests. A self-signed catalog does not guarantee modern Windows code-integrity acceptance.
 
 Microsoft sources: [WinUSB INF-based installation](https://learn.microsoft.com/en-us/windows-hardware/drivers/usbcon/winusb-installation), [PnPUtil driver ranking / force limitations](https://learn.microsoft.com/en-us/windows-hardware/drivers/devtest/pnputil-command-syntax), [Windows driver signing](https://learn.microsoft.com/en-us/windows-hardware/drivers/install/windows-driver-signing-tutorial).
+
+## 2026-10-22 script review and local validation
+
+At `36ab933`, the local Windows agent found that the preflight's `$matches` variable collided case-insensitively with PowerShell's automatic `$Matches` regex-capture variable when validating the INF. It is now `$barrotDevices`. Backup validation now checks the exact hardware ID in the INF and valid Microsoft WHCP Authenticode signatures for INF/CAT/SYS; the install path also fails closed unless the built-in Intel adapter is uniquely present and healthy and the external node reaches WinUSB/PnP OK before HCI testing. The Probe identifies failure as USB WinUSB interface discovery/open, before any HCI command.
+
+Local Release verification: **96/96 tests passed**, Probe build **0 warnings / 0 errors**, PowerShell parser and read-only script preflight passed. The preflight found exactly one external `33FA:0001` (still BTHUSB / Code 31) and one healthy Intel AX200. The saved Barrot INF/CAT/SYS signatures all validate. No driver binding or certificate-store changes have been performed. HCI-only currently stops at WinUSB interface discovery/open; HCI Reset and Read Local Version have not yet been sent.
 
 ## Next local Windows preflight (read-only)
 
