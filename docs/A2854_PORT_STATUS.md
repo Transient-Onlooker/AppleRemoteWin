@@ -299,3 +299,17 @@ The owner asked that the detector identify the known model more specifically. Th
 
 Next: build/test new matcher → scan while waking physical A2854 after the scan starts → confirm known fingerprints without logging identity/address → propose explicit connection-only diagnostic; **do not silently perform SMP pairing or save bond keys**.
 
+## 2026-10-22 desk research / no-remote improvements before link test
+
+Local agent report at HEAD \`1375d4d\`: full Release tests **103/103 passed**, standalone Probe Release build succeeded. The owner's physical A2854 was unavailable; \`--connect-only\` timed out **at advertising scan**, so **no connection attempt or cleanup Reset took place**. Prior real Barrot scan had already measured **95 strong A2854-format advertisements** with Apple \`0x004C\`, HID \`0x1812\` and manufacturer prefix A. Physical LE link, security, GATT and native input are untested.
+
+ChatGPT compared Apple model/pairing guidance, Bluetooth SIG USB transport and LE HCI event mask, Linux HCI initialization and SIG Security Manager test vectors. Changes after the 103/103 baseline:
+
+1. \`src/AppleRemote.Core/Ble.cs\`: extended-controller LE event mask changed from **\`0x101F\` to \`0x121F\`**, enabling bit 9 (**LE Enhanced Connection Complete**) alongside bit 12 (Extended Advertising). The existing Bluetooth 5 fake-controller unit test now uses **enhanced** completion. This is a preventative protocol fix, **not a proven cause of a prior link failure**, because no real link command has yet been issued.
+2. \`src/AppleRemote.Core/SiriRemoteBle.cs\`: A2854-only pairing-capable path now uses \`A2854Advertisement.Classify(...).StrongCandidate\`; previously it used only Apple+HID and could pick an unrelated Apple HID device. Original first-generation matcher remains unchanged; a new regression test covers weaker Apple+HID data.
+3. Existing \`tests/AppleRemote.Tests/SmpTests.cs\` already has **independent official Bluetooth SIG c1/s1 specification vectors**. These were separately calculated against the specification's fixed numbers and matched; no redundant test was needed.
+
+See [the linked standards-backed research report](a2854/RESEARCH_2026-10-22.md) for references, cancellations/privacy/security concerns, and the staged plan.
+
+**Verification boundary:** these *newest* source edits have been pushed but **not yet compiled or tested on the owner's Windows system**; 103/103 belongs to \`1375d4d\`. The available assistant container has no .NET SDK; static code inspection alone is not a replacement for local build/tests. Do not make device-driver, certificate, pairing or bond changes until the owner can participate.
+
