@@ -27,12 +27,12 @@
 | Windows C# A2854 decoder and diagnostic program | **Implemented**; earlier 89 tests passed and probe built before latest BLE privacy-address changes |
 | Current privacy-address implementation | **Committed but post-change Windows tests not yet reported** |
 | ThinkPad T490s built-in Bluetooth | Owner confirmed **Intel Wireless-AC 9560**; A2854 test **not conducted** |
-| **Purchased Axxen USB dongle** | Owner reports **Barrot BR8652A12**; USB VID:PID/WinUSB/A2854 test still **pending** |
+| **Purchased Axxen USB dongle** | **33FA:0001 rev 8891** measured, Barrot `oem80.inf` **Code 31**; **90/90** C# tests passed at previous commit; WinUSB/HCI/A2854 still **not tested** |
 | Working Windows mouse / media remote | **Not yet delivered** |
 
 ## What to do next
 
-1. On the owner's Windows PC, fetch the working branch and run `dotnet test tests/AppleRemote.Tests -c Release` and `dotnet build tools/A2854.Probe/A2854.Probe.csproj -c Release`; report the exact result, not an assumed pass.
+1. On the owner's Windows PC, fetch the working branch **after the Barrot 0x21 EP0 patch** and run `dotnet test tests/AppleRemote.Tests -c Release` and `dotnet build tools/A2854.Probe/A2854.Probe.csproj -c Release`; report the exact result, not an assumed pass.
 2. Read [Hardware validation](HARDWARE_VALIDATION.md) and identify any *separate* USB Bluetooth dongle by **actual VID/PID, USB interface descriptor and chipset**. Do not change the laptop's internal Bluetooth driver.
 3. With an eligible external adapter and a documented restoration path, test USB/HCI → LE scan → connection → SMP → GATT → input notifications in order.
 4. Only after native Windows raw 0xFB/0xFC capture succeeds, integrate decoder routing, mouse/key mappings, reconnect and WPF UI.
