@@ -1,6 +1,6 @@
 # Siri Remote (gen 1) for Windows 11
 
-> **A2854 (Siri Remote 3rd gen) experimental fork branch:** [2026-10-18 comprehensive Korean handoff](docs/HANDOFF_2026-10-18_A2854.md) and [current A2854 status](docs/A2854_PORT_STATUS.md). This is **not a tested Windows A2854 release**. All existing gen-1 instructions below refer to the upstream project.
+> **A2854 (Siri Remote 3rd gen) experimental branch — updated 2026-10-21:** Start with the [latest Korean handoff](docs/HANDOFF_2026-10-21_A2854.md), then the [chronological engineering status](docs/A2854_PORT_STATUS.md) and [2026-10-18 historical handoff](docs/HANDOFF_2026-10-18_A2854.md). The one-time built-in HID restart **failed to clear Code 10**; next is a separate WinUSB Bluetooth controller and optional read-only T490s/AC 9560 diagnostics. **No native Windows A2854 input has been received.** All gen-1 instructions below concern the upstream application.
 
 
 *[Version française](README.fr.md)*
