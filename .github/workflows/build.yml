@@ -97,5 +97,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+      - name: Verify consolidated Linux reference snapshot
+        run: python tools/verify_a2854_reference.py
       - run: pip install bumble
       - run: python tools/test_siri_bumble.py
