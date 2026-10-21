@@ -27,14 +27,18 @@
 | Windows C# A2854 decoder and diagnostic program | **Implemented**; earlier 89 tests passed and probe built before latest BLE privacy-address changes |
 | Current privacy-address implementation | **Committed but post-change Windows tests not yet reported** |
 | ThinkPad T490s built-in Bluetooth | Owner confirmed **Intel Wireless-AC 9560**; A2854 test **not conducted** |
-| **Purchased Axxen USB dongle** | **33FA:0001 rev 8891** measured, Barrot `oem80.inf` **Code 31** even after inbox `bth.inf` previously failed; **96/96** C# tests passed at `7c6d0cb`; USB endpoints confirmed, WinUSB/HCI/A2854 still **not tested** |
+| **Purchased Axxen USB dongle** | **33FA:0001 WinUSB / `oem86.inf` Started; actual HCI Reset and Read Local Version succeeded with EP0 `0x21`!** Controller reports HCI/LMP 5.0 and manufacturer 0x08E7 (Barrot). **BLE scan, pairing, A2854 input unverified.** |
 | Working Windows mouse / media remote | **Not yet delivered** |
+
+## Latest validation caveat (2026-10-22)
+
+The native Windows **WinUSB HCI-only stage is now physically verified**, see [Barrot field record](BARROT_BR8652A12.md). The latest local agent's `dotnet run` build **failed** and `dotnet test` **hung**, but the **existing Release binary** successfully ran HCI-only. The previous 96/96 unit-test pass refers to an earlier verified run. ChatGPT has introduced a new `--scan-only` CLI path; it must be compiled locally before use.
 
 ## What to do next
 
 1. On the owner's Windows PC, fetch the working branch **after the Barrot 0x21 EP0 patch** and run `dotnet test tests/AppleRemote.Tests -c Release` and `dotnet build tools/A2854.Probe/A2854.Probe.csproj -c Release`; report the exact result, not an assumed pass.
-2. Read [Hardware validation](HARDWARE_VALIDATION.md) and identify any *separate* USB Bluetooth dongle by **actual VID/PID, USB interface descriptor and chipset**. Do not change the laptop's internal Bluetooth driver.
-3. With an eligible external adapter and a documented restoration path, test USB/HCI → LE scan → connection → SMP → GATT → input notifications in order.
+2. Keep the currently working external Barrot `33FA:0001` WinUSB binding intact. Resolve the build failure/test hang and compile the new `--scan-only` mode. Do not alter the internal Intel adapter.
+3. Perform **LE scan only first**, using the newly added `--scan-only --usb 33FA:0001 --seconds 30`. Do not connect/pair until successful LE advertising has been confirmed.
 4. Only after native Windows raw 0xFB/0xFC capture succeeds, integrate decoder routing, mouse/key mappings, reconnect and WPF UI.
 
 Past reports: [Oct 21 handoff](../HANDOFF_2026-10-21_A2854.md), [chronological engineering status](../A2854_PORT_STATUS.md), [Oct 18 historical handoff](../HANDOFF_2026-10-18_A2854.md).
