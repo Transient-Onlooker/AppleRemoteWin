@@ -251,3 +251,9 @@ using public-address scanning by default.
 A2854 pairing security mode, advertisement fragmentation, possible
 resolvable-private-address identity handling and actual 0xFB/0xFC
 receipt over the new controller remain open.
+
+## 2026-10-21 purchased BR8652A12 external dongle (next test hardware)
+
+Owner reports buying the available **Daiso Axxen Bluetooth 5.3 USB adapter**, after the older Realtek 5.0 adapter was unavailable, and identifies the chipset as **Barrot / BRLink BR8652A12** (not the previously speculated BR8651). USB VID/PID, descriptor class, Windows driver status and A2854 native receive have **not** been obtained yet. This changes the next test target, not the success status.
+
+See [BR8652A12-specific evidence, known Barrot HCI quirks and safe Windows preflight](a2854/BARROT_BR8652A12.md). Do not force Realtek firmware onto this controller or replace the built-in Intel AX200 driver. The external dongle's original driver binding should be recorded before considering a reversible WinUSB-only experiment.
