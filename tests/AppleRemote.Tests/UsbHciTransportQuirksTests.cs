@@ -12,8 +12,8 @@ public class UsbHciTransportQuirksTests
     [InlineData(0x8087, 0x0029, 0x20)] // built-in Intel: no Barrot quirk
     [InlineData(0x33FA, 0x1234, 0x20)] // unrelated Barrot PID is not auto-whitelisted
     [InlineData(0xFFFF, 0x0001, 0x20)] // unrelated manufacturer
-    public void Uses_known_vendor_ep0_request_only(ushort vendorId, ushort productId, byte expected)
+    public void Uses_known_vendor_ep0_request_only(int vendorId, int productId, int expected)
     {
-        Assert.Equal(expected, UsbHciTransportQuirks.CommandRequestType(vendorId, productId));
+        Assert.Equal((byte)expected, UsbHciTransportQuirks.CommandRequestType((ushort)vendorId, (ushort)productId));
     }
 }
