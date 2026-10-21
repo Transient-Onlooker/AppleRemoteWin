@@ -279,3 +279,23 @@ Next: direct-laptop USB-A Code 31 comparison; try a **Microsoft-signed inbox Win
 The user/local agent reports the externally purchased dongle now **WinUSB `oem86.inf`, PnP Started**. An existing previously compiled Release `A2854.Probe --no-build --usb 33FA:0001 --hci-only` successfully received HCI Reset and Read Local Version responses, with HCI USB EP0 request **0x21**, HCI/LMP version **0x09** (reported Bluetooth **5.0**), HCI revision **0x0202**, company identifier **0x08E7** (Barrot), LMP subversion **0x0002**. This verifies Windows-native USB HCI *transport*, **not** BLE scanning, A2854 pairing or input. The Intel AX200 remains Started. Experimental certificate in LocalMachine My/Root/TrustedPublisher has matching thumbprint, expiry **2026-11-21**; physical rollback has not been attempted.
 
 Important independent blocker: the attempt to build with plain `dotnet run -c Release` failed, while `dotnet test -c Release` hung and was manually interrupted. The previous **96/96** unit test pass is not a fresh run at HEAD `8256a5a`. The HCI success came from the previous compiled binary. **Exact error output is needed before diagnosing cause.** A new privacy-preserving `--scan-only` mode was committed afterward; do not run it with `--no-build` until fresh source compilation has succeeded. [Device data and next steps](a2854/BARROT_BR8652A12.md).
+
+## 2026-10-22 Windows-native BLE advertising: 770 events, 155 Apple-HID co-advertisements
+
+The local agent updated to `4820fc17942b2d53dee168917db52a2c7659e383` and diagnosed the earlier Release failure as **sandbox filesystem write denial to `obj` (`MSB3491`)**, not NuGet restore or source compilation. After running in a writable path, **Release build succeeded with 0 errors/0 warnings**. Old MSBuild server processes were stopped; fresh single-node tests with 60-second hang monitor **passed 96/96**. A previous Release diagnostic binary was backed up locally.
+
+On the **actual Windows WinUSB Barrot `33FA:0001`** controller, `--scan-only --seconds 30` initialized LE successfully (Extended Advertising supported) and collected:
+
+```text
+packets=770
+apple_ad_packets=178
+hid1812_ad_packets=155
+both_in_one_packet=155
+```
+
+The first scan had 444 events / 11 Apple company-ID / no HID, suggesting pairing-advertisement timing mattered. The second scan's **155 co-advertisements** are evidence of an **Apple HID-over-GATT advertiser**, not yet unequivocal identification of the specific A2854. No Windows BLE connection, pairing/bonding, GATT or input report was attempted. The Barrot remained `oem86.inf` Started and Intel AX200 remained Started; experimental signing cert expiry 2026-11-21, physical restoration still untested.
+
+The owner asked that the detector identify the known model more specifically. The repository's historical paired-device name starts **`DL1…`**; reference manufacturer header `07 0D 02 15 03 02`, but the actual `FakeRemote.PairingAdvertisement` HCI-trace fixture starts `8A 07 6D 02 02`. Both share Apple `0x004C` + HID `0x1812` and must be supported: do **not** use only the reference fingerprint or a BLE name (often omitted). New `src/AppleRemote.Core/A2854Advertisement.cs`, tests, and `--scan-only` aggregate `strong_candidates` counters were committed after `4820fc1` and remain **uncompiled/unverified** by the local agent. [Detailed observations](a2854/BARROT_BR8652A12.md).
+
+Next: build/test new matcher → scan while waking physical A2854 after the scan starts → confirm known fingerprints without logging identity/address → propose explicit connection-only diagnostic; **do not silently perform SMP pairing or save bond keys**.
+
