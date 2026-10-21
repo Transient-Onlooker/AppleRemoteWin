@@ -45,6 +45,15 @@ public sealed class SiriRemoteBle(HciHost hci, BondStore bonds,
         return hid && apple;
     }
 
+    /// <summary>
+    /// A2854 pairing advertisement: require the previously measured Apple HID manufacturer
+    /// prefix as well as Apple company 0x004C and HID 0x1812. A generic Apple HID device is
+    /// not a sufficient target for the A2854 pairing/bond-writing workflow.
+    /// The legacy gen-1 predicate above remains unchanged.
+    /// </summary>
+    public static bool IsA2854PairingAdvertisement(byte[] data) =>
+        A2854Advertisement.Classify(data).StrongCandidate;
+
     /// <summary>Connection loop: only returns on cancellation (the current connection is then closed).</summary>
     public async Task RunAsync(CancellationToken ct)
     {
@@ -66,7 +75,8 @@ public sealed class SiriRemoteBle(HciHost hci, BondStore bonds,
                     // A2854 can advertise under a rotating random BLE address. A stored bond
                     // address is not a reliable reconnect target; scan again for the live peer.
                     onStatus(Loc.T("Status.WaitPairing"));
-                    LePeer peer = await central.ScanPeerAsync(IsSiriRemoteAdvertisement, allowRandom: true, ct);
+                    // A2854-only flow: do not pair to another Apple HID device on company+service alone.
+                    LePeer peer = await central.ScanPeerAsync(IsA2854PairingAdvertisement, allowRandom: true, ct);
                     address = peer.Address;
                     peerAddressType = peer.AddressType;
                     onStatus(Loc.T("Status.Found", address, adapterName));
