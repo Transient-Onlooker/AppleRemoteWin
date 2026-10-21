@@ -113,7 +113,7 @@ The script fails closed unless exactly one present `USB\\VID_33FA&PID_0001` expo
 
 Microsoft sources: [WinUSB INF-based installation](https://learn.microsoft.com/en-us/windows-hardware/drivers/usbcon/winusb-installation), [PnPUtil driver ranking / force limitations](https://learn.microsoft.com/en-us/windows-hardware/drivers/devtest/pnputil-command-syntax), [Windows driver signing](https://learn.microsoft.com/en-us/windows-hardware/drivers/install/windows-driver-signing-tutorial).
 
-## 2026-10-22 script review and local validation
+## 2026-10-21 script review and local validation
 
 At `36ab933`, the local Windows agent found that the preflight's `$matches` variable collided case-insensitively with PowerShell's automatic `$Matches` regex-capture variable when validating the INF. It is now `$barrotDevices`. Backup validation now checks the exact hardware ID in the INF and valid Microsoft WHCP Authenticode signatures for INF/CAT/SYS; the install path also fails closed unless the built-in Intel adapter is uniquely present and healthy and the external node reaches WinUSB/PnP OK before HCI testing. The Probe identifies failure as USB WinUSB interface discovery/open, before any HCI command.
 
