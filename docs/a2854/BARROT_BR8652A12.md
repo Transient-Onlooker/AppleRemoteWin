@@ -164,3 +164,30 @@ HCI-only complete: no BLE scan or pairing attempted.
 
 **Next order of operations:** diagnose Release build and `dotnet test` hang → produce a new clean build → run the privacy-safe **`--scan-only`** probe for 30 seconds against `--usb 33FA:0001` → only after confirmed LE scanning consider A2854 connection/SMP/GATT. `--scan-only` does not connect, pair, touch `a2854-probe-bonds.json`, or log BLE addresses/serials. If no advertising packets appear, report HCI LE command successes/failures and controller features, and inspect radio/pairing mode before changing any BLE algorithm.
 
+## 2026-10-22 milestone: native Windows BLE advertisements received (no connection)
+
+The owner/local Windows agent confirmed the **previously committed `--scan-only` diagnostic built successfully in Release**, with zero warnings/errors. The former `MSB3491 Access denied` originated from sandboxed writes under `obj`, **not** a C# compiler or NuGet source failure; an executable/writeable build environment resolved it. After clearing stale MSBuild build servers and running tests in a single node with a 60-second hang monitor, **96/96 tests passed** at HEAD `4820fc17942b2d53dee168917db52a2c7659e383`. Previous Release probe binaries were backed up locally.
+
+The physical **WinUSB Barrot `33FA:0001`** completed LE initialization, reported `Extended Advertising=True`, and **received actual BLE advertisements**. A first scan found 444 events (11 Apple company-ID packets, 0 HID `0x1812`); the second 30-second scan, performed with appropriate remote wake/pairing-advertisement timing, returned:
+
+```text
+packets=770
+apple_ad_packets=178
+hid1812_ad_packets=155
+both_in_one_packet=155
+```
+
+This is **155 advertising packets containing Apple manufacturer company ID `0x004C` AND 16-bit HID service `0x1812` in the SAME packet**. That matches the *broad* A2854 pairing-advertisement behavior observed on Linux, and is far more discriminating than Apple-only packets. **It is not proof of a specific A2854 identity**, because an Apple HID-capable device can advertise the same fields. There has been **no LE connection, SMP exchange, GATT discovery, pairing, bond write, 0xFB button reception or 0xFC touch reception on Windows**.
+
+### Additional privacy-safe identification (implemented after this measurement; hardware NOT retested)
+
+The project already holds **two different** manufacturer header variants for the physical model (do not include any following identity-address bytes in public logs):
+
+- Rust upstream README/reference fingerprint: Apple `0x004C`, manufacturer bytes start with `07 0D 02 15 03 02`. A suffix may vary between devices.
+- Actual old HCI trace reused by `FakeRemote.PairingAdvertisement` in `SiriRemoteBleTests.cs`: Apple `0x004C`, manufacturer bytes start with `8A 07 6D 02 02`. Do **not** reject this proven variant by requiring the README version.
+- Historical Windows paired device name appeared as **`DL1…`**; `Siri Remote` is another possible name hint, but **BLE advertisements can omit their names**, and `DL1…` is not a cryptographic identity.
+
+`src/AppleRemote.Core/A2854Advertisement.cs` now provides a conservative **`StrongCandidate` = Apple company 0x004C + HID 0x1812 + either documented manufacturer-prefix variant within one advertisement packet**. `tools/A2854.Probe --scan-only` reports only aggregate counters `strong_candidates`, `readme_prefix`, `captured_prefix`, and `name_hints`, with no BLE address, identity bytes, full advertising data, or per-device stable ID. New deterministic tests cover the captured variant, reference variant, iPhone-only advertisements, Apple+HID false positives, and a name-only hint. **These new changes have not been compiled or physically tested yet**; the already confirmed 96/96 pass is at the *previous* HEAD. An absent known prefix does not prove the target is absent (additional vendor variants or separated adv/scan-response events may exist).
+
+**Immediate next test:** `dotnet test tests/AppleRemote.Tests -c Release` and `dotnet build tools/A2854.Probe/A2854.Probe.csproj -c Release`, then `dotnet run -c Release --project tools/A2854.Probe/A2854.Probe.csproj -- --usb 33FA:0001 --scan-only --seconds 30`. Start scan **before** waking/advertising the actual A2854, to reduce the chance of missing its limited-duration advertising mode. Hold off on LE connection and SMP pairing until the user explicitly authorizes the next stage. Keep the existing WinUSB driver/certificate installation and Intel controller untouched.
+
