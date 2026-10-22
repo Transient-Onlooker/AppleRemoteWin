@@ -10,6 +10,12 @@ namespace AppleRemote.App.Models;
 public sealed class Settings
 {
     public bool KeyboardEnabled { get; set; }
+    /// <summary>Explicit opt-in for third-generation Siri Remote via dedicated Barrot 33FA:0001 WinUSB.</summary>
+    public bool A2854Mode { get; set; }
+    /// <summary>Opt-in Windows mouse movement/click synthesis, off by default.</summary>
+    public bool A2854PointerEnabled { get; set; }
+    /// <summary>Relative cursor sensitivity in pixels per A2854 coordinate unit.</summary>
+    public double A2854PointerSensitivity { get; set; } = 0.18;
     public string? KeyMapPath { get; set; }
     /// <summary>Closing the window minimises it to the notification area (otherwise the app exits).</summary>
     public bool CloseToTray { get; set; } = true;
