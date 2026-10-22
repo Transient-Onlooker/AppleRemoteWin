@@ -37,3 +37,16 @@
 6. Subsequent key retention / encrypted reconnect and GATT/HID input capture are separate gates, not part of this initial physical pairing.
 
 Bluetooth reference: [Bluetooth SIG Core SMP Specification](https://www.bluetooth.com/wp-content/uploads/Files/Specification/HTML/Core_v6.3/out/en/host/security-manager-specification.html): feature exchange, STK derivation, link encryption before LTK distribution, central identification; legacy Just Works is unauthenticated against an active MITM.
+
+## Further security review before first hardware execution
+
+The new diagnostic already implements a strict physical-response profile check (`AuthReq=0x01`, max key length 16, IO 0x03, no OOB, initiator key distribution 0 and responder EncKey 0x01), bounded abort paths, and no bond storage. Source review additionally identified two secret-buffer lifetime cases:
+
+- If `Encryption Information` (LTK) arrived but `Master Identification` (EDIV/RAND) did not, the original received LTK buffer previously remained reachable after cancellation. Both SMP receive buffers are now retained for **unconditional clearing in `finally`**, even after mid-distribution failure.
+- If the non-secret `Complete` progress callback throws, the caller must not receive partially constructed unmanaged copies of its bond secret. Returned key-array allocations now happen **after** the completion callback succeeds.
+
+The fake controller now supports a **LTK-only distribution fault**. Unit tests assert the underlying received LTK PDU was cleared when the second message was missing and cancellation occurred. Another test injects a throwing completion callback and asserts both received SMP key PDUs were erased. These checks establish managed-buffer cleanup in those mocked scenarios, **not total process-memory erasure** (copies may still exist in USB transport and runtime allocations).
+
+**Build verification boundary:** All code and tests have been pushed to the feature branch, but this assistant runtime does not have a .NET SDK and GitHub's workflow-run lookup returned no usable build run. The existing `125/125` pass belongs to the earlier negotiation-only source. Do **not** claim the new full-pair-only code or these security regressions passed until the local Windows agent runs `dotnet test tests/AppleRemote.Tests -c Release` and `dotnet build tools/A2854.Probe/A2854.Probe.csproj -c Release`.
+
+**Physical authorization:** Before any real `--smp-pair-only --confirm-pairing` attempt, the owner should explicitly acknowledge that the device may change its Apple TV pairing. This experiment intentionally erases the Windows-side LTK, so even a successful encrypted pairing will **not** enable encrypted reconnection until a separately consented, OS-protected bond store is implemented. No SMP, HID or driver operation was executed in this source-only review.
