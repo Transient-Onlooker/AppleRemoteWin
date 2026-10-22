@@ -1,6 +1,8 @@
 # A2854 Windows-native HID input diagnostic — implementation and safety gates
 
 **2026-10-23 update: Windows Release software validation passed (179/179 tests; solution and Probe builds with 0 warnings/errors). Actual Windows-side 0xFB/0xFC notifications have not yet been captured.** See [validation, fixes and next approval gate](HID_INPUT_VALIDATION_2026-10-23.md).
+
+One separately approved [physical HID trial](HID_INPUT_HARDWARE_2026-10-23.md) subsequently timed out during LE connection, before encryption/GATT/CCCD/F0 activation. External HCI Reset cleanup succeeded. No automatic retry was made; input frame counts remain unmeasured.
 The latest physical result recorded at commit `50916bc` demonstrates successful DPAPI-protected LTK encrypted reconnection, GATT HID service `0x1812` and Report Reference `0x2908` discovery on Windows 11 with external WinUSB Barrot `33FA:0001` connected through a USB 3.0 hub. The physical A2854 advertised:
 
 | HID Report Reference | Physically observed characteristic **value handle** |

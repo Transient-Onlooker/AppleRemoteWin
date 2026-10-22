@@ -2,6 +2,8 @@
 
 Validated on 2026-10-23 (Asia/Seoul), starting from `e6750376ead29ae1da0bbe15003b790b009c9a2b` on `feat/a2854-support`. The local tree was clean before fast-forward. No live HID diagnostic was run: CCCD writes and F0 activation still require separate owner approval.
 
+**Subsequent hardware update:** the owner approved one trial of validated Release `fde9554`. It timed out before LE connection completion; no ATT writes or input capture occurred. External HCI Reset cleanup succeeded. See [complete sanitized trial record](HID_INPUT_HARDWARE_2026-10-23.md). The validation results below describe the earlier software-only check.
+
 ## Results
 
 | Check | Actual result |

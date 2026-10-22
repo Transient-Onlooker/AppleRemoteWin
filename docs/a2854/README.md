@@ -23,6 +23,7 @@
 | [Protected-bond hardware logs](PROTECTED_BOND_HARDWARE_2026-10-22.md) | A/B/C success, report value handles and earlier failures; retained bond and next input gate |
 | [HID input probe — implementation/safety gates](HID_INPUT_DIAGNOSTIC_2026-10-22.md) | Opt-in CCCD/feature activation and button/touch capture code; Windows software validated, physical writes await approval |
 | [2026-10-23 HID software validation](HID_INPUT_VALIDATION_2026-10-23.md) | 179/179 tests, clean Release builds, handle/write restrictions and notification teardown fixes |
+| [2026-10-23 first HID hardware attempt](HID_INPUT_HARDWARE_2026-10-23.md) | One approved trial timed out before LE connection completion; no ATT writes or input capture, external Reset cleanup succeeded |
 | [Consolidation record](CONSOLIDATION.md) | Source commit, copied-file SHA checks, licenses and Git history |
 
 ## Latest verified status
@@ -46,6 +47,8 @@
 Validated source `4c86fae`: **167/167 Release tests passed**, full solution and Probe Release builds at **zero warnings/errors**. Following an initial C connection timeout, an explicitly approved `--gatt-inspect-only` retry with a normal-button wake succeeded: encrypted reconnect, HID service `0x1812`, eight Report References and exact `0xFB`/`0xFC`/`0xF0` value handles. It made no ATT writes or notification subscriptions and disconnected with `0x16`. The protected bond remains present; see [sanitized per-stage logs](PROTECTED_BOND_HARDWARE_2026-10-22.md). Actual Windows input reports remain unverified.
 
 ## Next gate — live button/touch inputs
+
+The first separately approved HID trial at Release `fde9554` timed out before LE connection completion. No encryption, GATT writes or input observation occurred, and external HCI Reset cleanup succeeded. A further attempt requires fresh approval and a coordinated ordinary-button wake; see [trial log](HID_INPUT_HARDWARE_2026-10-23.md).
 
 The HID-input source now passes **179/179 Release tests** (12 HID cases plus all 167 existing tests), with clean full solution and Probe builds. This validates software and mocks; live button/touch inputs still need a separately approved trial.
 
