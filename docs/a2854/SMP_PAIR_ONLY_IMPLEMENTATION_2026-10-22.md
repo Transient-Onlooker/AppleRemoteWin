@@ -50,3 +50,9 @@ The fake controller now supports a **LTK-only distribution fault**. Unit tests a
 **Build verification boundary:** All code and tests have been pushed to the feature branch, but this assistant runtime does not have a .NET SDK and GitHub's workflow-run lookup returned no usable build run. The existing `125/125` pass belongs to the earlier negotiation-only source. Do **not** claim the new full-pair-only code or these security regressions passed until the local Windows agent runs `dotnet test tests/AppleRemote.Tests -c Release` and `dotnet build tools/A2854.Probe/A2854.Probe.csproj -c Release`.
 
 **Physical authorization:** Before any real `--smp-pair-only --confirm-pairing` attempt, the owner should explicitly acknowledge that the device may change its Apple TV pairing. This experiment intentionally erases the Windows-side LTK, so even a successful encrypted pairing will **not** enable encrypted reconnection until a separately consented, OS-protected bond store is implemented. No SMP, HID or driver operation was executed in this source-only review.
+
+## Fixed-length SMP parsing regression
+
+The SMP Pairing Response parser now rejects **both truncated and overlong** PDUs: the on-wire opcode plus six feature octets must total exactly **7 bytes**. Previously an 8-byte response with trailing data could have been accepted by the parser. A new test covers that malformed trailing-byte case. Existing good seven-byte legacy and SC response fixtures remain unchanged.
+
+**Fresh validation is still pending** on the Windows host. This source-only improvement does not constitute a physical SMP Confirm/Random, encryption or LTK test.
