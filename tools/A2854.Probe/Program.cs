@@ -922,8 +922,11 @@ internal static partial class Program
                                     // A transport callback may already have captured the delegate.
                                     acceptingInput = false;
                                     decoder.Decode([]);
-                                    hidButtonFrames = buttonFrames;
-                                    hidTouchFrames = touchFrames;
+                                    // The success gate counts only validated reports:
+                                    // malformed packets are still counted in diagnostics
+                                    // but cannot satisfy the 0xFB/0xFC capture milestone.
+                                    hidButtonFrames = buttonFrames - malformedButtons;
+                                    hidTouchFrames = touchFrames - malformedTouches;
                                     Console.WriteLine($"HID summary: button_frames={buttonFrames}, touch_frames={touchFrames}, " +
                                         $"malformed_buttons={malformedButtons}, malformed_touches={malformedTouches}, ignored_handles={ignoredOtherHandles}.");
                                 }
