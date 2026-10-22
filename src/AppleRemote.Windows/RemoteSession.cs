@@ -69,7 +69,11 @@ public sealed class RemoteSession : IDisposable
         {
             lock (_gate)
             {
-                if (!value) _pointer.Reset(); // release a held click before disabling
+                if (_a2854PointerEnabled == value) return;
+                // Switching while a physical button is held must not strand
+                // an Enter key from the old mode or a mouse-down in the new one.
+                _binder.ReleaseAll();
+                _pointer.Reset();
                 _a2854PointerEnabled = value;
             }
         }
