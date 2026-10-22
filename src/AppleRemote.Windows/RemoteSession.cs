@@ -74,7 +74,8 @@ public sealed class RemoteSession : IDisposable
                 // Switching while a physical button is held must not strand
                 // an Enter key from the old mode or a mouse-down in the new one.
                 _binder.ReleaseAll();
-                _pointer.Reset();
+                if (!_pointer.Reset())
+                    Status?.Invoke("A2854: Windows rejected mouse-up; held click retained for cleanup retry.");
                 _a2854PointerEnabled = value;
             }
         }
@@ -262,7 +263,8 @@ public sealed class RemoteSession : IDisposable
         lock (_gate)
         {
             _binder.ReleaseAll();
-            _pointer.Reset();
+            if (!_pointer.Reset())
+                    Status?.Invoke("A2854: Windows rejected mouse-up; held click retained for cleanup retry.");
         }
         UsesBluetoothDirect = false;
         Status?.Invoke(Loc.T("Status.Stopped"));
@@ -278,7 +280,14 @@ public sealed class RemoteSession : IDisposable
             if (!_acceptA2854Input && report is { Length: > 0 }) return;
             foreach (RemoteEvent ev in _a2854Decoder.Decode(report))
             {
-                if (_a2854PointerEnabled) _pointer.OnEvent(ev);
+                if (_a2854PointerEnabled)
+                {
+                    _pointer.OnEvent(ev);
+                    if (ev is ButtonsEvent transition &&
+                        (transition.Pressed.Contains("click") || transition.Released.Contains("click")) &&
+                        !_pointer.LastButtonTransitionSucceeded)
+                        Status?.Invoke("A2854: Windows rejected a mouse button transition; mouse-up is still pending.");
+                }
 
                 if (_keyboardEnabled)
                 {
@@ -304,7 +313,8 @@ public sealed class RemoteSession : IDisposable
             if (report is { Length: 0 })
             {
                 _binder.ReleaseAll();
-                _pointer.Reset();
+                if (!_pointer.Reset())
+                    Status?.Invoke("A2854: Windows rejected mouse-up; held click retained for cleanup retry.");
             }
         }
     }
