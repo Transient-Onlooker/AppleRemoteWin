@@ -1,4 +1,4 @@
-# A2854 protected-bond hardware gate: scan timeout (2026-10-22)
+# A2854 protected-bond hardware gates: A/B success, C connection timeout (2026-10-22)
 
 Source and validated Release binary: `4c86fae80e9a3fb42ab72d172426f74f1aac3522`, branch `feat/a2854-support`, Windows native Barrot `33FA:0001` WinUSB. No rebuild or code changes preceded this hardware run.
 
@@ -74,3 +74,78 @@ HCI-only complete: no BLE scan or pairing attempted.
 ```
 
 Exit code: **0**. HCI command/event responsiveness is restored after physical reconnection. This does not establish the root cause of the previous timeout or verify SMP, DPAPI saving, encrypted reconnect or GATT. Another A-stage pairing invocation requires renewed approval; no further pairing was automatically started.
+
+## Latest separately approved sequence: A and B pass, C stops before GATT
+
+After the recovery check, the owner explicitly approved proceeding with another A invocation. The existing validated `4c86fae` Release binaries were used without rebuilding; subsequent intervening commits changed documentation only. No driver, certificate or Intel AX200 changes were performed.
+
+### A: full pairing and CurrentUser DPAPI storage — success
+
+One invocation used the same `--smp-pair-only --confirm-pairing --save-bond --seconds 60` command. A strong public-address candidate was already advertising and was acquired immediately, before a new physical-button prompt was needed.
+
+```text
+LE SMP pair-only: USB2.0-BT (33FA:0001); EP0=0x21.
+EXPLICIT PAIRING TEST: may replace Apple TV pairing; saves CurrentUser DPAPI-protected bond only.
+No GATT, HID, feature unlock, plaintext bond JSON, key dumps, or retries.
+Controller initialized. Extended LE commands: True.
+Starting scan for A2854 manufacturer prefix + Apple 0x004C + HID 0x1812.
+Wake the remote / Back + Volume Up ~5 seconds after scan starts.
+Strong A2854-format candidate acquired (address redacted, type=public).
+LE Connection Complete OK (no BLE address/handle printed).
+Beginning one bounded Legacy Just Works pairing attempt.
+Stages only; raw SMP PDU/key/address content is never logged.
+Pairing stage: PairingRequest.
+Pairing stage: PairingResponseValidated.
+Pairing stage: PairingConfirm.
+Pairing stage: PairingRandom.
+Pairing stage: PeerConfirmVerified.
+Pairing stage: StartEncryption.
+Pairing stage: LinkEncrypted.
+Pairing stage: ReceiveEncryptionInformation.
+Pairing stage: ReceiveMasterIdentification.
+Pairing stage: Complete.
+SMP full pairing / STK link encryption / responder LTK distribution completed at 958ms.
+Protected bond saved to this Windows user profile (DPAPI ciphertext only).
+HCI Disconnect Command Status OK.
+Disconnection Complete received at 989ms: reason=0x16 (Connection Terminated by Local Host), after_host_request=True.
+SMP pair-only success. Protected key saved; encrypted reconnection NOT YET verified.
+```
+
+Exit **0**. A metadata-only filesystem check confirmed a **324-byte** protected bond file in the CurrentUser profile. The file was not opened by diagnostic shell commands, copied into the repository or uploaded. No plaintext JSON was created by this mode.
+
+### B: stored-LTK encrypted reconnect — success
+
+Command: `dotnet run -c Release --no-build --project tools/A2854.Probe/A2854.Probe.csproj -- --usb 33FA:0001 --reconnect-only`
+
+```text
+A2854 protected-bond encrypted reconnect-only diagnostic.
+No pairing request, no key persistence changes, no feature writes, no HID input subscriptions.
+Wake the remote with an ordinary button press if needed (do NOT enter pairing mode).
+Controller initialized. Extended LE commands: True.
+LE Connection Complete OK; stored peer address redacted.
+Encrypted LE reconnection confirmed by HCI Encryption Change.
+HCI Disconnect Command Status OK.
+Disconnection Complete reason=0x16 (Connection Terminated by Local Host).
+Encrypted reconnect-only completed; no GATT or SMP traffic was sent.
+```
+
+Exit **0**. This independently launched process loaded and decrypted the saved DPAPI bond, used the stored LTK/EDIV/RAND, confirmed link encryption and disconnected with `0x16`. This verifies persistent-key reuse on the physical A2854 under the same Windows user. It does not verify cross-user portability, privacy-address rotation or long-term stability.
+
+### C: read-only GATT probe — connection timeout, no GATT attempted
+
+Command: `dotnet run -c Release --no-build --project tools/A2854.Probe/A2854.Probe.csproj -- --usb 33FA:0001 --gatt-inspect-only --seconds 30`
+
+```text
+A2854 protected-bond reconnect + READ-ONLY GATT inspection.
+No pairing request, no key persistence changes, no feature writes, no HID input subscriptions.
+Wake the remote with an ordinary button press if needed (do NOT enter pairing mode).
+Controller initialized. Extended LE commands: True.
+Protected-bond diagnostic cancelled/timed out at LE Create Connection from protected public address.
+Cleanup: external Barrot HCI Reset OK.
+```
+
+Exit **1**. The connection window in the current source is **15 seconds**; `--seconds 30` bounds GATT inspection only after encryption succeeds. The operator was prompted to press an ordinary button during connection waiting, but confirmed pressing it only after the process had timed out. No retry followed that confirmation.
+
+No LE Connection Complete, LTK encryption attempt, ATT discovery, service `0x1812` confirmation, descriptor `0x2908` read or report-handle mapping was reached during C. Thus `0xFB`, `0xFC` and `0xF0` handles remain unknown on this physical Windows path. The observed failure is consistent with absent/tardy connectable advertisements, but there was no simultaneous scan and the exact RF cause remains unproven. No numeric HCI rejection code was reported; cancellation and cleanup Reset completed, unlike the earlier unresponsive-controller attempt.
+
+The protected bond remained present at **324 bytes** after B/C; only existence and length were checked externally. No bond deletion/overwrite, automatic pairing, GATT write, HID subscription or microphone operation occurred. Stop here as requested on C failure. The next experiment should coordinate a normal-button wake with a separately requested C retry, reusing this bond. **Do not run A again merely to recover from this C timeout.** Software is unchanged: prior Release validation remains 167/167 tests and zero-warning/error solution and Probe builds.

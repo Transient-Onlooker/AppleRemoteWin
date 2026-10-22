@@ -1,10 +1,10 @@
 # A2854 Windows native — DPAPI bond, encrypted reconnect and read-only GATT gates
 
-**2026-10-22 — Windows software validation completed after review of `8671444`; new radio experiments remain pending.** The earlier physical A2854 Just Works full pairing verified peer Confirm, STK HCI LE encryption, LTK + EDIV/RAND receipt, and HCI Disconnection Complete `0x16` at 963ms. That run erased its keys without saving. The protected bond file was checked for existence only and was absent during this validation; no fresh pairing, encrypted reconnect or GATT hardware inspection was executed.
+**2026-10-22 — Windows software validation and physical protected-bond save/reconnect verified.** Validated Release binaries from `4c86fae` completed a newly approved A2854 pairing, saved a CurrentUser DPAPI-protected bond, and reused it in a separate `--reconnect-only` process with HCI Encryption Change success and clean `0x16` disconnect. The following GATT inspection attempt timed out during LE connection before reaching ATT. GATT handles and Windows HID input remain unverified.
 
 ## Windows verification and fixes (2026-10-22)
 
-Subsequent hardware results: [A-stage experiment log](PROTECTED_BOND_HARDWARE_2026-10-22.md). The first approved invocation timed out in advertisement selection. A separately reauthorized second invocation found a strong candidate but timed out during HCI connection and cleanup Reset. Neither reached SMP or created a protected bond; B/C were not executed. The software validation below remains valid; protected storage with a physical bond, encrypted reconnect and GATT inspection remain unverified.
+Hardware results and complete sanitized logs: [A/B success and C connection timeout](PROTECTED_BOND_HARDWARE_2026-10-22.md). Two earlier approved A invocations failed before SMP. After external-dongle reconnection and an HCI-only recovery check, a separately approved A run saved a protected bond, B verified its LTK reuse, and C stopped at its 15-second connection timeout. The protected bond is retained; do not re-pair to recover from C.
 
 - Environment: Windows, .NET SDK `10.0.402`, original working directory on `feat/a2854-support`; the worktree was clean before fast-forward from `6cd4bbb` to `8671444`.
 - Initial solution build failed with `CS1061` in `Gatt.cs`: the descriptor list used an unnamed tuple but referenced `.Handle`. Named tuple fields fix this actual compile failure.
@@ -13,7 +13,7 @@ Subsequent hardware results: [A-stage experiment log](PROTECTED_BOND_HARDWARE_20
 - GATT discovery rejects value handles outside the service or overlapping another declaration. Optional cancellation tokens preserve existing callers; the probe applies `--seconds` to the complete GATT inspection. Disconnect/detach fails pending and future requests. Cancellation or timeout closes the ATT client so a late response cannot satisfy a subsequent request; cleanup must end that link.
 - Encryption Change and Disconnection Complete now match the pending encryption's connection handle. Regression tests cover unrelated events and cancellation followed by a new encryption attempt. Existing first-generation decoder and fake-remote BLE tests remain included in the full suite; no first-generation physical hardware test was run.
 - Read-only PnP check: one Barrot `33FA:0001`, `WINUSB`, `oem86.inf`, version `1.0.0.0`, status OK/problem 0; one Intel AX200 `8087:0029`, `BTHUSB`, `oem116.inf`, version `23.160.0.9`, status OK/problem 0. No drivers, certificates or system pairings were changed.
-- Before the next hardware gate, obtain explicit approval for one `--smp-pair-only --confirm-pairing --save-bond` run. It may replace the Apple TV association. On successful protected save, proceed in order to encrypted reconnect and then read-only GATT discovery. Never delete/overwrite an existing protected bond or re-pair as an automatic recovery.
+- The original next-gate plan (new pairing, protected save, then encrypted reconnect) has now succeeded. The next experiment is a coordinated read-only GATT retry using the existing protected bond. Never delete/overwrite that bond or re-pair as an automatic recovery.
 
 ## Security and source boundaries
 
@@ -23,7 +23,7 @@ Subsequent hardware results: [A-stage experiment log](PROTECTED_BOND_HARDWARE_20
 - New `--gatt-inspect-only --usb 33FA:0001` does the same protected encrypted reconnect, then reads **only ATT/GATT metadata**: primary services, HID service 0x1812, Report characteristic 0x2A4D, Report Reference descriptors 0x2908 and their two-byte ID/type. Reports whether 0xFB button input, 0xFC touch input and 0xF0 feature are present, including **local GATT value handles**. It sends **no ATT attribute writes, no CCCD subscriptions, no feature unlock 0xAF, no microphone reads, no raw HID input logging**, and does not change stored secrets.
 - Both reconnect modes require an **explicit** dedicated Barrot WinUSB USB ID `33FA:0001`. They neither touch built-in Intel AX200 nor Windows device pairings, driver installations or certificate stores. Errors, timeouts and disconnects are reported by stage; the external Barrot controller alone is reset as a last-resort cleanup if a link could remain.
 - `GattClient` discovery now rejects malformed zero-length entries, impossible entry widths, misaligned frames and non-monotonic ranges rather than looping forever or using incorrect characteristic/descriptor handles.
-- DPAPI tests (Windows-only) cover save/load/delete, ciphertext-vs-plaintext, corrupted files and invalid sizes; fake-HCI tests cover encrypted reconnect and read-only GATT metadata. **Windows execution results are recorded above; physical reconnect and GATT inspection remain unverified.**
+- DPAPI tests (Windows-only) cover save/load/delete, ciphertext-vs-plaintext, corrupted files and invalid sizes; fake-HCI tests cover encrypted reconnect and read-only GATT metadata. **Physical protected storage and encrypted reconnect have now succeeded; GATT inspection remains unverified.**
 
 ## Critical operator sequence (separate approvals)
 
@@ -32,7 +32,7 @@ Subsequent hardware results: [A-stage experiment log](PROTECTED_BOND_HARDWARE_20
 2. Review DPAPI P/Invoke marshaling, file handling, memory zeroing, path protections and backward compatibility. Never print real key material or publish protected ciphertext, addresses or pairing packets.
 
 **Gate B — new physical bond, separately authorized**:
-- **Warn:** the previous successful bond was discarded, so a new pairing is necessary if the remote is to reconnect to this Windows controller. It may disrupt or replace the A2854's Apple TV association.
+- **Historical prerequisite, now completed:** the original in-memory bond was discarded; a separately approved new pairing has since saved a protected bond and verified reconnection. **Do not run this gate again while that bond exists.** A new pairing can disrupt or replace the A2854's Apple TV association.
 - After explicit user approval, run exactly once, with the remote awake after the scan starts:
   ```powershell
   dotnet run -c Release --project tools/A2854.Probe/A2854.Probe.csproj -- --usb 33FA:0001 --smp-pair-only --confirm-pairing --save-bond --seconds 30
@@ -44,7 +44,7 @@ Subsequent hardware results: [A-stage experiment log](PROTECTED_BOND_HARDWARE_20
   ```powershell
   dotnet run -c Release --project tools/A2854.Probe/A2854.Probe.csproj -- --usb 33FA:0001 --reconnect-only
   ```
-- Expected: LE Connection Complete, HCI Encryption Change OK with the **stored** LTK/EDIV/RAND, local disconnect reason 0x16. This has not yet happened on hardware.
+- **Physically verified:** LE Connection Complete, HCI Encryption Change OK with the **stored** LTK/EDIV/RAND, local disconnect reason 0x16. See the hardware log.
 
 **Gate D — read-only GATT HID mapping, after C succeeds**:
   ```powershell
