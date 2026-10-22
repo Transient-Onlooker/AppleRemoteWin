@@ -24,14 +24,15 @@ internal static partial class Program
 
         int seconds = 30;
         UsbHci.UsbId? targetUsbId = null;
-        bool hciOnly = false, scanOnly = false, connectOnly = false;
+        bool hciOnly = false, scanOnly = false, connectOnly = false, smpNegotiateOnly = false;
         for (int i = 0; i < args.Length;)
         {
-            if (args[i] is "--hci-only" or "--scan-only" or "--connect-only")
+            if (args[i] is "--hci-only" or "--scan-only" or "--connect-only" or "--smp-negotiate-only")
             {
                 if (args[i] == "--hci-only") hciOnly = true;
                 else if (args[i] == "--scan-only") scanOnly = true;
-                else connectOnly = true;
+                else if (args[i] == "--connect-only") connectOnly = true;
+                else smpNegotiateOnly = true;
                 i++;
             }
             else if (i + 1 < args.Length && args[i] == "--seconds" &&
@@ -49,21 +50,21 @@ internal static partial class Program
             }
             else
             {
-                Console.Error.WriteLine("Usage: A2854.Probe [--seconds 30] [--usb 33FA:0001] [--hci-only | --scan-only | --connect-only]");
+                Console.Error.WriteLine("Usage: A2854.Probe [--seconds 30] [--usb 33FA:0001] [--hci-only | --scan-only | --connect-only | --smp-negotiate-only]");
                 return 2;
             }
         }
 
-        if ((hciOnly ? 1 : 0) + (scanOnly ? 1 : 0) + (connectOnly ? 1 : 0) > 1)
+        if ((hciOnly ? 1 : 0) + (scanOnly ? 1 : 0) + (connectOnly ? 1 : 0) + (smpNegotiateOnly ? 1 : 0) > 1)
         {
-            Console.Error.WriteLine("Choose only one of --hci-only, --scan-only, or --connect-only.");
+            Console.Error.WriteLine("Choose only one of --hci-only, --scan-only, --connect-only, or --smp-negotiate-only.");
             return 2;
         }
         // The experimental link-only mode is deliberately limited to the measured,
         // independently controlled external Barrot adapter. Never select the built-in Intel adapter.
-        if (connectOnly && targetUsbId != new UsbHci.UsbId(0x33FA, 0x0001))
+        if ((connectOnly || smpNegotiateOnly) && targetUsbId != new UsbHci.UsbId(0x33FA, 0x0001))
         {
-            Console.Error.WriteLine("--connect-only requires --usb 33FA:0001 (the dedicated external WinUSB dongle).");
+            Console.Error.WriteLine($"{(connectOnly ? "--connect-only" : "--smp-negotiate-only")} requires --usb 33FA:0001 (the dedicated external WinUSB dongle).");
             return 2;
         }
 
@@ -305,6 +306,185 @@ internal static partial class Program
             }
         }
 
+
+        // Diagnostic SMP negotiation-only gate: issues a standard Pairing Request (CID 0x0006)
+        // after link establishment, analyzes the remote's Pairing Response / Failed PDU,
+        // and immediately disconnects without key exchange, encryption start, or bond persistence.
+        if (smpNegotiateOnly)
+        {
+            using (usb)
+            using (var stop = new CancellationTokenSource())
+            {
+                ConsoleCancelEventHandler onCancel = (_, e) =>
+                {
+                    e.Cancel = true;
+                    stop.Cancel();
+                };
+                Console.CancelKeyPress += onCancel;
+                bool connectionAttempted = false, linkEnded = false;
+                ushort? connectedHandle = null;
+                int disconnectRequestStarted = 0;
+                var disconnected = new TaskCompletionSource<(ushort Handle, byte Reason, bool AfterRequest)>(
+                    TaskCreationOptions.RunContinuationsAsynchronously);
+                string stage = "controller initialization";
+                try
+                {
+                    // Suppress automatic L2CAP parameter updates; we control the link explicitly
+                    var central = new LeCentral(usb.Host, respondToSignaling: false);
+                    central.Disconnected += (observedHandle, reason) =>
+                        disconnected.TrySetResult((observedHandle, reason,
+                            Volatile.Read(ref disconnectRequestStarted) != 0));
+
+                    Console.WriteLine($"LE SMP negotiate-only: {usb.Name}; EP0=0x{usb.CommandRequestType:X2}.");
+                    Console.WriteLine("Diagnostics only: sends Pairing Request, analyzes response, disconnects immediately.");
+                    Console.WriteLine("NO confirm/random keys, NO encryption start, NO LTK/IRK persistence, NO GATT/HID.");
+                    await central.InitializeAsync();
+                    Console.WriteLine($"Controller initialized. Extended LE commands: {central.Extended}.");
+
+                    stage = "strong A2854 advertisement scan";
+                    using var scanWindow = CancellationTokenSource.CreateLinkedTokenSource(stop.Token);
+                    scanWindow.CancelAfter(TimeSpan.FromSeconds(seconds));
+                    Console.WriteLine("Starting scan for known A2854 manufacturer prefix + Apple 0x004C + HID 0x1812.");
+                    Console.WriteLine("Wake the remote / hold Back + Volume Up ~5s once scan begins.");
+                    LePeer peer = await central.ScanPeerAsync(
+                        ad => A2854Advertisement.Classify(ad).StrongCandidate,
+                        allowRandom: true, scanWindow.Token);
+                    Console.WriteLine($"Strong candidate acquired; address redacted; peer type={(peer.AddressType == 1 ? "random" : "public")}.");
+
+                    stage = "LE Create Connection / LE Connection Complete";
+                    using var connectionWindow = CancellationTokenSource.CreateLinkedTokenSource(stop.Token);
+                    connectionWindow.CancelAfter(TimeSpan.FromSeconds(12));
+                    connectionAttempted = true;
+                    ushort handle = await central.ConnectAsync(peer.Address, connectionWindow.Token, peer.AddressType);
+                    connectedHandle = handle;
+                    Console.WriteLine("LE Connection Complete OK (peer address redacted).");
+                    var linkTimer = Stopwatch.StartNew();
+
+                    stage = "link stabilization check (500ms)";
+                    Console.WriteLine("Observing link stability for 500ms before sending SMP Pairing Request.");
+                    Task stabilization = Task.Delay(TimeSpan.FromMilliseconds(500), stop.Token);
+                    if (await Task.WhenAny(disconnected.Task, stabilization) == disconnected.Task)
+                    {
+                        var early = await disconnected.Task;
+                        if (early.Handle != handle)
+                            throw new InvalidDataException("Unexpected disconnection event handle during stabilization.");
+                        linkEnded = true;
+                        Console.Error.WriteLine($"LE link ended BEFORE SMP negotiation at {linkTimer.Elapsed.TotalMilliseconds:F0}ms: " +
+                            $"reason=0x{early.Reason:X2} ({HciDisconnectReason.Describe(early.Reason)}).");
+                        return 1;
+                    }
+                    await stabilization;
+
+                    stage = "SMP Pairing Request / Response negotiation";
+                    Console.WriteLine("Sending SMP Pairing Request (CID 0x0006): IO=NoInputNoOutput, OOB=0, AuthReq=Bonding(0x01), KeySize=16, RespKeyDist=EncKey(0x01).");
+                    var preq = SmpPairingRequest.Default;
+                    Task<SmpNegotiationResult> negotiateTask = SmpNegotiator.NegotiateAsync(central, handle, preq, stop.Token);
+                    Task completed = await Task.WhenAny(negotiateTask, disconnected.Task);
+
+                    if (completed == disconnected.Task)
+                    {
+                        var early = await disconnected.Task;
+                        if (early.Handle != handle)
+                            throw new InvalidDataException("Unexpected disconnection event handle during SMP negotiation.");
+                        linkEnded = true;
+                        Console.Error.WriteLine($"Link dropped during SMP negotiation at {linkTimer.Elapsed.TotalMilliseconds:F0}ms: " +
+                            $"reason=0x{early.Reason:X2} ({HciDisconnectReason.Describe(early.Reason)}).");
+                        return 1;
+                    }
+
+                    SmpNegotiationResult result = await negotiateTask;
+                    Console.WriteLine($"SMP Negotiation received at {linkTimer.Elapsed.TotalMilliseconds:F0}ms:");
+                    if (result is SmpNegotiationResult.Success s)
+                    {
+                        var pres = s.Response;
+                        Console.WriteLine("=== SMP Pairing Response Analysis ===");
+                        Console.WriteLine($"  IO Capability:               {SmpIoCapability.Describe(pres.IoCapability)}");
+                        Console.WriteLine($"  OOB Data Flag:               0x{pres.OobDataFlag:X2} ({(pres.OobDataFlag == 1 ? "OOB Present" : "Not Present")})");
+                        Console.WriteLine($"  AuthReq:                     0x{pres.AuthReq:X2}");
+                        Console.WriteLine($"    - Bonding:                 {pres.BondingRequested}");
+                        Console.WriteLine($"    - MITM:                    {pres.MitmRequested}");
+                        Console.WriteLine($"    - Secure Connections (SC): {pres.SecureConnectionsRequested}");
+                        Console.WriteLine($"    - Keypress:                {pres.KeypressRequested}");
+                        Console.WriteLine($"    - CT2:                     {pres.Ct2Requested}");
+                        Console.WriteLine($"  Max Encryption Key Size:     {pres.MaxKeySize} bytes");
+                        Console.WriteLine($"  Initiator Key Distribution:  {SmpKeyDistribution.Describe(pres.InitiatorKeyDistribution)}");
+                        Console.WriteLine($"  Responder Key Distribution:  {SmpKeyDistribution.Describe(pres.ResponderKeyDistribution)}");
+                        Console.WriteLine("=== Protocol Assessment ===");
+                        if (pres.SecureConnectionsRequested)
+                            Console.WriteLine("  Remote supports/prefers: LE Secure Connections (SC bit set in response).");
+                        else
+                            Console.WriteLine("  Remote accepted/returned: Legacy Pairing (SC bit clear in response).");
+                        if (pres.MitmRequested)
+                            Console.WriteLine("  Remote requests MITM protection.");
+                        else
+                            Console.WriteLine("  Remote requests unauthenticated (Just Works) pairing model.");
+                        if (pres.HasIdKey)
+                            Console.WriteLine("  Remote intends to distribute Identity Resolving Key (IRK) for address resolution.");
+                    }
+                    else if (result is SmpNegotiationResult.Failed f)
+                    {
+                        Console.WriteLine("=== SMP Pairing Failed ===");
+                        Console.WriteLine($"  Reason Code: 0x{f.ReasonCode:X2} ({f.Description})");
+                        if (f.ReasonCode == SmpFailedReason.AuthenticationRequirements)
+                        {
+                            Console.WriteLine("  CRITICAL: Remote rejected legacy pairing with Authentication Requirements (0x03).");
+                            Console.WriteLine("  This strongly indicates the remote requires LE Secure Connections (SC) or MITM.");
+                        }
+                    }
+
+                    stage = "HCI Disconnect Command Status / Disconnection Complete";
+                    Console.WriteLine("Stopping negotiation here (no Confirm/Random/Key exchange). Requesting local disconnect.");
+                    Volatile.Write(ref disconnectRequestStarted, 1);
+                    await central.DisconnectAsync(handle);
+                    Console.WriteLine("HCI Disconnect Command Status OK.");
+                    var ended = await disconnected.Task.WaitAsync(TimeSpan.FromSeconds(5), stop.Token);
+                    if (ended.Handle != handle)
+                        throw new InvalidDataException("Disconnection Complete handle did not match LE connection handle.");
+                    linkEnded = true;
+                    Console.WriteLine($"Disconnection Complete received at {linkTimer.Elapsed.TotalMilliseconds:F0}ms: " +
+                        $"reason=0x{ended.Reason:X2} ({HciDisconnectReason.Describe(ended.Reason)}), " +
+                        $"after_host_request={ended.AfterRequest}.");
+                    if (!HciDisconnectReason.IsExpectedHostDisconnect(ended.Reason))
+                    {
+                        Console.Error.WriteLine("Link terminated with unexpected code: " + HciDisconnectReason.Describe(ended.Reason));
+                        return 1;
+                    }
+                    Console.WriteLine("LE SMP negotiation diagnostic completed successfully and link cleanly disconnected.");
+                    return result is SmpNegotiationResult.Success ? 0 : 1;
+                }
+                catch (OperationCanceledException)
+                {
+                    Console.Error.WriteLine($"SMP negotiate-only cancelled/timed out at {stage}.");
+                    return 1;
+                }
+                catch (Exception e)
+                {
+                    Console.Error.WriteLine($"SMP negotiate-only FAILED at {stage}: {e.GetType().Name}: {BluetoothAddress().Replace(e.Message, "[redacted]")}");
+                    return 1;
+                }
+                finally
+                {
+                    if (!linkEnded && connectedHandle is ushort establishedHandle && disconnected.Task.IsCompleted &&
+                        disconnected.Task.Result.Handle == establishedHandle)
+                    {
+                        linkEnded = true;
+                    }
+                    if (connectionAttempted && !linkEnded)
+                    {
+                        try
+                        {
+                            await usb.Host.CommandAsync(HciOpcode.Reset);
+                            Console.WriteLine("Cleanup: external Barrot controller HCI Reset OK.");
+                        }
+                        catch (Exception e)
+                        {
+                            Console.Error.WriteLine($"Cleanup Reset failed: {e.GetType().Name}. Check dongle state before retry.");
+                        }
+                    }
+                    Console.CancelKeyPress -= onCancel;
+                }
+            }
+        }
         // Full BLE workflow only if expressly selected without --hci-only.
         using (usb)
         using (var cts = new CancellationTokenSource())

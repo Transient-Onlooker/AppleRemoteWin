@@ -342,3 +342,13 @@ On real hardware with owner present, the controlled repeat of `--connect-only --
 4. The host issued `HCI Disconnect`, receiving `Command Status OK`.
 5. `Disconnection Complete` arrived at 1544 ms with reason `0x16` (`Connection Terminated by Local Host`) and `after_host_request=True`.
 6. This resolves the previous `0x3E` anomaly and confirms link stability and clean local termination. SMP pairing and GATT report access can now be approached with verified link foundations.
+
+## 2026-10-22 SMP pairing negotiation diagnostic (--smp-negotiate-only)
+
+Implemented an isolated, safe SMP pairing negotiation diagnostic mode (`--smp-negotiate-only`) in `A2854.Probe`:
+1. Establishes the physical LE link on WinUSB Barrot `33FA:0001` and checks link stability for 500 ms.
+2. Sends a standard SMP Pairing Request on L2CAP CID `0x0006` (`NoInputNoOutput`, `OOB=0`, `Bonding=0x01`, `MaxKeySize=16`, `RespKeyDist=EncKey`).
+3. Receives and analyzes the peer's `Pairing Response` (Opcode `0x02`) or `Pairing Failed` (Opcode `0x05`) without proceeding to Confirm/Random key generation, DHKey checks, encryption start, or bond storage.
+4. Analyzes IO Capability, OOB data, AuthReq flags (`Bonding`, `MITM`, `SC`, `Keypress`, `CT2`), encryption key size, and key distribution masks to classify whether A2854 accepts Legacy Just Works or strictly requires LE Secure Connections.
+5. Initiates graceful local `HCI Disconnect` and verifies clean `Disconnection Complete` (`0x16`).
+6. Comprehensive unit tests (`SmpNegotiationTests.cs`) cover PDU parsing, validation, reason code mapping, and mock L2CAP exchanges (125/125 Release tests passing).
