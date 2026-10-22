@@ -27,20 +27,23 @@ internal static partial class Program
         UsbHci.UsbId? targetUsbId = null;
         bool hciOnly = false, scanOnly = false, connectOnly = false, smpNegotiateOnly = false;
         bool smpPairOnly = false, confirmPairing = false;
+        bool legacyFullDriver = false, confirmPlaintextBond = false;
         for (int i = 0; i < args.Length;)
         {
-            if (args[i] is "--hci-only" or "--scan-only" or "--connect-only" or "--smp-negotiate-only" or "--smp-pair-only")
+            if (args[i] is "--hci-only" or "--scan-only" or "--connect-only" or "--smp-negotiate-only" or "--smp-pair-only" or "--full-legacy-driver")
             {
                 if (args[i] == "--hci-only") hciOnly = true;
                 else if (args[i] == "--scan-only") scanOnly = true;
                 else if (args[i] == "--connect-only") connectOnly = true;
                 else if (args[i] == "--smp-negotiate-only") smpNegotiateOnly = true;
-                else smpPairOnly = true;
+                else if (args[i] == "--smp-pair-only") smpPairOnly = true;
+                else legacyFullDriver = true;
                 i++;
             }
-            else if (args[i] == "--confirm-pairing")
+            else if (args[i] == "--confirm-pairing" || args[i] == "--confirm-plaintext-bond")
             {
-                confirmPairing = true;
+                if (args[i] == "--confirm-pairing") confirmPairing = true;
+                else confirmPlaintextBond = true;
                 i++;
             }
             else if (i + 1 < args.Length && args[i] == "--seconds" &&
@@ -58,15 +61,33 @@ internal static partial class Program
             }
             else
             {
-                Console.Error.WriteLine("Usage: A2854.Probe [--seconds 30] [--usb 33FA:0001] [--hci-only | --scan-only | --connect-only | --smp-negotiate-only | --smp-pair-only --confirm-pairing]");
+                Console.Error.WriteLine("Usage: A2854.Probe [--seconds 30] [--usb 33FA:0001] [--hci-only | --scan-only | --connect-only | --smp-negotiate-only | --smp-pair-only --confirm-pairing | --full-legacy-driver --confirm-plaintext-bond]");
                 return 2;
             }
         }
 
         if ((hciOnly ? 1 : 0) + (scanOnly ? 1 : 0) + (connectOnly ? 1 : 0) +
-            (smpNegotiateOnly ? 1 : 0) + (smpPairOnly ? 1 : 0) > 1)
+            (smpNegotiateOnly ? 1 : 0) + (smpPairOnly ? 1 : 0) +
+            (legacyFullDriver ? 1 : 0) > 1)
         {
             Console.Error.WriteLine("Choose only one probe mode.");
+            return 2;
+        }
+        if (confirmPlaintextBond && !legacyFullDriver)
+        {
+            Console.Error.WriteLine("--confirm-plaintext-bond is valid only with --full-legacy-driver.");
+            return 2;
+        }
+        if (legacyFullDriver && !confirmPlaintextBond)
+        {
+            Console.Error.WriteLine("--full-legacy-driver requires --confirm-plaintext-bond.");
+            Console.Error.WriteLine("WARNING: this historical mode persists pairing secrets in plaintext JSON.");
+            Console.Error.WriteLine("Prefer --smp-pair-only for the non-persisting A2854 diagnostic.");
+            return 2;
+        }
+        if (!hciOnly && !scanOnly && !connectOnly && !smpNegotiateOnly && !smpPairOnly && !legacyFullDriver)
+        {
+            Console.Error.WriteLine("Select an explicit probe mode; the historical bond-writing driver is not the default.");
             return 2;
         }
         if (confirmPairing && !smpPairOnly)
@@ -659,7 +680,9 @@ internal static partial class Program
             }
         }
 
-        // Full BLE workflow only if expressly selected without --hci-only.
+        // Historical full BLE driver: ONLY reachable through explicit
+        // --full-legacy-driver --confirm-plaintext-bond. It writes plaintext
+        // bond material and is NOT an appropriate initial A2854 pairing test.
         using (usb)
         using (var cts = new CancellationTokenSource())
         {
