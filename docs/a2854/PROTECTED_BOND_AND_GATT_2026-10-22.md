@@ -4,7 +4,7 @@
 
 ## Windows verification and fixes (2026-10-22)
 
-Subsequent hardware result: [one approved A invocation timed out during advertisement selection](PROTECTED_BOND_HARDWARE_2026-10-22.md). No connection or SMP exchange occurred, no protected bond was created, and B/C were not executed. The software validation below remains valid; protected storage with a physical bond, encrypted reconnect and GATT inspection remain unverified.
+Subsequent hardware results: [A-stage experiment log](PROTECTED_BOND_HARDWARE_2026-10-22.md). The first approved invocation timed out in advertisement selection. A separately reauthorized second invocation found a strong candidate but timed out during HCI connection and cleanup Reset. Neither reached SMP or created a protected bond; B/C were not executed. The software validation below remains valid; protected storage with a physical bond, encrypted reconnect and GATT inspection remain unverified.
 
 - Environment: Windows, .NET SDK `10.0.402`, original working directory on `feat/a2854-support`; the worktree was clean before fast-forward from `6cd4bbb` to `8671444`.
 - Initial solution build failed with `CS1061` in `Gatt.cs`: the descriptor list used an unnamed tuple but referenced `.Handle`. Named tuple fields fix this actual compile failure.
