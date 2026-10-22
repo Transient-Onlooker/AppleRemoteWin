@@ -51,6 +51,7 @@ public sealed class A2854RemoteBle(
                 if (handle == h)
                     disconnected.TrySetResult((h, reason));
             };
+            onStatus(Loc.T("Status.WaitBonded"));
             onStatus("A2854: initializing dedicated external Barrot WinUSB controller.");
             await central.InitializeAsync();
             cancellationToken.ThrowIfCancellationRequested();
@@ -112,6 +113,7 @@ public sealed class A2854RemoteBle(
             {
                 var ended = await disconnected.Task.WaitAsync(cancellationToken);
                 alreadyDisconnected = true;
+                onStatus(Loc.T("Status.DisconnectedReason", ended.Reason));
                 onStatus($"A2854: remote disconnected (HCI 0x{ended.Reason:X2}); use Stop/Start to reconnect.");
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -127,12 +129,14 @@ public sealed class A2854RemoteBle(
         }
         catch (OperationCanceledException)
         {
+            onStatus(Loc.T("Status.Unreachable"));
             onStatus("A2854: connection or operation timed out. Existing bond was preserved.");
         }
         catch (Exception e)
         {
             // Exception messages must not contain raw key material or peer addresses.
             // Emit exception type and stage-neutral status only.
+            onStatus(Loc.T("Status.Unreachable"));
             onStatus($"A2854: session ended ({e.GetType().Name}); bond unchanged.");
         }
         finally
