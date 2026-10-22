@@ -123,7 +123,11 @@ public static class SmpPairing
             }
         }
 
+        // Retain references to received LTK/key-distribution buffers across every
+        // failure path so sensitive material can be erased even if the next
+        // SMP message never arrives.
         byte[]? tk = null, mrand = null, srand = null, sconfirm = null, stk = null;
+        byte[]? ltkMessage = null, master = null;
         central.L2capData += OnData;
         try
         {
@@ -184,16 +188,14 @@ public static class SmpPairing
             Stage(SmpPairingStage.LinkEncrypted);
 
             Stage(SmpPairingStage.ReceiveEncryptionInformation);
-            byte[] ltkMessage = await Expect(EncryptionInformation, 17);
+            ltkMessage = await Expect(EncryptionInformation, 17);
             Stage(SmpPairingStage.ReceiveMasterIdentification);
-            byte[] master = await Expect(MasterIdentification, 11);
+            master = await Expect(MasterIdentification, 11);
 
             // Return fresh in-memory key arrays: no BondStore, files, JSON or logging.
             byte[] ltk = ltkMessage[1..17];
             byte[] rand = master[3..11];
             ushort ediv = (ushort)(master[1] | master[2] << 8);
-            CryptographicOperations.ZeroMemory(ltkMessage);
-            CryptographicOperations.ZeroMemory(master);
             Stage(SmpPairingStage.Complete);
             return new BondKeys(ltk, ediv, rand);
         }
@@ -205,6 +207,8 @@ public static class SmpPairing
             if (srand is not null) CryptographicOperations.ZeroMemory(srand);
             if (sconfirm is not null) CryptographicOperations.ZeroMemory(sconfirm);
             if (stk is not null) CryptographicOperations.ZeroMemory(stk);
+            if (ltkMessage is not null) CryptographicOperations.ZeroMemory(ltkMessage);
+            if (master is not null) CryptographicOperations.ZeroMemory(master);
             inbox.Writer.TryComplete();
             while (inbox.Reader.TryRead(out byte[]? pending))
                 CryptographicOperations.ZeroMemory(pending);
