@@ -147,6 +147,38 @@
                       SelectedValue="{Binding Language}" MinWidth="200" />
         </ui:CardControl>
 
+        <TextBlock Text="Siri Remote A2854 (USB-C)" Style="{StaticResource Head}" />
+        <ui:CardControl Icon="{ui:SymbolIcon Bluetooth24}">
+            <ui:CardControl.Header>
+                <TextBlock Text="Use A2854 on Barrot 33FA:0001 (WinUSB)" TextWrapping="Wrap" />
+            </ui:CardControl.Header>
+            <StackPanel>
+                <ui:ToggleSwitch IsChecked="{Binding A2854Mode, Mode=TwoWay}"
+                                 IsEnabled="{Binding CanChangeAdapter}" />
+                <TextBlock Text="Stop the remote session before switching models. Requires an existing DPAPI protected bond; never pairs automatically."
+                           FontSize="12" TextWrapping="Wrap" Margin="0,5,0,0"
+                           Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                <TextBlock Text="The original first-generation and ESP32 modes are unchanged when this is off."
+                           FontSize="12" TextWrapping="Wrap" Margin="0,3,0,0"
+                           Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+            </StackPanel>
+        </ui:CardControl>
+        <ui:CardControl Icon="{ui:SymbolIcon Cursor24}">
+            <ui:CardControl.Header>
+                <TextBlock Text="A2854 touchpad to Windows mouse (opt-in)" TextWrapping="Wrap" />
+            </ui:CardControl.Header>
+            <StackPanel>
+                <ui:ToggleSwitch IsChecked="{Binding A2854PointerEnabled, Mode=TwoWay}"/>
+                <TextBlock Text="Off by default. Enabling sends real cursor moves and left clicks. Disable to release a held click. Other keyboard/media mappings use the separate Keyboard toggle below."
+                           FontSize="12" TextWrapping="Wrap" Margin="0,5,0,6"
+                           Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                <TextBlock Text="Pointer sensitivity" FontSize="12" />
+                <Slider Minimum="0.05" Maximum="0.6" TickFrequency="0.05"
+                        IsSnapToTickEnabled="False"
+                        Value="{Binding A2854PointerSensitivity, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+            </StackPanel>
+        </ui:CardControl>
+
         <TextBlock Text="{l:T Settings.Keyboard}" Style="{StaticResource Head}" />
         <ui:CardControl Icon="{ui:SymbolIcon Keyboard24}">
             <ui:CardControl.Header><TextBlock Text="{l:T Settings.KeyboardCheck}" /></ui:CardControl.Header>
