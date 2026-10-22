@@ -29,7 +29,8 @@ sealed class FakeRemote
     byte[] _preq = [], _pres = [], _mconfirm = [], _srand = [], _stk = [];
 
     public FakeRemote(bool randomAddress = false, bool rejectEncryption = false,
-        bool suppressBondKeys = false, bool suppressMasterIdentification = false)
+        bool suppressBondKeys = false, bool suppressMasterIdentification = false,
+        bool includeA2854ButtonInput = false)
     {
         _addressType = randomAddress ? (byte)1 : (byte)0;
         _rejectEncryption = rejectEncryption;
@@ -42,17 +43,37 @@ sealed class FakeRemote
         Characteristic(0x0018, 0x02, 0x2A4B, [0x05, 0x01]);                   // Report Map (extrait)
         Characteristic(0x001A, 0x04, 0x2A4C, [0x00]);                         // HID Control Point
         Characteristic(0x001C, 0x0A, 0x2A4D, [0x00]); Descriptor(0x001E, 0x2908, [0xF0, 3]);   // feature 0xF0
-        Characteristic(0x001F, 0x0A, 0x2A4D, [0x00]); Descriptor(0x0021, 0x2908, [0xF1, 3]);   // feature 0xF1
-        Characteristic(0x0022, 0x12, 0x2A4D, [0x00]);                                          // input 0xFC
-        Descriptor(0x0024, 0x2902, [0x00, 0x00]); Descriptor(0x0025, 0x2908, [0xFC, 1]);
-        Service(0x0026, 0x180F);
-        Characteristic(0x0027, 0x12, 0x2A19, [87]); Descriptor(0x0029, 0x2902, [0x00, 0x00]);   // niveau de batterie, notifiable
+        if (includeA2854ButtonInput)
+        {
+            // Isolated fake A2854 layout for the opt-in HID-input probe.
+            // Default legacy fake layout remains unchanged for gen-1 tests.
+            Characteristic(0x001F, 0x12, 0x2A4D, [0x00]);
+            Descriptor(0x0021, 0x2902, [0x00, 0x00]);
+            Descriptor(0x0022, 0x2908, [0xFB, 1]); // button input 0xFB
+            Characteristic(0x0023, 0x12, 0x2A4D, [0x00]);
+            Descriptor(0x0025, 0x2902, [0x00, 0x00]);
+            Descriptor(0x0026, 0x2908, [0xFC, 1]); // touch input 0xFC
+            Service(0x0027, 0x180F);
+            Characteristic(0x0028, 0x12, 0x2A19, [87]);
+            Descriptor(0x002A, 0x2902, [0x00, 0x00]);
+        }
+        else
+        {
+            Characteristic(0x001F, 0x0A, 0x2A4D, [0x00]); Descriptor(0x0021, 0x2908, [0xF1, 3]); // feature 0xF1
+            Characteristic(0x0022, 0x12, 0x2A4D, [0x00]); // input 0xFC
+            Descriptor(0x0024, 0x2902, [0x00, 0x00]); Descriptor(0x0025, 0x2908, [0xFC, 1]);
+            Service(0x0026, 0x180F);
+            Characteristic(0x0027, 0x12, 0x2A19, [87]); Descriptor(0x0029, 0x2902, [0x00, 0x00]);
+        }
         Service(0x002D, 0x181E);
         _db[0x0032] = (U16(0x2800), Convert.FromHexString("DC262EB4CDC49781044F13C0B4F24183"));   // service Apple (128 bits)
     }
 
     public void Event(params byte[] e) => Hci.ReceiveEventBytes(e);
     public void Att(params byte[] pdu) => L2cap(0x04, pdu);
+    public void EmitA2854Buttons(byte low, byte high) => Att(0x1B, 0x20, 0x00, low, high);
+    public void EmitA2854Touch(params byte[] payload) => Att([0x1B, 0x24, 0x00, .. payload]);
+    public void EmitUnknownNotification(params byte[] payload) => Att([0x1B, 0x70, 0x00, .. payload]);
     void Smp(params byte[] pdu) => L2cap(0x06, pdu);
     void L2cap(byte cid, byte[] pdu) => Hci.ReceiveAclBytes([0x40, 0x20, (byte)(pdu.Length + 4), 0, (byte)pdu.Length, 0, cid, 0x00, .. pdu]);
 
