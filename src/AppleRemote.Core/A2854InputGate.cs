@@ -8,9 +8,10 @@ namespace AppleRemote;
 /// mouse/keyboard state; callbacks resumed afterwards cannot re-press it.
 /// Independent of WinUSB so the races are unit-testable on any platform.
 /// </summary>
-public sealed class A2854InputGate(Action<byte[]?> receiver)
+public sealed class A2854InputGate(Action<byte[]?> receiver, Action? finalRelease = null)
 {
     readonly Action<byte[]?> _receiver = receiver ?? throw new ArgumentNullException(nameof(receiver));
+    readonly Action? _finalRelease = finalRelease;
     readonly object _gate = new();
     bool _closed;
 
@@ -36,7 +37,13 @@ public sealed class A2854InputGate(Action<byte[]?> receiver)
         {
             if (_closed) return;
             _closed = true;
-            _receiver([]); // canonical decoder/link-loss release sentinel
+            try { _receiver([]); } // canonical decoder/link-loss release sentinel
+            finally
+            {
+                // A consumer can throw while dispatching a terminal GUI
+                // event. Its independent release fallback still must run.
+                _finalRelease?.Invoke();
+            }
         }
     }
 
