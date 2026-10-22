@@ -5,7 +5,6 @@
 using System.ComponentModel;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
-using System.Text;
 
 namespace AppleRemote;
 
@@ -65,7 +64,9 @@ public sealed class ProtectedBondStore
                 using (var output = new FileStream(temporary, FileMode.CreateNew,
                     FileAccess.Write, FileShare.None, 4096, FileOptions.WriteThrough))
                     output.Write(sealedBlob);
-                File.Move(temporary, _path, overwrite: true);
+                // Never replace an existing bond automatically: atomic no-overwrite
+                // rename also protects against two concurrent pairing probes.
+                File.Move(temporary, _path);
             }
             finally
             {
@@ -180,7 +181,10 @@ public sealed class ProtectedBondStore
             if (output.Data != IntPtr.Zero)
             {
                 // UnprotectData allocates plaintext unmanaged memory.
-                Marshal.Copy(new byte[output.Size], 0, output.Data, output.Size);
+                // DPAPI outputs are tiny for this fixed-size format. Clamp the
+                // memory wipe in case a broken native result reports absurd size.
+                if (output.Size > 0 && output.Size <= 4096)
+                    Marshal.Copy(new byte[output.Size], 0, output.Data, output.Size);
                 _ = LocalFree(output.Data);
             }
         }
