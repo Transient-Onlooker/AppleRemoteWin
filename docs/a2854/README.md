@@ -20,6 +20,7 @@
 | [Staged SMP full pairing](SMP_PAIRING_PLAN_2026-10-22.md) | Approval gates for live pairing and future protected bond persistence |
 | [Full SMP pair-only implementation](SMP_PAIR_ONLY_IMPLEMENTATION_2026-10-22.md) | Physical Confirm/Random, STK encryption and LTK receipt now confirmed |
 | [Protected bond, encrypted reconnect and read-only GATT](PROTECTED_BOND_AND_GATT_2026-10-22.md) | Validated Windows software; physical protected save, encrypted reconnect and read-only GATT verified |
+| [Existing WPF app integration](APP_INTEGRATION_2026-10-23.md) | New source: A2854 DPAPI BLE session, WPF device/pointer toggles, fake-sink pointer tests; native app build still pending |
 | [Protected-bond hardware logs](PROTECTED_BOND_HARDWARE_2026-10-22.md) | A/B/C success, report value handles and earlier failures; retained bond and next input gate |
 | [HID input probe — implementation/safety gates](HID_INPUT_DIAGNOSTIC_2026-10-22.md) | Opt-in CCCD/feature activation and button/touch capture; actual FB/FC input verified, further writes require approval |
 | [2026-10-23 HID software validation](HID_INPUT_VALIDATION_2026-10-23.md) | 179/179 tests, clean Release builds, handle/write restrictions and notification teardown fixes |
@@ -39,13 +40,19 @@
 | Current privacy-address implementation | **Physical A2854 LE connection and clean local disconnect verified**, including via the USB 3.0 hub. Address type was public in tested sessions; privacy/reconnect across rotations unverified |
 | ThinkPad T490s built-in Bluetooth | Owner confirmed **Intel Wireless-AC 9560**; A2854 test **not conducted** |
 | **Purchased Axxen USB dongle** | **USB 3.0 hub + WinUSB `oem86.inf`**: pairing, DPAPI bond, encrypted reconnect, GATT discovery and HID capture verified. Latest short trial: **33 FB / 360 FC**, both CCCD disables acknowledged and host disconnect **0x16**. Values FB `0039`, FC `003D`, F0 `004D`; CCCDs `003A`/`003E`. |
-| Working Windows mouse / media remote | **Not yet delivered** |
+| Working Windows mouse / media remote | **Main integration code added to existing WPF app; fresh app build, live Windows input and long-term stability NOT yet verified** |
 
 ## Earlier protected-bond checkpoint (2026-10-22)
 
 **Physical milestone confirmed:** Windows 11 with Barrot `33FA:0001` WinUSB completed A2854 Legacy Just Works pairing and CurrentUser DPAPI bond saving, with pairing at **958ms** and clean `0x16` disconnect at **989ms**. A separate `--reconnect-only` process loaded the protected bond, confirmed LTK link encryption through HCI Encryption Change and disconnected with `0x16`.
 
 Validated source `4c86fae`: **167/167 Release tests passed**, full solution and Probe Release builds at **zero warnings/errors**. Following an initial C connection timeout, an explicitly approved `--gatt-inspect-only` retry with a normal-button wake succeeded: encrypted reconnect, HID service `0x1812`, eight Report References and exact `0xFB`/`0xFC`/`0xF0` value handles. It made no ATT writes or notification subscriptions and disconnected with `0x16`. See [sanitized per-stage logs](PROTECTED_BOND_HARDWARE_2026-10-22.md). At that checkpoint actual input had not yet been captured; the later HID result is below.
+
+## Existing AppleRemoteWin application integration — new source gate
+
+**New implementation, not yet built or run in the user's Windows environment:** an explicit A2854 mode in the existing Settings screen selects the separate external Barrot WinUSB `33FA:0001`, loads the **existing** CurrentUser DPAPI bond, reconnects encrypted, subscribes only to observed 0xFB/0xFC reports and activates the verified F0 feature. Inputs feed the existing `RemoteSession`/GUI/`KeyBinder`; a pure A2854 pointer mapper and Windows SendInput mouse backend add **separately opt-in** cursor movement and click. Initial device and mouse toggles default to OFF, unsafe TV/Siri/Power actions are suppressed, and first-generation/ESP/HID behavior is unchanged when A2854 mode is OFF. No SMP auto-pairing, bond deletion, microphone subscription or driver/certificate changes were added.
+
+The previous `218/218` test result and 8-second physical CLI trial apply to **older source before this integration**. The local Windows Codex now only needs to **build/test/review** these committed changes; physical GUI connection and real SendInput require separate explicit approval. Automatic reconnect and long-duration stability remain future work. Read the [main-coded GUI integration and verifier instructions](APP_INTEGRATION_2026-10-23.md).
 
 ## Input trial history and remaining development
 
