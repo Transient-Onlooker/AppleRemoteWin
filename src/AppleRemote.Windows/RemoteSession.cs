@@ -198,7 +198,12 @@ public sealed class RemoteSession : IDisposable
                         catch { }
                     }
                 });
-                var a2854 = new A2854RemoteBle(a2854Hci.Host, FeedA2854, status => Status?.Invoke(status));
+                var a2854 = new A2854RemoteBle(a2854Hci.Host, FeedA2854,
+                    status => Status?.Invoke(status), onTerminalCleanup: () =>
+                    {
+                        lock (_gate) _acceptA2854Input = false;
+                        ReleaseA2854HeldInputs(); // independent fallback if GUI event callback threw
+                    });
                 _driverTask = Task.Run(async () =>
                 {
                     try { await a2854.RunAsync(transportFault.Token); }
@@ -333,27 +338,32 @@ public sealed class RemoteSession : IDisposable
             }
             finally
             {
-                if (terminal)
-                {
-                    // Keep these cleanup paths independent. If the GUI callback
-                    // above threw, the finally must still attempt mouse-up.
-                    try { _binder.ReleaseAll(); }
-                    catch (Exception e)
-                    {
-                        try { Status?.Invoke($"A2854: keyboard release failed ({e.GetType().Name})."); }
-                        catch { }
-                    }
-                    try
-                    {
-                        if (!_pointer.Reset())
-                            Status?.Invoke("A2854: Windows rejected mouse-up; held click retained for cleanup retry.");
-                    }
-                    catch (Exception e)
-                    {
-                        try { Status?.Invoke($"A2854: pointer release failed ({e.GetType().Name})."); }
-                        catch { }
-                    }
-                }
+                if (terminal) ReleaseA2854HeldInputs();
+            }
+        }
+    }
+
+    // A terminal HID event and an independent InputGate fallback both reach
+    // this method. Each backend is released even if the other fails.
+    void ReleaseA2854HeldInputs()
+    {
+        lock (_gate)
+        {
+            try { _binder.ReleaseAll(); }
+            catch (Exception e)
+            {
+                try { Status?.Invoke($"A2854: keyboard release failed ({e.GetType().Name})."); }
+                catch { }
+            }
+            try
+            {
+                if (!_pointer.Reset())
+                    Status?.Invoke("A2854: Windows rejected mouse-up; held click retained for cleanup retry.");
+            }
+            catch (Exception e)
+            {
+                try { Status?.Invoke($"A2854: pointer release failed ({e.GetType().Name})."); }
+                catch { }
             }
         }
     }
