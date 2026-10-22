@@ -10,6 +10,7 @@ namespace AppleRemote.Windows;
 public sealed class RemoteSession : IDisposable
 {
     readonly object _gate = new();
+    readonly object _lifecycleGate = new(); // serialize Start/Stop across UI/device-change callbacks
     readonly RemotePipeline _pipeline = new();
     readonly A2854Decoder _a2854Decoder = new();
     readonly KeyboardInjector _injector = new();
@@ -136,6 +137,8 @@ public sealed class RemoteSession : IDisposable
     /// </summary>
     public void Start()
     {
+        lock (_lifecycleGate)
+        {
         if (_cts is not null) return;
         if (_a2854CleanupTask is { IsCompleted: false })
         {
@@ -231,10 +234,13 @@ public sealed class RemoteSession : IDisposable
             _driverTask = Task.Run(() => driver.RunAsync(ct));
         }
         _tickTask = Task.Run(() => TickLoopAsync(ct));
+        }
     }
 
     public void Stop()
     {
+        lock (_lifecycleGate)
+        {
         var cts = _cts;
         if (cts is null) return;
         cts.Cancel();
@@ -260,6 +266,7 @@ public sealed class RemoteSession : IDisposable
         }
         UsesBluetoothDirect = false;
         Status?.Invoke(Loc.T("Status.Stopped"));
+        }
     }
 
     void FeedA2854(byte[]? report)
