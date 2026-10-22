@@ -17,7 +17,8 @@
 | [2026-10-22 protocol research](RESEARCH_2026-10-22.md) | Bluetooth SIG/Apple/BlueZ research, connection-completion fix, pairing risks and next hardware gates |
 | [2026-10-22 live LE link probe](LINK_PROBE_2026-10-22.md) | Physical A2854 LE Connection Complete success; disconnection reason 0x3E requires follow-up |
 | [2026-10-22 live SMP negotiation](SMP_NEGOTIATION_2026-10-22.md) | Physical A2854 SMP Pairing Response verified: Legacy Just Works accepted |
-| [Next: staged SMP full pairing](SMP_PAIRING_PLAN_2026-10-22.md) | Safe in-memory full pairing design; bounded waits, protected opt-in bond storage, no live execution yet |
+| [Staged SMP full pairing](SMP_PAIRING_PLAN_2026-10-22.md) | Approval gates for live pairing and future protected bond persistence |
+| [New full SMP pair-only implementation](SMP_PAIR_ONLY_IMPLEMENTATION_2026-10-22.md) | In-memory Just Works source, controls, fault tests, compilation/hardware gate |
 | [Consolidation record](CONSOLIDATION.md) | Source commit, copied-file SHA checks, licenses and Git history |
 
 ## Latest verified status
@@ -28,8 +29,8 @@
 | Windows WinRT access to HID 0x1812 | **Denied** when enumerating protected HID characteristics |
 | Windows A2854 HIDClass child | **Code 10 / 0xC00000B9**; one explicitly authorized PnP child restart did **not** recover it |
 | Windows internal Intel AX200 | **Healthy BTHUSB**, driver 23.160.0.9 at last check |
-| Windows C# A2854 decoder and diagnostic program | **Implemented**; most recent reported agent run at `1375d4d`: **103/103 Release tests passed**, Probe Release build succeeded |
-| Current privacy-address implementation | **Previously built and scanned on real Barrot WinUSB hardware**; new connection-mask and strong-pairing-match fixes await fresh local build |
+| Windows C# A2854 decoder and diagnostic program | **Implemented**; most recent reported local agent run: **125/125 Release tests passed** at `1653c23`, before the new full SMP source changes |
+| Current privacy-address implementation | **Physical A2854 LE connection and clean local disconnect verified**, including via the USB 3.0 hub. Address type was public in tested sessions; privacy/reconnect across rotations unverified |
 | ThinkPad T490s built-in Bluetooth | Owner confirmed **Intel Wireless-AC 9560**; A2854 test **not conducted** |
 | **Purchased Axxen USB dongle** | **WinUSB `oem86.inf` Started; physical HCI Reset/Read Local Version OK (`0x21`).** Physical A2854 **LE Connection Complete OK** and **SMP Pairing Response OK** verified. Remote confirms **Legacy Just Works (SC=0, MITM=0, EncKey=1)**. Clean local disconnect (**0x16**). **SMP STK/LTK key exchange & GATT HID next.** |
 | Working Windows mouse / media remote | **Not yet delivered** |
@@ -42,10 +43,10 @@ See [SMP empirical findings](SMP_NEGOTIATION_2026-10-22.md) and [the gated full-
 
 ## What to do next
 
-1. Implement a separate `--smp-pair-only --confirm-pairing --usb 33FA:0001` with mandatory local-only behavior and in-memory key handling for the first full phase-2 test. Respect explicit operator approval before the real device is touched.
-2. Add cancellation, exact-link disconnection observation, stage-specific errors and regression tests around c1/s1, Pairing Confirm/Random, STK encryption and LTK + EDIV/RAND transfer. Build and run fresh Windows .NET 10 Release tests.
-3. Leave GATT, HID feature unlock and microphone traffic out of the pairing diagnostic. A distinct explicit `--save-bond` authorization must be required to persist any key; do not use plaintext JSON by default.
-4. Protect the external Barrot WinUSB binding on the working USB 3.0 hub and the built-in Intel BTHUSB adapter, Windows pairing, drivers and installed certificates.
-5. For source changes, document actual new test results, not inherited counts, and redact all BLE addresses and key material.
+1. **New source prepared, not yet locally built:** separate `--smp-pair-only --confirm-pairing --usb 33FA:0001`, strict A2854 security-profile validation, cancellation/timeouts, ephemeral LTK handling, explicit disconnect and fault-injection tests. See [implementation report](SMP_PAIR_ONLY_IMPLEMENTATION_2026-10-22.md).
+2. Run **fresh** Windows .NET 10 Release tests and build, including fake encrypted pairing, wrong peer confirm, Pairing Failed, encryption rejection and missing-LTK cancellation. The prior **125/125** test result predates these commits.
+3. The in-memory diagnostic can **alter the remote's Apple TV bond** even though no Windows key is saved. Obtain separate informed owner approval for one actual full pairing run. **Do not execute it automatically** just because compilation passes.
+4. Default CLI invocation no longer silently launches the historical plaintext-bond-writing full driver. That older path now requires `--full-legacy-driver --confirm-plaintext-bond` and is **not recommended** for A2854; protected local key persistence and encrypted reconnection need separate engineering and explicit authorization.
+5. GATT, HID feature unlock and microphone traffic remain outside the pairing-only test. Preserve the external Barrot WinUSB binding on the USB 3.0 hub and the built-in Intel BTHUSB adapter, Windows pairings, drivers and installed certificates.
 
 Past reports: [Oct 21 handoff](../HANDOFF_2026-10-21_A2854.md), [chronological engineering status](../A2854_PORT_STATUS.md), [Oct 18 historical handoff](../HANDOFF_2026-10-18_A2854.md).
