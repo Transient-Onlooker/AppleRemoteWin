@@ -1,6 +1,8 @@
 # Siri Remote A2854 (third generation) — development branch
 
-> **Latest checkpoint (2026-10-21):** [current consolidated Korean handoff](HANDOFF_2026-10-21_A2854.md). The one-time HID child restart ran on the actual Windows PC but Code 10 / 0xC00000B9 persisted. The recent random-address BLE changes remain **unverified by the next Windows test run**. A ThinkPad T490s with AC 9560 was reported but has **not** been tested with A2854; external dongle chipsets remain candidates, not proven support.
+> **Latest checkpoint (2026-10-22):** [protected bond, reconnect and GATT validation](a2854/PROTECTED_BOND_AND_GATT_2026-10-22.md). Windows Release tests **167/167**, solution and Probe builds **0 warnings/errors**. Physical Legacy Just Works pairing and clean `0x16` disconnect were verified earlier. Protected-bond saving, LTK reconnect and GATT inspection still require the next approved hardware run. Barrot WinUSB and Intel AX200 are healthy and unchanged.
+
+> **Historical checkpoint (2026-10-21):** [consolidated Korean handoff](HANDOFF_2026-10-21_A2854.md). The initial implementation and commands below describe earlier work; use the latest checkpoint's explicit diagnostic gates for current operation.
 
 > **Full handoff (Korean, 2026-10-18):** [HANDOFF_2026-10-18_A2854.md](HANDOFF_2026-10-18_A2854.md). Read that document first when resuming after a conversation reset; the notes below are the chronological engineering log.
 

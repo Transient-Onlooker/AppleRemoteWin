@@ -46,24 +46,23 @@ public sealed class SmpPairOnlyTests
     }
 
     [Theory]
-    [InlineData(0x01, 0x03, 0x00, 0x01, 16, 0x00, 0x01, true)] // The real A2854 response.
-    [InlineData(0x01, 0x03, 0x00, 0x09, 16, 0x00, 0x01, false)] // SC flag.
-    [InlineData(0x01, 0x03, 0x00, 0x11, 16, 0x00, 0x01, false)] // Keypress flag; outside observed profile.
-    [InlineData(0x01, 0x03, 0x00, 0x21, 16, 0x00, 0x01, false)] // CT2 flag; outside observed profile.
-    [InlineData(0x01, 0x03, 0x00, 0x01, 12, 0x00, 0x01, false)] // Valid legacy key size, not observed 16.
-    [InlineData(0x01, 0x03, 0x00, 0x41, 16, 0x00, 0x01, false)] // Reserved AuthReq bit.
-    [InlineData(0x01, 0x03, 0x00, 0x05, 16, 0x00, 0x01, false)] // MITM flag.
-    [InlineData(0x01, 0x03, 0x01, 0x01, 16, 0x00, 0x01, false)] // OOB required.
-    [InlineData(0x01, 0x00, 0x00, 0x01, 16, 0x00, 0x01, false)] // DisplayOnly.
-    [InlineData(0x01, 0x03, 0x00, 0x00, 16, 0x00, 0x01, false)] // No bonding.
-    [InlineData(0x01, 0x03, 0x00, 0x01, 16, 0x00, 0x00, false)] // No responder LTK.
-    [InlineData(0x01, 0x03, 0x00, 0x01, 16, 0x01, 0x01, false)] // Unsolicited host key distribution.
-    [InlineData(0x01, 0x03, 0x00, 0x01, 16, 0x00, 0x03, false)] // IRK without an identity plan.
+    [InlineData(0x03, 0x00, 0x01, 16, 0x00, 0x01, true)] // The real A2854 response.
+    [InlineData(0x03, 0x00, 0x09, 16, 0x00, 0x01, false)] // SC flag.
+    [InlineData(0x03, 0x00, 0x11, 16, 0x00, 0x01, false)] // Keypress flag; outside observed profile.
+    [InlineData(0x03, 0x00, 0x21, 16, 0x00, 0x01, false)] // CT2 flag; outside observed profile.
+    [InlineData(0x03, 0x00, 0x01, 12, 0x00, 0x01, false)] // Valid legacy key size, not observed 16.
+    [InlineData(0x03, 0x00, 0x41, 16, 0x00, 0x01, false)] // Reserved AuthReq bit.
+    [InlineData(0x03, 0x00, 0x05, 16, 0x00, 0x01, false)] // MITM flag.
+    [InlineData(0x03, 0x01, 0x01, 16, 0x00, 0x01, false)] // OOB required.
+    [InlineData(0x00, 0x00, 0x01, 16, 0x00, 0x01, false)] // DisplayOnly.
+    [InlineData(0x03, 0x00, 0x00, 16, 0x00, 0x01, false)] // No bonding.
+    [InlineData(0x03, 0x00, 0x01, 16, 0x00, 0x00, false)] // No responder LTK.
+    [InlineData(0x03, 0x00, 0x01, 16, 0x01, 0x01, false)] // Unsolicited host key distribution.
+    [InlineData(0x03, 0x00, 0x01, 16, 0x00, 0x03, false)] // IRK without an identity plan.
     public void Validator_only_accepts_observed_legacy_just_works_parameters(
-        byte ignored, byte io, byte oob, byte auth, byte keySize, byte initDist,
+        byte io, byte oob, byte auth, byte keySize, byte initDist,
         byte respDist, bool accepted)
     {
-        // 'ignored' enables stable parameter labeling without changing the seven-byte PDU.
         byte[] response = [SmpOpcode.PairingResponse, io, oob, auth, keySize, initDist, respDist];
         if (accepted) SmpPairing.ValidateLegacyJustWorksResponse(response);
         else Assert.Throws<SmpException>(() => SmpPairing.ValidateLegacyJustWorksResponse(response));

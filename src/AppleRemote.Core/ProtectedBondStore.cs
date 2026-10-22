@@ -16,6 +16,7 @@ namespace AppleRemote;
 public sealed class ProtectedBondStore
 {
     private static readonly byte[] Magic = [(byte)'A', (byte)'2', (byte)'8', (byte)'5', (byte)'4', (byte)'B', 1];
+    // Omitting CRYPTPROTECT_LOCAL_MACHINE keeps DPAPI scoped to the current user.
     private const uint UiForbidden = 0x01;
     private readonly string _path;
 
@@ -88,7 +89,27 @@ public sealed class ProtectedBondStore
     {
         EnsureWindows();
         if (!File.Exists(_path)) return null;
-        byte[] blob = File.ReadAllBytes(_path);
+        byte[] blob;
+        using (var input = new FileStream(_path, FileMode.Open, FileAccess.Read, FileShare.Read))
+        {
+            // Read at most the format limit plus one byte, including when the
+            // file changes size after it is opened.
+            byte[] bounded = new byte[4097];
+            int length = 0;
+            while (length < bounded.Length)
+            {
+                int read = input.Read(bounded, length, bounded.Length - length);
+                if (read == 0) break;
+                length += read;
+            }
+            if (length > 4096)
+            {
+                CryptographicOperations.ZeroMemory(bounded);
+                throw new InvalidDataException("Invalid protected bond file length.");
+            }
+            blob = bounded.AsSpan(0, length).ToArray();
+            CryptographicOperations.ZeroMemory(bounded);
+        }
         byte[]? clear = null;
         try
         {
@@ -175,7 +196,7 @@ public sealed class ProtectedBondStore
             if (ptr != IntPtr.Zero)
             {
                 // Native plaintext inputs are not managed by the GC.
-                Marshal.Copy(new byte[inputBytes.Length], 0, ptr, inputBytes.Length);
+                ZeroNativeMemory(ptr, inputBytes.Length);
                 Marshal.FreeHGlobal(ptr);
             }
             if (output.Data != IntPtr.Zero)
@@ -184,9 +205,21 @@ public sealed class ProtectedBondStore
                 // DPAPI outputs are tiny for this fixed-size format. Clamp the
                 // memory wipe in case a broken native result reports absurd size.
                 if (output.Size > 0 && output.Size <= 4096)
-                    Marshal.Copy(new byte[output.Size], 0, output.Data, output.Size);
+                    ZeroNativeMemory(output.Data, output.Size);
                 _ = LocalFree(output.Data);
             }
+        }
+    }
+
+    private static void ZeroNativeMemory(IntPtr pointer, int length)
+    {
+        byte[] zeros = new byte[Math.Min(length, 4096)];
+        int offset = 0;
+        while (offset < length)
+        {
+            int count = Math.Min(zeros.Length, length - offset);
+            Marshal.Copy(zeros, 0, IntPtr.Add(pointer, offset), count);
+            offset += count;
         }
     }
 }

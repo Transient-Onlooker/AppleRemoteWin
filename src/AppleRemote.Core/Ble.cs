@@ -74,7 +74,7 @@ public sealed class LeCentral
     readonly List<byte> _rx = new();   // trame L2CAP en cours de reconstitution
     TaskCompletionSource<ushort>? _connecting;
     (Func<byte[], bool> Match, TaskCompletionSource<LePeer> Found, bool AllowRandom)? _scan;
-    TaskCompletionSource? _encrypting;
+    (ushort Handle, TaskCompletionSource Done)? _encrypting;
 
     /// <summary>When false, do not send automatic L2CAP signaling responses (link-only diagnostics).</summary>
     public LeCentral(HciHost hci, bool respondToSignaling = true)
@@ -274,7 +274,8 @@ public sealed class LeCentral
     public async Task EncryptAsync(ushort handle, BondKeys keys, CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        var encrypting = _encrypting = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var encrypting = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        _encrypting = (handle, encrypting);
         try
         {
             await _hci.CommandAsync(HciOpcode.LeEnableEncryption,
@@ -365,13 +366,15 @@ public sealed class LeCentral
             case EvtLeMeta when p.Length >= 2 && (p[0] is LeConnectionComplete or LeEnhancedConnectionComplete):
                 CompleteConnection(p);
                 break;
-            case EvtEncryptionChange when p.Length >= 4:
-                if (p[0] != 0) _encrypting?.TrySetException(new HciException(HciOpcode.LeEnableEncryption, p[0]));
-                else if (p[3] == 0) _encrypting?.TrySetException(new InvalidOperationException("Encryption disabled by the remote."));
-                else _encrypting?.TrySetResult();
+            case EvtEncryptionChange when p.Length >= 4 && _encrypting is { } encryption &&
+                encryption.Handle == (ushort)(p[1] | p[2] << 8):
+                if (p[0] != 0) encryption.Done.TrySetException(new HciException(HciOpcode.LeEnableEncryption, p[0]));
+                else if (p[3] == 0) encryption.Done.TrySetException(new InvalidOperationException("Encryption disabled by the remote."));
+                else encryption.Done.TrySetResult();
                 break;
             case EvtDisconnectionComplete when p.Length >= 4 && p[0] == 0:
-                _encrypting?.TrySetException(new InvalidOperationException($"Disconnected during encryption (reason 0x{p[3]:X2})."));
+                if (_encrypting is { } pendingEncryption && pendingEncryption.Handle == (ushort)(p[1] | p[2] << 8))
+                    pendingEncryption.Done.TrySetException(new InvalidOperationException($"Disconnected during encryption (reason 0x{p[3]:X2})."));
                 Disconnected?.Invoke((ushort)(p[1] | p[2] << 8), p[3]);
                 break;
         }

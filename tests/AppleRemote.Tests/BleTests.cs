@@ -131,6 +131,36 @@ public class BleTests
         await Assert.ThrowsAsync<InvalidOperationException>(() => encrypting);
         Assert.Equal((0x0040, 0x3E), disconnected.Single());
     }
+
+    [Fact]
+    public async Task Encryption_ignores_events_for_a_different_connection()
+    {
+        var encrypting = _central.EncryptAsync(0x0040, new BondKeys(new byte[16], 0, new byte[8]));
+        CommandStatusOk(HciOpcode.LeEnableEncryption);
+        _hci.ReceiveEventBytes([0x08, 0x04, 0x00, 0x41, 0x00, 0x01]);
+        _hci.ReceiveEventBytes([0x05, 0x04, 0x00, 0x41, 0x00, 0x16]);
+        Assert.False(encrypting.IsCompleted);
+        _hci.ReceiveEventBytes([0x08, 0x04, 0x00, 0x40, 0x00, 0x01]);
+        await encrypting;
+    }
+
+    [Fact]
+    public async Task Encryption_wait_can_be_cancelled_and_next_attempt_still_completes()
+    {
+        using var stop = new CancellationTokenSource();
+        var keys = new BondKeys(new byte[16], 0, new byte[8]);
+        Task cancelled = _central.EncryptAsync(0x0040, keys, stop.Token);
+        CommandStatusOk(HciOpcode.LeEnableEncryption);
+        stop.Cancel();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => cancelled);
+
+        Task next = _central.EncryptAsync(0x0041, keys);
+        CommandStatusOk(HciOpcode.LeEnableEncryption);
+        _hci.ReceiveEventBytes([0x08, 0x04, 0x00, 0x40, 0x00, 0x01]);
+        Assert.False(next.IsCompleted);
+        _hci.ReceiveEventBytes([0x08, 0x04, 0x00, 0x41, 0x00, 0x01]);
+        await next;
+    }
     [Fact]
     public void Link_only_central_does_not_respond_to_unsolicited_L2CAP_signaling()
     {

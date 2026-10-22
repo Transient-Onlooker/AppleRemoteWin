@@ -110,7 +110,9 @@ internal static partial class Program
         {
             Console.Error.WriteLine("--smp-pair-only requires explicit --confirm-pairing.");
             Console.Error.WriteLine("WARNING: live bonding may replace the remote's existing Apple TV pairing;");
-            Console.Error.WriteLine("keys are held in memory only and will NOT be saved for reconnection.");
+            Console.Error.WriteLine(saveBond
+                ? "--save-bond would store CurrentUser DPAPI-protected keys; pairing still needs explicit confirmation."
+                : "keys are held in memory only and will NOT be saved for reconnection.");
             return 2;
         }
         // The experimental link-only mode is deliberately limited to the measured,
@@ -780,23 +782,25 @@ internal static partial class Program
                     if (gattInspectOnly)
                     {
                         stage = "read-only HID GATT discovery";
+                        using var gattWindow = CancellationTokenSource.CreateLinkedTokenSource(stop.Token);
+                        gattWindow.CancelAfter(TimeSpan.FromSeconds(seconds));
                         gatt = new GattClient(central, handle);
-                        List<GattService> services = await gatt.DiscoverPrimaryServicesAsync();
+                        List<GattService> services = await gatt.DiscoverPrimaryServicesAsync(gattWindow.Token);
                         GattService? hid = services.FirstOrDefault(service => GattClient.Is(service.Uuid, 0x1812));
                         if (hid is null)
                             throw new InvalidDataException("Encrypted GATT discovery did not find HID service 0x1812.");
                         Console.WriteLine("GATT HID service 0x1812 present.");
-                        List<GattCharacteristic> chars = await gatt.DiscoverCharacteristicsAsync(hid);
+                        List<GattCharacteristic> chars = await gatt.DiscoverCharacteristicsAsync(hid, gattWindow.Token);
                         int seenReports = 0, buttons = 0, touch = 0, unlock = 0;
                         for (int i = 0; i < chars.Count; i++)
                         {
                             var c = chars[i];
                             ushort end = i + 1 < chars.Count ? (ushort)(chars[i + 1].Declaration - 1) : hid.End;
                             if (!GattClient.Is(c.Uuid, 0x2A4D) || c.Value >= end) continue;
-                            var descriptors = await gatt.DiscoverDescriptorsAsync((ushort)(c.Value + 1), end);
+                            var descriptors = await gatt.DiscoverDescriptorsAsync((ushort)(c.Value + 1), end, gattWindow.Token);
                             var reference = descriptors.FirstOrDefault(d => GattClient.Is(d.Uuid, 0x2908));
                             if (reference.Uuid is null) continue;
-                            byte[] idAndType = await gatt.ReadAsync(reference.Handle);
+                            byte[] idAndType = await gatt.ReadAsync(reference.Handle, gattWindow.Token);
                             if (idAndType.Length != 2)
                                 throw new InvalidDataException("Unexpected HID Report Reference length.");
                             seenReports++;
@@ -837,7 +841,10 @@ internal static partial class Program
                 }
                 catch (OperationCanceledException)
                 {
-                    Console.Error.WriteLine($"Protected-bond diagnostic cancelled/timed out at {stage}.");
+                    string suffix = disconnected.Task.IsCompleted
+                        ? $" Physical link ended: reason=0x{disconnected.Task.Result.Reason:X2}."
+                        : "";
+                    Console.Error.WriteLine($"Protected-bond diagnostic cancelled/timed out at {stage}.{suffix}");
                     return 1;
                 }
                 catch (Exception e)

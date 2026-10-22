@@ -66,11 +66,80 @@ public sealed class ProtectedBondStoreTests
             Directory.CreateDirectory(directory);
             File.WriteAllBytes(file, [0x01, 0x02, 0x03]);
             Assert.Throws<InvalidDataException>(() => store.Load());
-            File.WriteAllBytes(file, RandomNumberGenerator.GetBytes(100));
-            Assert.ThrowsAny<Exception>(() => store.Load());
+            byte[] randomCiphertext = RandomNumberGenerator.GetBytes(100);
+            try
+            {
+                File.WriteAllBytes(file, randomCiphertext);
+                Assert.ThrowsAny<Exception>(() => store.Load());
+            }
+            finally
+            {
+                CryptographicOperations.ZeroMemory(randomCiphertext);
+            }
         }
         finally
         {
+            if (Directory.Exists(directory)) Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void Load_rejects_oversized_mock_file_before_DPAPI()
+    {
+        if (!OperatingSystem.IsWindows()) return;
+        string directory = Path.Combine(Path.GetTempPath(), "A2854-dpapi-test-" + Guid.NewGuid().ToString("N"));
+        string file = Path.Combine(directory, "bond.v1.dpapi");
+        var store = new ProtectedBondStore(file);
+        try
+        {
+            Directory.CreateDirectory(directory);
+            // Synthetic ciphertext-like bytes only; no device bond is read or used.
+            File.WriteAllBytes(file, new byte[4097]);
+            Assert.Throws<InvalidDataException>(() => store.Load());
+        }
+        finally
+        {
+            if (Directory.Exists(directory)) Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void Tampered_mock_ciphertext_does_not_replace_or_delete_the_file()
+    {
+        if (!OperatingSystem.IsWindows()) return;
+        string directory = Path.Combine(Path.GetTempPath(), "A2854-dpapi-test-" + Guid.NewGuid().ToString("N"));
+        string file = Path.Combine(directory, "bond.v1.dpapi");
+        var store = new ProtectedBondStore(file);
+        var keys = new BondKeys(new byte[16], 0x1234, new byte[8]);
+        try
+        {
+            store.Save("12:34:56:78:9A:BC", 1, keys);
+            byte[] ciphertext = File.ReadAllBytes(file);
+            try
+            {
+                ciphertext[ciphertext.Length / 2] ^= 0x80;
+                File.WriteAllBytes(file, ciphertext);
+                byte[] tampered = File.ReadAllBytes(file);
+                try
+                {
+                    Assert.ThrowsAny<Exception>(() => store.Load());
+                    Assert.True(store.Exists);
+                    Assert.Equal(tampered, File.ReadAllBytes(file));
+                }
+                finally
+                {
+                    CryptographicOperations.ZeroMemory(tampered);
+                }
+            }
+            finally
+            {
+                CryptographicOperations.ZeroMemory(ciphertext);
+            }
+        }
+        finally
+        {
+            CryptographicOperations.ZeroMemory(keys.Ltk);
+            CryptographicOperations.ZeroMemory(keys.Rand);
             if (Directory.Exists(directory)) Directory.Delete(directory, recursive: true);
         }
     }

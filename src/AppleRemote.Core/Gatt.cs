@@ -26,13 +26,16 @@ public sealed class GattClient
     readonly LeCentral _central;
     readonly ushort _connection;
     readonly SemaphoreSlim _gate = new(1, 1);
+    readonly object _stateLock = new();
     (byte Request, TaskCompletionSource<byte[]> Done)? _pending;
+    Exception? _closedException;
 
     public GattClient(LeCentral central, ushort connection)
     {
         _central = central;
         _connection = connection;
         central.L2capData += OnL2cap;
+        central.Disconnected += OnDisconnected;
     }
 
     public TimeSpan RequestTimeout { get; init; } = TimeSpan.FromSeconds(10);
@@ -41,16 +44,25 @@ public sealed class GattClient
     public event Action<ushort, byte[]>? Notification;
 
     /// <summary>Call when the connection ends: stops listening to the channel.</summary>
-    public void Detach() => _central.L2capData -= OnL2cap;
+    public void Detach()
+    {
+        _central.L2capData -= OnL2cap;
+        _central.Disconnected -= OnDisconnected;
+        lock (_stateLock)
+        {
+            _closedException ??= new InvalidOperationException("GATT client detached.");
+            _pending?.Done.TrySetException(_closedException);
+        }
+    }
 
     public static bool Is(byte[] uuid, ushort uuid16) => uuid.Length == 2 && (uuid[0] | uuid[1] << 8) == uuid16;
 
-    public async Task<List<GattService>> DiscoverPrimaryServicesAsync()
+    public async Task<List<GattService>> DiscoverPrimaryServicesAsync(CancellationToken cancellationToken = default)
     {
         var services = new List<GattService>();
         for (ushort start = 1; ;)
         {
-            byte[]? r = await RequestOrNotFoundAsync([0x10, .. U16(start), 0xFF, 0xFF, .. U16(PrimaryService)]);   // Read By Group Type
+            byte[]? r = await RequestOrNotFoundAsync([0x10, .. U16(start), 0xFF, 0xFF, .. U16(PrimaryService)], cancellationToken);   // Read By Group Type
             if (r is null) return services;
             if (r.Length < 8 || r[1] is not (6 or 20) || (r.Length - 2) % r[1] != 0)
                 throw new InvalidDataException("Malformed GATT Read By Group Type response.");
@@ -67,12 +79,12 @@ public sealed class GattClient
         }
     }
 
-    public async Task<List<GattCharacteristic>> DiscoverCharacteristicsAsync(GattService service)
+    public async Task<List<GattCharacteristic>> DiscoverCharacteristicsAsync(GattService service, CancellationToken cancellationToken = default)
     {
         var characteristics = new List<GattCharacteristic>();
         for (ushort start = service.Start; start <= service.End;)
         {
-            byte[]? r = await RequestOrNotFoundAsync([0x08, .. U16(start), .. U16(service.End), .. U16(CharacteristicDeclaration)]);
+            byte[]? r = await RequestOrNotFoundAsync([0x08, .. U16(start), .. U16(service.End), .. U16(CharacteristicDeclaration)], cancellationToken);
             if (r is null) break;
             if (r.Length < 9 || r[1] is not (7 or 21) || (r.Length - 2) % r[1] != 0)
                 throw new InvalidDataException("Malformed GATT Read By Type response.");
@@ -80,8 +92,10 @@ public sealed class GattClient
             for (int i = 2; i < r.Length; i += size)
             {
                 ushort declaration = U16(r, i), value = U16(r, i + 3);
-                if (declaration < start || declaration > service.End || value <= declaration ||
-                    (characteristics.Count > 0 && declaration <= characteristics[^1].Declaration))
+                ushort nextDeclaration = i + size < r.Length ? U16(r, i + size) : (ushort)0xFFFF;
+                if (declaration < start || declaration > service.End || value <= declaration || value > service.End ||
+                    (characteristics.Count > 0 && declaration <= characteristics[^1].Value) ||
+                    (i + size < r.Length && value >= nextDeclaration))
                     throw new InvalidDataException("Invalid GATT characteristic declaration/value handle.");
                 characteristics.Add(new GattCharacteristic(declaration, r[i + 2], value, r[(i + 5)..(i + size)]));
             }
@@ -93,12 +107,12 @@ public sealed class GattClient
     }
 
     /// <summary>Descriptors between two handles: (handle, UUID).</summary>
-    public async Task<List<(ushort Handle, byte[] Uuid)>> DiscoverDescriptorsAsync(ushort start, ushort end)
+    public async Task<List<(ushort Handle, byte[] Uuid)>> DiscoverDescriptorsAsync(ushort start, ushort end, CancellationToken cancellationToken = default)
     {
-        var descriptors = new List<(ushort, byte[])>();
+        var descriptors = new List<(ushort Handle, byte[] Uuid)>();
         while (start <= end)
         {
-            byte[]? r = await RequestOrNotFoundAsync([0x04, .. U16(start), .. U16(end)]);   // Find Information
+            byte[]? r = await RequestOrNotFoundAsync([0x04, .. U16(start), .. U16(end)], cancellationToken);   // Find Information
             if (r is null) break;
             if (r.Length < 6 || r[1] is not (1 or 2))
                 throw new InvalidDataException("Malformed GATT Find Information response.");
@@ -113,47 +127,76 @@ public sealed class GattClient
                     throw new InvalidDataException("Non-monotonic GATT descriptor handle.");
                 descriptors.Add((handle, r[(i + 2)..(i + size)]));
             }
-            if (descriptors[^1].Item1 == 0xFFFF) break;
-            start = (ushort)(descriptors[^1].Item1 + 1);
+            if (descriptors[^1].Handle == 0xFFFF) break;
+            start = (ushort)(descriptors[^1].Handle + 1);
         }
         return descriptors;
     }
 
-    public async Task<byte[]> ReadAsync(ushort handle) => (await RequestAsync([0x0A, .. U16(handle)]))[1..];
+    public async Task<byte[]> ReadAsync(ushort handle, CancellationToken cancellationToken = default) =>
+        (await RequestAsync([0x0A, .. U16(handle)], cancellationToken))[1..];
 
     public Task WriteAsync(ushort handle, params byte[] value) => RequestAsync([0x12, .. U16(handle), .. value]);
 
-    async Task<byte[]?> RequestOrNotFoundAsync(byte[] pdu)
+    async Task<byte[]?> RequestOrNotFoundAsync(byte[] pdu, CancellationToken cancellationToken)
     {
-        try { return await RequestAsync(pdu); }
+        try { return await RequestAsync(pdu, cancellationToken); }
         catch (AttException e) when (e.Error == AttributeNotFound) { return null; }   // end of a discovery
     }
 
     /// <summary>One request at a time (ATT rule); returns the whole response, opcode included.</summary>
-    async Task<byte[]> RequestAsync(byte[] pdu)
+    async Task<byte[]> RequestAsync(byte[] pdu, CancellationToken cancellationToken = default)
     {
-        await _gate.WaitAsync();
+        await _gate.WaitAsync(cancellationToken);
         try
         {
             var done = new TaskCompletionSource<byte[]>(TaskCreationOptions.RunContinuationsAsynchronously);
-            _pending = (pdu[0], done);
-            _central.SendL2cap(_connection, LeCentral.CidAtt, pdu);
-            return await done.Task.WaitAsync(RequestTimeout);
+            lock (_stateLock)
+            {
+                if (_closedException is not null) throw _closedException;
+                _pending = (pdu[0], done);
+                _central.SendL2cap(_connection, LeCentral.CidAtt, pdu);
+            }
+            return await done.Task.WaitAsync(RequestTimeout, cancellationToken);
+        }
+        catch (Exception e) when (e is OperationCanceledException or TimeoutException)
+        {
+            // ATT has no transaction IDs. A late response must not complete a
+            // subsequent request on this client after an interrupted exchange.
+            lock (_stateLock)
+                _closedException ??= new IOException("ATT exchange interrupted; disconnect before creating a new client.");
+            throw;
         }
         finally
         {
-            _pending = null;
+            lock (_stateLock) _pending = null;
             _gate.Release();
+        }
+    }
+
+    void OnDisconnected(ushort connection, byte reason)
+    {
+        if (connection != _connection) return;
+        lock (_stateLock)
+        {
+            _closedException ??= new IOException($"GATT connection disconnected (reason 0x{reason:X2}).");
+            _pending?.Done.TrySetException(_closedException);
         }
     }
 
     void OnL2cap(ushort connection, ushort cid, byte[] pdu)
     {
         if (connection != _connection || cid != LeCentral.CidAtt || pdu.Length == 0) return;
+        (byte Request, TaskCompletionSource<byte[]> Done)? pending;
+        lock (_stateLock)
+        {
+            if (_closedException is not null) return;
+            pending = _pending;
+        }
         byte opcode = pdu[0];
         switch (opcode)
         {
-            case ErrorResponse when pdu.Length >= 5 && _pending is { } p && p.Request == pdu[1]:
+            case ErrorResponse when pdu.Length >= 5 && pending is { } p && p.Request == pdu[1]:
                 p.Done.TrySetException(new AttException(pdu[1], U16(pdu, 2), pdu[4]));
                 break;
             case 0x1B or 0x1D when pdu.Length >= 3:   // notification, indication
@@ -169,7 +212,7 @@ public sealed class GattClient
                 _central.SendL2cap(_connection, LeCentral.CidAtt, [ErrorResponse, opcode, .. U16(handle), error]);
                 break;
             default:
-                if (_pending is { } q && opcode == q.Request + 1) q.Done.TrySetResult(pdu);   // response = request + 1
+                if (pending is { } q && opcode == q.Request + 1) q.Done.TrySetResult(pdu);   // response = request + 1
                 break;
         }
     }

@@ -20,7 +20,7 @@ public sealed class GattValidationTests
         try
         {
             var services = await gatt.DiscoverPrimaryServicesAsync();
-            var hid = Assert.Single(services.Where(s => GattClient.Is(s.Uuid, 0x1812)));
+            var hid = Assert.Single(services, s => GattClient.Is(s.Uuid, 0x1812));
             var characteristics = await gatt.DiscoverCharacteristicsAsync(hid);
             Assert.NotEmpty(characteristics);
             bool sawTouch = false, sawFeature = false;
@@ -81,5 +81,84 @@ public sealed class GattValidationTests
         {
             gatt.Detach();
         }
+    }
+
+    [Fact]
+    public async Task Cancelling_GATT_read_stops_waiting_for_response()
+    {
+        var sent = new List<byte[]>();
+        var hci = new HciHost(_ => { }, sent.Add);
+        var gatt = new GattClient(new LeCentral(hci), 0x0040);
+        using var cancellation = new CancellationTokenSource();
+
+        Task<byte[]> read = gatt.ReadAsync(0x0001, cancellation.Token);
+        Assert.Single(sent);
+        cancellation.Cancel();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => read);
+        await Assert.ThrowsAsync<IOException>(() => gatt.ReadAsync(0x0002));
+        Assert.Single(sent);
+        gatt.Detach();
+    }
+
+    [Theory]
+    [InlineData(0x000A, false)] // Value handle outside service ending at 0x0009.
+    [InlineData(0x0004, true)] // Value overlaps the next declaration.
+    public async Task Invalid_characteristic_value_handle_is_rejected(ushort value, bool nextDeclaration)
+    {
+        HciHost? hci = null;
+        hci = new HciHost(_ => { }, _ =>
+        {
+            byte[] first = [0x01, 0x00, 0x02, (byte)value, (byte)(value >> 8), 0x4D, 0x2A];
+            byte[] second = nextDeclaration ? [0x04, 0x00, 0x02, 0x05, 0x00, 0x4D, 0x2A] : [];
+            byte[] pdu = [0x09, 0x07, .. first, .. second];
+            hci!.ReceiveAclBytes([0x40, 0x20, (byte)(pdu.Length + 4), 0,
+                (byte)pdu.Length, 0, 0x04, 0, .. pdu]);
+        });
+        var gatt = new GattClient(new LeCentral(hci), 0x0040);
+        try
+        {
+            await Assert.ThrowsAsync<InvalidDataException>(() => gatt.DiscoverCharacteristicsAsync(
+                new GattService(0x0001, 0x0009, [0x12, 0x18])));
+        }
+        finally { gatt.Detach(); }
+    }
+
+    [Fact]
+    public async Task Timed_out_ATT_client_refuses_further_requests()
+    {
+        var sent = new List<byte[]>();
+        var gatt = new GattClient(new LeCentral(new HciHost(_ => { }, sent.Add)), 0x0040)
+        {
+            RequestTimeout = TimeSpan.Zero
+        };
+        try
+        {
+            await Assert.ThrowsAsync<TimeoutException>(() => gatt.ReadAsync(0x0001));
+            await Assert.ThrowsAsync<IOException>(() => gatt.ReadAsync(0x0002));
+            Assert.Single(sent);
+        }
+        finally { gatt.Detach(); }
+    }
+
+    [Fact]
+    public async Task Disconnect_fails_pending_and_future_GATT_requests()
+    {
+        var sent = new List<byte[]>();
+        var hci = new HciHost(_ => { }, sent.Add);
+        var central = new LeCentral(hci);
+        var gatt = new GattClient(central, 0x0040);
+
+        Task<byte[]> read = gatt.ReadAsync(0x0001);
+        Assert.Single(sent);
+        hci.ReceiveEventBytes([0x05, 0x04, 0x00, 0x40, 0x00, 0x13]);
+
+        await Assert.ThrowsAsync<IOException>(() => read);
+        await Assert.ThrowsAsync<IOException>(() => gatt.ReadAsync(0x0002));
+        Assert.Single(sent);
+
+        gatt.Detach();
+        await Assert.ThrowsAsync<IOException>(() => gatt.ReadAsync(0x0003));
+        Assert.Single(sent);
     }
 }

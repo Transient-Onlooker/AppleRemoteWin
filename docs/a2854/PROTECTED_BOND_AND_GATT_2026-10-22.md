@@ -1,6 +1,17 @@
 # A2854 Windows native — DPAPI bond, encrypted reconnect and read-only GATT gates
 
-**2026-10-22 — source implementation committed, not yet built or tested on the owner's Windows machine.** The owner/local Codex agent reported **148/148 Release tests passed** at `6cd4bbb` and a subsequent physical A2854 Just Works full pairing: peer Confirm verified, STK HCI LE encryption succeeded, LTK + EDIV/RAND received, HCI Disconnection Complete `0x16` at 963ms. The former diagnostic intentionally erased the keys without saving. **No usable Windows-side bond survives that run.** New source below requires fresh builds and tests; there has been **no new hardware run**.
+**2026-10-22 — Windows software validation completed after review of `8671444`; new radio experiments remain pending.** The earlier physical A2854 Just Works full pairing verified peer Confirm, STK HCI LE encryption, LTK + EDIV/RAND receipt, and HCI Disconnection Complete `0x16` at 963ms. That run erased its keys without saving. The protected bond file was checked for existence only and was absent during this validation; no fresh pairing, encrypted reconnect or GATT hardware inspection was executed.
+
+## Windows verification and fixes (2026-10-22)
+
+- Environment: Windows, .NET SDK `10.0.402`, original working directory on `feat/a2854-support`; the worktree was clean before fast-forward from `6cd4bbb` to `8671444`.
+- Initial solution build failed with `CS1061` in `Gatt.cs`: the descriptor list used an unnamed tuple but referenced `.Handle`. Named tuple fields fix this actual compile failure.
+- Final Release solution and A2854.Probe builds: **0 warnings, 0 errors**. Full Release tests: **167 passed, 0 failed, 0 skipped**. Separate filters: **ProtectedBondStoreTests 6/6**, **GattValidationTests 10/10**. DPAPI roundtrip, tampered ciphertext, size limits and no-overwrite tests used synthetic keys and temporary files only. The non-Windows rejection case returns early on Windows; cross-account decryption was not exercised.
+- Protected-bond loading now bounds reads before allocation to reject oversized files without reading the whole file. CurrentUser DPAPI flags and the existing native input/output wipe/free paths were reviewed. The original bond is retained on decrypt/save failure; atomic no-overwrite file moves remain in place.
+- GATT discovery rejects value handles outside the service or overlapping another declaration. Optional cancellation tokens preserve existing callers; the probe applies `--seconds` to the complete GATT inspection. Disconnect/detach fails pending and future requests. Cancellation or timeout closes the ATT client so a late response cannot satisfy a subsequent request; cleanup must end that link.
+- Encryption Change and Disconnection Complete now match the pending encryption's connection handle. Regression tests cover unrelated events and cancellation followed by a new encryption attempt. Existing first-generation decoder and fake-remote BLE tests remain included in the full suite; no first-generation physical hardware test was run.
+- Read-only PnP check: one Barrot `33FA:0001`, `WINUSB`, `oem86.inf`, version `1.0.0.0`, status OK/problem 0; one Intel AX200 `8087:0029`, `BTHUSB`, `oem116.inf`, version `23.160.0.9`, status OK/problem 0. No drivers, certificates or system pairings were changed.
+- Before the next hardware gate, obtain explicit approval for one `--smp-pair-only --confirm-pairing --save-bond` run. It may replace the Apple TV association. On successful protected save, proceed in order to encrypted reconnect and then read-only GATT discovery. Never delete/overwrite an existing protected bond or re-pair as an automatic recovery.
 
 ## Security and source boundaries
 
@@ -10,7 +21,7 @@
 - New `--gatt-inspect-only --usb 33FA:0001` does the same protected encrypted reconnect, then reads **only ATT/GATT metadata**: primary services, HID service 0x1812, Report characteristic 0x2A4D, Report Reference descriptors 0x2908 and their two-byte ID/type. Reports whether 0xFB button input, 0xFC touch input and 0xF0 feature are present, including **local GATT value handles**. It sends **no ATT attribute writes, no CCCD subscriptions, no feature unlock 0xAF, no microphone reads, no raw HID input logging**, and does not change stored secrets.
 - Both reconnect modes require an **explicit** dedicated Barrot WinUSB USB ID `33FA:0001`. They neither touch built-in Intel AX200 nor Windows device pairings, driver installations or certificate stores. Errors, timeouts and disconnects are reported by stage; the external Barrot controller alone is reset as a last-resort cleanup if a link could remain.
 - `GattClient` discovery now rejects malformed zero-length entries, impossible entry widths, misaligned frames and non-monotonic ranges rather than looping forever or using incorrect characteristic/descriptor handles.
-- DPAPI tests (Windows-only) cover save/load/delete, ciphertext-vs-plaintext, corrupted files and invalid sizes; fake-HCI tests cover encrypted reconnect and read-only GATT metadata. **Tests have been written but not yet run on this latest source.**
+- DPAPI tests (Windows-only) cover save/load/delete, ciphertext-vs-plaintext, corrupted files and invalid sizes; fake-HCI tests cover encrypted reconnect and read-only GATT metadata. **Windows execution results are recorded above; physical reconnect and GATT inspection remain unverified.**
 
 ## Critical operator sequence (separate approvals)
 
