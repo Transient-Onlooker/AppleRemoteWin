@@ -132,9 +132,12 @@ public sealed partial class RemoteViewModel : ObservableObject, IDisposable
                     "", Loc.T("Remote.Connected"), true));
             // Direct Bluetooth or dongle: the remote is connected through them, invisible to Windows (no HID, no advertising).
             if ((_session.UsesBluetoothDirect || _session.UsesDongle) && StatusLevel == StatusLevel.Ok)
-                connected = connected.Append(new NearbyRow("Siri Remote (1st)", "", Loc.T("Remote.Connected"), true));
+                connected = connected.Append(new NearbyRow(
+                    _session.A2854Mode ? "Siri Remote A2854 (USB-C)" : "Siri Remote (1st)",
+                    "", Loc.T("Remote.Connected"), true));
             var nearby = _scanner.Snapshot().Where(d => d.AppleHid)
-                .Select(d => new NearbyRow("Siri Remote (1st)", d.AddressText, $"{d.Rssi} dBm", false, d.Address));
+                .Select(d => new NearbyRow(_session.A2854Mode ? "Apple HID (unpaired; A2854 mode uses saved bond)" :
+                    "Siri Remote (1st)", d.AddressText, $"{d.Rssi} dBm", false, d.Address));
             // The list is rebuilt on every tick: the selection is kept by name + address.
             var selected = SelectedNearby;
             NearbyDevices = connected.Concat(nearby).ToList();
@@ -189,7 +192,9 @@ public sealed partial class RemoteViewModel : ObservableObject, IDisposable
                 break;
             case ButtonsEvent b:
                 ShowButtons(b.Mask);
-                foreach (var name in b.Pressed) _runBound(name);
+                foreach (var name in b.Pressed)
+                    if (!(_session.A2854Mode && _session.A2854PointerEnabled && name == "click"))
+                        _runBound(name);
                 if (b.Pressed.Count > 0) _log("▼ " + string.Join(" + ", b.Pressed));
                 if (b.Released.Count > 0) _log("▲ " + string.Join(" + ", b.Released));
                 break;
@@ -201,6 +206,18 @@ public sealed partial class RemoteViewModel : ObservableObject, IDisposable
     // Masks of byte 2 of the 0xFC report; the touch-surface click only tints it.
     void ShowButtons(int mask)
     {
+        if (_session.A2854Mode)
+        {
+            // A2854 physical 0xFB bitfield is NOT the first-gen 0xFC bitfield.
+            MenuPressed = (mask & 0x0040) != 0;
+            TvPressed = (mask & 0x0001) != 0;
+            SiriPressed = (mask & 0x0020) != 0;
+            PlayPressed = (mask & 0x0100) != 0;
+            VolUpPressed = (mask & 0x0002) != 0;
+            VolDownPressed = (mask & 0x0004) != 0;
+            TouchPressed = (mask & 0x0008) != 0;
+            return;
+        }
         MenuPressed = (mask & 0x20) != 0;
         TvPressed = (mask & 0x01) != 0;
         SiriPressed = (mask & 0x10) != 0;
