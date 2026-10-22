@@ -27,3 +27,23 @@ The main code is already authored upstream. Local Codex is **verification only**
 6. After approval, first inspect the GUI with mouse synthesis OFF. Only later enable the mouse toggle for a short supervised test at low sensitivity. Auto reconnection and long-term durability are future work.
 
 The CLI diagnostic is retained for isolated physical-layer tests, but the real user workflow is now the existing AppleRemoteWin application.
+
+## 2026-10-23 — post-build defect corrections (main author)
+
+The independent Windows verifier fast-forwarded to `bd1e288` and reported **229/229 Release tests**, **11/11 pointer tests**, and full solution, WPF app and Probe builds with **0 warnings / 0 errors**. WPF runtime bindings and live Windows input were **not** executed. The verifier identified four *static* issues; the main author implemented the following corrections:
+
+1. **USB read failure without Disconnection Complete:** a dedicated `A2854SessionFaultGate` cancels the connection task's linked cancellation token while synchronously revoking A2854 input under the existing `RemoteSession` event lock. It runs once even if both WinUSB readers fail. Cancellation is guaranteed via `finally` even if an event handler fails. An error reported after a disposed prior session cannot revoke a new session. `A2854SessionFaultGateTests` simulate no HCI terminal event, simultaneous USB errors, aborted release and late failures.
+2. **Late notification re-press after peer 0x13:** `A2854InputGate` serializes `0xFB/0xFC` notification forwarding and the terminal empty release marker. Both natural HCI disconnection and general `finally` close the gate before ATT cleanup; late callbacks are dropped. Terminal HCI completion is still signalled even if release callbacks throw. `A2854InputGateTests` cover held callbacks, concurrent close, late notification and idempotence.
+3. **Windows SendInput mouse-up failure:** `IRelativePointerSink.LeftButton` now returns actual backend success. `WindowsPointerSink` checks `SendInput` return count; `A2854PointerMapper` does not change held-button state until the OS accepts a transition. `Reset` tries mouse-up up to three times and returns failure if still held; subsequent releases remain possible. UI status explicitly warns about failure. Fake backend tests simulate rejected down/up, repeated failures and eventual recovery. OS-secure-desktop restrictions may still prevent an actual mouse-up; this is **best-effort**, not an absolute release guarantee.
+4. **Sensitivity range mismatch:** WPF slider now covers the Core model's actual **0.02..3.0** range. Model tests include saved 0.8 sensitivity and both endpoints.
+5. **Additional lifecycle hardening:** one lock serializes `RemoteSession.Start/Stop` to avoid two concurrent local USB opens. Existing protection while a previously stopped controller task is still cleaning up is preserved. This does **not** provide cross-process exclusive access versus a separately running Probe or another app.
+
+**Validation boundary:** all above code/test changes are committed source. The 229/229 test result is the **prior** `bd1e288` baseline; newer release tests, WPF runtime bindings, physical GUI/HID, actual SendInput and USB failure injection on Windows have **not yet been run**. Do not claim those milestones prematurely.
+
+### Local verifier (verification only, no new design)
+
+- Safely fetch/fast-forward latest `feat/a2854-support` after preserving local work.
+- Run full `dotnet test tests/AppleRemote.Tests -c Release`; run `dotnet build src/AppleRemote.App/AppleRemote.App.csproj -c Release -p:AppleRemoteDriver=false -p:AppleRemoteDongle=false`, full solution Release and A2854.Probe Release builds.
+- Run `A2854InputGateTests`, `A2854SessionFaultGateTests` and `A2854PointerMapperTests` specifically; check exact failures/warnings and first-gen regressions. Verify WPF bindings, especially sensitivity 0.02..3.0.
+- Review the two-lock order (`_lifecycleGate`, `_gate`) and Ctrl+C/Stop handling, early remote end, late GATT callback, fault cancellation, and SendInput failure. Use fake sinks only; no radio/USB changes needed.
+- Report findings and counterexamples, but leave implementation changes to the main author. Do not run GUI, live GATT, keyboard/mouse injection, SMP, re-pair, change drivers/certs, or delete/rewrite the DPAPI bond without new explicit approval.
