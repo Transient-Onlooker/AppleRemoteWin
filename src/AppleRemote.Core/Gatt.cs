@@ -136,7 +136,12 @@ public sealed class GattClient
     public async Task<byte[]> ReadAsync(ushort handle, CancellationToken cancellationToken = default) =>
         (await RequestAsync([0x0A, .. U16(handle)], cancellationToken))[1..];
 
-    public Task WriteAsync(ushort handle, params byte[] value) => RequestAsync([0x12, .. U16(handle), .. value]);
+    public Task WriteAsync(ushort handle, params byte[] value) =>
+        RequestAsync([0x12, .. U16(handle), .. value]);
+
+    /// <summary>Cancellation-aware ATT Write Request; same request serialization and timeout as reads.</summary>
+    public Task WriteAsync(ushort handle, CancellationToken cancellationToken, params byte[] value) =>
+        RequestAsync([0x12, .. U16(handle), .. value], cancellationToken);
 
     async Task<byte[]?> RequestOrNotFoundAsync(byte[] pdu, CancellationToken cancellationToken)
     {
