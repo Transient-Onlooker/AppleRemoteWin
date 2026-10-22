@@ -89,6 +89,14 @@ public class SmpNegotiationTests
     }
 
     [Fact]
+    public void Parse_rejects_overlong_pairing_response()
+    {
+        // 0x02 Pairing Response has exactly 7 bytes on the wire.
+        byte[] pdu = [0x02, 0x03, 0x00, 0x01, 16, 0x00, 0x01, 0xFF];
+        Assert.Throws<ArgumentException>(() => SmpPairingResponse.Parse(pdu));
+    }
+
+    [Fact]
     public void Parse_rejects_invalid_opcode()
     {
         byte[] pdu = [0x01, 0x03, 0x00, 0x01, 16, 0x00, 0x01];
