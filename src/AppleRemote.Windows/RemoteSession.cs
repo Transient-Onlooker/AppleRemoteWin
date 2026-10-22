@@ -11,8 +11,11 @@ public sealed class RemoteSession : IDisposable
 {
     readonly object _gate = new();
     readonly RemotePipeline _pipeline = new();
+    readonly A2854Decoder _a2854Decoder = new();
     readonly KeyboardInjector _injector = new();
+    readonly A2854PointerMapper _pointer = new(new WindowsPointerSink());
     readonly KeyBinder _binder;
+    bool _a2854Mode, _a2854PointerEnabled;
     bool _keyboardEnabled;
 
     CancellationTokenSource? _cts;
@@ -41,6 +44,41 @@ public sealed class RemoteSession : IDisposable
     }
 
     public KeyboardInjector Injector => _injector;
+
+    /// <summary>
+    /// Explicitly opt into the third-generation USB-C A2854 driver. Must be
+    /// selected before Start; the default 1st-gen/HID/ESP path is unchanged.
+    /// Only dedicated Barrot USB VID:PID 33FA:0001 may be opened in this mode.
+    /// </summary>
+    public bool A2854Mode
+    {
+        get => _a2854Mode;
+        set
+        {
+            if (IsRunning) throw new InvalidOperationException("Stop the current session before switching remote model.");
+            _a2854Mode = value;
+        }
+    }
+
+    /// <summary>Windows relative pointer and click injection; OFF by default even in A2854 mode.</summary>
+    public bool A2854PointerEnabled
+    {
+        get => _a2854PointerEnabled;
+        set
+        {
+            lock (_gate)
+            {
+                if (!value) _pointer.Reset(); // release a held click before disabling
+                _a2854PointerEnabled = value;
+            }
+        }
+    }
+
+    public double A2854PointerSensitivity
+    {
+        get { lock (_gate) return _pointer.Sensitivity; }
+        set { lock (_gate) _pointer.Sensitivity = value; }
+    }
 
     public bool KeyboardEnabled
     {
@@ -97,6 +135,38 @@ public sealed class RemoteSession : IDisposable
         _cts = new CancellationTokenSource();
         var ct = _cts.Token;
 
+        // A2854 is a deliberate, dedicated external-controller selection.
+        // Never let the old ESP32 / first-generation / internal HID autodetection
+        // override it or silently initiate new SMP pairing.
+        if (_a2854Mode)
+        {
+            UsbHci? a2854Hci;
+            try { a2854Hci = UsbHci.OpenForUsbId(new UsbHci.UsbId(0x33FA, 0x0001)); }
+            catch (Exception e)
+            {
+                Status?.Invoke($"A2854: dedicated Barrot WinUSB interface unavailable ({e.GetType().Name}).");
+                _cts.Dispose();
+                _cts = null;
+                return;
+            }
+
+            UsesBluetoothDirect = true;
+            AdapterInUse = a2854Hci.InstanceId;
+            a2854Hci.Failed += status => Status?.Invoke(status);
+            var a2854 = new A2854RemoteBle(a2854Hci.Host, FeedA2854, status => Status?.Invoke(status));
+            _driverTask = Task.Run(async () =>
+            {
+                try { await a2854.RunAsync(ct); }
+                catch (Exception e) when (!ct.IsCancellationRequested)
+                {
+                    Status?.Invoke($"A2854: transport error ({e.GetType().Name}).");
+                    FeedA2854([]);
+                }
+                finally { a2854Hci.Dispose(); }
+            });
+            return; // A2854 data is decoded independently; no legacy gesture tick.
+        }
+
         // ESP32-S3 dongle first: it holds the remote by itself, no adapter driver or filter needed.
         if (EspDongle.Find() is not null)
         {
@@ -144,8 +214,43 @@ public sealed class RemoteSession : IDisposable
         _driverTask = _tickTask = null;
         AdapterInUse = null;
         _dongle = null;
-        lock (_gate) _binder.ReleaseAll();
+        lock (_gate)
+        {
+            _binder.ReleaseAll();
+            _pointer.Reset();
+        }
+        UsesBluetoothDirect = false;
         Status?.Invoke(Loc.T("Status.Stopped"));
+    }
+
+    void FeedA2854(byte[]? report)
+    {
+        lock (_gate)
+        {
+            foreach (RemoteEvent ev in _a2854Decoder.Decode(report))
+            {
+                if (_a2854PointerEnabled) _pointer.OnEvent(ev);
+
+                if (_keyboardEnabled)
+                {
+                    // A mouse click must not also emit the default gen-1 Enter key
+                    // or any configured keyboard/macro action for the click button.
+                    if (_a2854PointerEnabled && ev is ButtonsEvent buttons)
+                    {
+                        _binder.OnEvent(new ButtonsEvent(buttons.Mask,
+                            buttons.Pressed.Where(name => name != "click").ToArray(),
+                            buttons.Released.Where(name => name != "click").ToArray(), buttons.Raw));
+                    }
+                    else _binder.OnEvent(ev);
+                }
+                Event?.Invoke(ev); // keeps existing GUI event display and key-binding actions
+            }
+            if (report is { Length: 0 })
+            {
+                _binder.ReleaseAll();
+                _pointer.Reset();
+            }
+        }
     }
 
     void Feed(double hostTime, byte[]? report)
