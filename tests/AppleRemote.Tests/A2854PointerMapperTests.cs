@@ -156,6 +156,19 @@ public sealed class A2854PointerMapperTests
         Assert.Throws<ArgumentOutOfRangeException>(() => new A2854PointerMapper(sink, sensitivity));
     }
 
+    [Theory]
+    [InlineData(0.02)]
+    [InlineData(0.18)]
+    [InlineData(0.8)]
+    [InlineData(3.0)]
+    public void GUI_supported_sensitivity_range_matches_core_validation(double value)
+    {
+        var pointer = new A2854PointerMapper(new FakePointer(), value);
+        Assert.Equal(value, pointer.Sensitivity);
+        pointer.Sensitivity = value;
+        Assert.Equal(value, pointer.Sensitivity);
+    }
+
     [Fact]
     public void Changing_sensitivity_resets_motion_remainders()
     {
