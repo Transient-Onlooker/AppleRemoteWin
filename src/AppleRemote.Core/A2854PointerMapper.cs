@@ -83,12 +83,14 @@ public sealed class A2854PointerMapper(IRelativePointerSink sink, double sensiti
                 return; // tracking restarts at the new position, no jump
             }
 
-            _remainderX += dx * _sensitivity;
-            _remainderY -= dy * _sensitivity; // A2854 vertical coordinate increases upward
-            int pixelsX = Math.Clamp((int)Math.Truncate(_remainderX), -MaxStep, MaxStep);
-            int pixelsY = Math.Clamp((int)Math.Truncate(_remainderY), -MaxStep, MaxStep);
-            _remainderX -= pixelsX;
-            _remainderY -= pixelsY;
+            double movementX = _remainderX + dx * _sensitivity;
+            double movementY = _remainderY - dy * _sensitivity; // A2854 Y grows upward
+            int pixelsX = Math.Clamp((int)Math.Truncate(movementX), -MaxStep, MaxStep);
+            int pixelsY = Math.Clamp((int)Math.Truncate(movementY), -MaxStep, MaxStep);
+            // Discard clamped excess instead of moving the mouse again on a
+            // later zero-delta frame (a very visible touchpad jump bug).
+            _remainderX = Math.Abs(movementX) >= MaxStep ? 0 : movementX - pixelsX;
+            _remainderY = Math.Abs(movementY) >= MaxStep ? 0 : movementY - pixelsY;
             if (pixelsX != 0 || pixelsY != 0) _sink.Move(pixelsX, pixelsY);
         }
     }
