@@ -15,7 +15,8 @@ public sealed class RemoteSession : IDisposable
     readonly KeyboardInjector _injector = new();
     readonly A2854PointerMapper _pointer = new(new WindowsPointerSink());
     readonly KeyBinder _binder;
-    bool _a2854Mode, _a2854PointerEnabled;
+    bool _a2854Mode, _a2854PointerEnabled, _acceptA2854Input;
+    Task? _a2854CleanupTask;
     bool _keyboardEnabled;
 
     CancellationTokenSource? _cts;
@@ -132,6 +133,12 @@ public sealed class RemoteSession : IDisposable
     public void Start()
     {
         if (_cts is not null) return;
+        if (_a2854CleanupTask is { IsCompleted: false })
+        {
+            Status?.Invoke("A2854: previous USB session is still closing; restart after cleanup completes.");
+            return;
+        }
+        _a2854CleanupTask = null;
         _cts = new CancellationTokenSource();
         var ct = _cts.Token;
 
@@ -145,11 +152,13 @@ public sealed class RemoteSession : IDisposable
             catch (Exception e)
             {
                 Status?.Invoke($"A2854: dedicated Barrot WinUSB interface unavailable ({e.GetType().Name}).");
+                lock (_gate) _acceptA2854Input = false;
                 _cts.Dispose();
                 _cts = null;
                 return;
             }
 
+            lock (_gate) _acceptA2854Input = true;
             UsesBluetoothDirect = true;
             AdapterInUse = a2854Hci.InstanceId;
             a2854Hci.Failed += status => Status?.Invoke(status);
@@ -207,8 +216,16 @@ public sealed class RemoteSession : IDisposable
         var cts = _cts;
         if (cts is null) return;
         cts.Cancel();
+        if (_a2854Mode)
+        {
+            lock (_gate) _acceptA2854Input = false;
+            FeedA2854([]); // force held 0xFB buttons and pointer click up immediately
+        }
+        Task? activeDriver = _driverTask;
         try { Task.WaitAll(new[] { _driverTask, _tickTask }.Where(t => t is not null).Cast<Task>().ToArray(), 2000); }
         catch (AggregateException) { }
+        if (_a2854Mode && activeDriver is { IsCompleted: false })
+            _a2854CleanupTask = activeDriver; // prevent opening same WinUSB dongle during asynchronous teardown
         cts.Dispose();
         _cts = null;
         _driverTask = _tickTask = null;
@@ -227,6 +244,9 @@ public sealed class RemoteSession : IDisposable
     {
         lock (_gate)
         {
+            // A late USB notification after Stop must never inject mouse/key
+            // input into Windows. An empty release sentinel is always accepted.
+            if (!_acceptA2854Input && report is { Length: > 0 }) return;
             foreach (RemoteEvent ev in _a2854Decoder.Decode(report))
             {
                 if (_a2854PointerEnabled) _pointer.OnEvent(ev);
@@ -238,9 +258,16 @@ public sealed class RemoteSession : IDisposable
                     if (_a2854PointerEnabled && ev is ButtonsEvent buttons)
                     {
                         _binder.OnEvent(new ButtonsEvent(buttons.Mask,
-                            buttons.Pressed.Where(name => name != "click").ToArray(),
-                            buttons.Released.Where(name => name != "click").ToArray(), buttons.Raw));
+                            buttons.Pressed.Where(name => name != "click" &&
+                                name is not ("tv" or "siri" or "power")).ToArray(),
+                            buttons.Released.Where(name => name != "click" &&
+                                name is not ("tv" or "siri" or "power")).ToArray(), buttons.Raw));
                     }
+                    else if (ev is ButtonsEvent limited)
+                        _binder.OnEvent(new ButtonsEvent(limited.Mask,
+                            limited.Pressed.Where(name => name is not ("tv" or "siri" or "power")).ToArray(),
+                            limited.Released.Where(name => name is not ("tv" or "siri" or "power")).ToArray(),
+                            limited.Raw));
                     else _binder.OnEvent(ev);
                 }
                 Event?.Invoke(ev); // keeps existing GUI event display and key-binding actions
