@@ -30,6 +30,9 @@ public sealed class ProtectedBondStoreTests
             // Ciphertext cannot contain any raw LTK or the whole plaintext input.
             Assert.True(ciphertext.Length > keys.Ltk.Length);
             Assert.False(ciphertext.AsSpan().IndexOf(keys.Ltk) >= 0);
+            // A second pairing attempt may not silently clobber a known bond.
+            Assert.Throws<IOException>(() => store.Save("12:34:56:78:9A:BC", 0, keys));
+            Assert.Equal(ciphertext, File.ReadAllBytes(file));
             var loaded = store.Load();
             Assert.NotNull(loaded);
             Assert.Equal("12:34:56:78:9A:BC", loaded.Value.Address);
