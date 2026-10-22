@@ -12,6 +12,18 @@ public class HciTests
 
     public HciTests() => _host = new HciHost(_sent.Add, _sent.Add);
 
+    [Theory]
+    [InlineData(0x16, true, "Connection Terminated by Local Host")]
+    [InlineData(0x3E, false, "Connection Failed to be Established / Synchronization Timeout")]
+    [InlineData(0x08, false, "Connection Timeout")]
+    [InlineData(0x13, false, "Remote User Terminated Connection")]
+    public void Disconnection_Complete_reason_must_not_be_conflated_with_successful_host_disconnect(
+        byte reason, bool expectedHostDisconnect, string description)
+    {
+        Assert.Equal(expectedHostDisconnect, HciDisconnectReason.IsExpectedHostDisconnect(reason));
+        Assert.Equal(description, HciDisconnectReason.Describe(reason));
+    }
+
     [Fact]
     public async Task Command_is_encoded_and_its_complete_event_returns_the_return_parameters()
     {
