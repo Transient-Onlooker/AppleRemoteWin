@@ -82,7 +82,8 @@ public sealed class A2854RemoteBle(
             }
             cancellationToken.ThrowIfCancellationRequested();
 
-            A2854HidInputMap inputMap = map;
+            A2854HidInputMap inputMap = map ??
+                throw new InvalidDataException("A2854 HID report map was not resolved.");
             var localDecoder = new A2854Decoder();
             object reportLock = new();
             gatt.Notification += (valueHandle, value) =>
