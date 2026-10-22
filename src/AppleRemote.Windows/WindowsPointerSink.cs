@@ -20,12 +20,12 @@ public sealed class WindowsPointerSink : IRelativePointerSink
     public void Move(int dx, int dy)
     {
         if (dx == 0 && dy == 0) return;
-        Send(dx, dy, MouseMove);
+        _ = Send(dx, dy, MouseMove);
     }
 
-    public void LeftButton(bool down) => Send(0, 0, down ? LeftDown : LeftUp);
+    public bool LeftButton(bool down) => Send(0, 0, down ? LeftDown : LeftUp);
 
-    void Send(int dx, int dy, uint flags)
+    bool Send(int dx, int dy, uint flags)
     {
         var input = new NativeMethods.INPUT
         {
@@ -41,5 +41,6 @@ public sealed class WindowsPointerSink : IRelativePointerSink
         };
         uint count = NativeMethods.SendInput(1, [input], Marshal.SizeOf<NativeMethods.INPUT>());
         LastError = count == 1 ? null : new Win32Exception(Marshal.GetLastWin32Error()).Message;
+        return count == 1;
     }
 }
