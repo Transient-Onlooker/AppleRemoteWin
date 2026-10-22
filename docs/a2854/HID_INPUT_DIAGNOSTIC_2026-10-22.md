@@ -37,7 +37,24 @@ A separate `--hid-input-only --confirm-hid-writes --usb 33FA:0001` diagnostic pe
 - An unrelated/unknown notification is dropped, with no raw data forwarding. The diagnostic contains no microphone subscription or audio decoding path.
 - Live physical-handle mismatch causes **zero writes**; missing `0xFB` prevents any subscription/unlock.
 
-**Validation boundary:** The new HID code has passed native Windows software validation: **179/179 Release tests**, including **12 HID capture cases** and the existing 167 tests; full solution and Probe builds have **0 warnings/errors**. Handle validation is mandatory and write maps are bound to their discovering GATT client. The subsequent approved hardware retry verified button/touch input, but normal CCCD cleanup and local disconnect reason 16 still need physical validation.
+**Validation boundary:** The prior HID build had **179/179 Release tests**, including **12 HID capture cases** and the existing 167 tests, with **0 warnings/errors**. That source achieved 59 physical button frames and 720 touch frames. The newer capture/termination-classification changes and tests **have not yet been built on Windows**. CCCD cleanup and local host disconnect 0x16 still require a separate real hardware check.
+
+## Latest post-hardware follow-up: peer 0x13 is not failed input capture (code-only)
+
+The local Windows agent reported a physical A2854 HID session at **`f2ea655`**:
+- 0xFB: **59 button frames**, press/release decoded.
+- 0xFC: **720 touch frames**, coordinates and hover decoded.
+- **0 malformed frames**.
+- Existing DPAPI-protected LTK, encrypted reconnection, verified CCCD enable writes, and 0xF0 <- 0xAF all succeeded.
+- The peer terminated the link during input observation with HCI **`0x13` (Remote User Terminated Connection)**, so the then-current CLI threw and exited with code 1. This does not negate frames already received. The precise reason the remote chose to close (idle/sleep/user action/etc.) **is not known**. **Local HCI Disconnect `0x16` and CCCD disable were not possible after the peer had already ended the link**, and remain unverified.
+
+**A new source-only follow-up (no Windows build or physical test yet) now separates capture quality from the link-termination source**:
+- A small pure assessment helper classifies **both report streams / one report stream / zero streams / unexpected disconnect**. `0x13` is not relabeled as `0x16`, and `0x08` or `0x3E` are not accepted as ordinary peer ends.
+- The CLI collects frame counts and reports a complete 0xFB+0xFC capture **success** even if the peer voluntarily ends the connection with `0x13`. It explicitly says CCCD unsubscribe and host-initiated 0x16 were not verified and does **not** issue HCI Disconnect against an already ended link.
+- If the observation timer completes while still linked, the program still attempts CCCD disable and local HCI Disconnect, then classifies input quality. Partial/empty capture does not misleadingly return success.
+- New unit tests exercise the **exact 59+720 / 0x13** result, partial reports, no reports and unexpected remote reasons.
+
+**Next validation, separate from the already achieved real input milestone:** after fresh Windows Release tests/build, request **another explicit owner approval** for one brief, bounded `--hid-input-only` repeat (e.g. `--seconds 8`) with ordinary-button wake. Keep the remote active; observe whether the shortened run exits while the link is still alive so it can issue the two CCCD `00 00` disables and HCI Disconnect with local reason `0x16`. Do **not** automatically retry or clear the stored DPAPI bond. A `0x13` again is an independent remote end, **not proof of successful host cleanup**. No need for new SMP pairing, dongle driver work, microphone capture or Windows input synthesis.
 
 ## Local agent steps
 
