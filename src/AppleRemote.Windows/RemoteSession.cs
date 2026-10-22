@@ -175,14 +175,26 @@ public sealed class RemoteSession : IDisposable
             var transportCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
             a2854Hci.Failed += status =>
             {
-                Status?.Invoke(status);
-                lock (_gate)
+                try { Status?.Invoke(status); }
+                catch { /* status subscribers must not break USB fault cleanup */ }
+                try
                 {
-                    _acceptA2854Input = false;
-                    FeedA2854([]); // mouse-up/key-up, serialized with input callbacks
+                    lock (_gate)
+                    {
+                        _acceptA2854Input = false;
+                        FeedA2854([]); // mouse-up/key-up, serialized with input callbacks
+                    }
                 }
-                try { transportCts.Cancel(); }
-                catch (ObjectDisposedException) { } // reader failed during disposal
+                catch (Exception e)
+                {
+                    try { Status?.Invoke($"A2854: input release failed ({e.GetType().Name})."); }
+                    catch { /* cancellation below must still run */ }
+                }
+                finally
+                {
+                    try { transportCts.Cancel(); }
+                    catch (ObjectDisposedException) { } // reader failed during disposal
+                }
             };
             var a2854 = new A2854RemoteBle(a2854Hci.Host, FeedA2854, status => Status?.Invoke(status));
             _driverTask = Task.Run(async () =>
