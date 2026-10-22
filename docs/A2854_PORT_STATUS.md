@@ -363,3 +363,18 @@ Live hardware execution of `--smp-negotiate-only --usb 33FA:0001` produced a lan
 5. **Crypto Compatibility**: The existing codebase's AES-128 `SmpCrypto.C1` and `SmpCrypto.S1` implementations are algorithmically complete and directly compatible with physical A2854 hardware without needing P-256 ECDH.
 6. **Clean Disconnect**: Graceful host-initiated `HCI Disconnect` concluded at 575 ms with verified reason `0x16` (`after_host_request = True`).
 7. Detailed report: [A2854 SMP Negotiation Report](a2854/SMP_NEGOTIATION_2026-10-22.md).
+
+## 2026-10-22 full SMP pairing source gate — implemented, pending Windows Release build and hardware approval
+
+The owner reported a **physical SMP Pairing Response** from A2854 while using external Barrot `33FA:0001` WinUSB on the USB 3.0 hub: `IO=0x03`, `OOB=0`, `AuthReq=0x01` (Bonding requested, SC/MITM off), `KeySize=16`, `InitiatorKeyDist=0`, `ResponderKeyDist=EncKey`. The probe disconnected with local HCI `0x16`. Last independently reported local source-test baseline: **125/125 passed** for `1653c23`. Full Confirm/Random exchange, STK encryption, LTK distribution and bond reconnection **have NOT yet been physically attempted or verified**. A legacy-only request returning SC=0 does not establish whether SC would be supported under different offers.
+
+After the physical response, a separately gated, **not yet locally built**, `--smp-pair-only --confirm-pairing --usb 33FA:0001` diagnostic was added. It reuses the legacy `SmpPairing.PairAsync` implementation with whole-session cancellation and per-stage progress, strict observed A2854 security-profile checks, timing limits, constant-time confirmation, STK encryption, in-memory responder LTK/EDIV/Rand acquisition and best-effort volatile secret clearing. It does **not** create a GATT client, access HID, save bond data or modify USB/driver/certificate state. Both success and failure take the existing controller-specific link cleanup path. The shared legacy parser retains backward compatibility for older remotes by enforcing the strict A2854 profile **only in the explicit diagnostic**.
+
+New mock tests cover physical-profile success, unacceptable SC/MITM/OOB/IO/bond/key-distribution flags, invalid key sizes, SMP Pairing Failed, incorrect remote Confirm, encryption rejection, cancellation while awaiting Pairing Response and missing remote bond-key distribution. Full solution and probe compilation **must be done on the owner's Windows .NET 10 machine** before live use.
+
+The previous implicit full-driver default was disabled. The historical driver requires explicit `--full-legacy-driver --confirm-plaintext-bond` because that old route writes raw LTKs to a plaintext JSON file. Do **not** use it for the A2854 physical pairing experiment. Protected persistence (Windows user-scoped DPAPI or equivalent), approval and subsequent encrypted reconnection are separate future gates.
+
+**Operator warning:** a live full pairing attempt, even with keys discarded in memory on this PC, can disrupt the A2854's existing Apple TV bond. Ask the owner for separate informed approval **after successful local build and tests**. Do not auto-run repeated attempts or automatically change pairing modes.
+
+See [SMP pairing implementation details](a2854/SMP_PAIR_ONLY_IMPLEMENTATION_2026-10-22.md), [staged safety plan](a2854/SMP_PAIRING_PLAN_2026-10-22.md) and [physical SMP negotiation evidence](a2854/SMP_NEGOTIATION_2026-10-22.md).
+
