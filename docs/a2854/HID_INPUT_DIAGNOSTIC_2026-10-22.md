@@ -1,9 +1,8 @@
 # A2854 Windows-native HID input diagnostic — implementation and safety gates
 
-**2026-10-23 update: Windows Release software validation passed (179/179 tests; solution and Probe builds with 0 warnings/errors). Actual Windows-side 0xFB/0xFC notifications have not yet been captured.** See [validation, fixes and next approval gate](HID_INPUT_VALIDATION_2026-10-23.md).
+**2026-10-23 update: Windows Release software validation passed (179/179 tests; solution and Probe builds with 0 warnings/errors). A separately approved physical retry captured 59 FB and 720 FC frames with zero malformed frames.** The remote disconnected with reason 13 before host cleanup, so the complete diagnostic exited 1. See [physical input evidence and remaining teardown gate](HID_INPUT_HARDWARE_2026-10-23.md).
 
-One separately approved [physical HID trial](HID_INPUT_HARDWARE_2026-10-23.md) subsequently timed out during LE connection, before encryption/GATT/CCCD/F0 activation. External HCI Reset cleanup succeeded. No automatic retry was made; input frame counts remain unmeasured.
-The latest physical result recorded at commit `50916bc` demonstrates successful DPAPI-protected LTK encrypted reconnection, GATT HID service `0x1812` and Report Reference `0x2908` discovery on Windows 11 with external WinUSB Barrot `33FA:0001` connected through a USB 3.0 hub. The physical A2854 advertised:
+The first approved HID trial timed out before connection and was followed by a newly approved retry; neither was an automatic repeat. The earlier physical result recorded at commit `50916bc` demonstrated successful DPAPI-protected LTK encrypted reconnection, GATT HID service `0x1812` and Report Reference `0x2908` discovery on Windows 11 with external WinUSB Barrot `33FA:0001` connected through a USB 3.0 hub. The physical A2854 exposed:
 
 | HID Report Reference | Physically observed characteristic **value handle** |
 | --- | --- |
@@ -12,6 +11,8 @@ The latest physical result recorded at commit `50916bc` demonstrates successful 
 | Feature `0xF0` | `0x004D` |
 
 The old read-only probe **did not determine CCCD handle locations**. The remote was disconnected normally with local HCI reason `0x16`, and the DPAPI bond was retained. This milestone confirms encrypted GATT **metadata**, NOT live input notifications.
+
+The new approved HID retry subsequently discovered **button CCCD 003A and touch CCCD 003E** and received actual FB/FC notifications. Those are runtime descriptor discoveries, not assumed offsets. Its reason 13 disconnect did not validate the host cleanup path. The F0 AF write completed, but the capture does not prove it is necessary for all reports or establish its persistent state.
 
 ## New opt-in code (Windows build/tests validated)
 
@@ -25,7 +26,7 @@ A separate `--hid-input-only --confirm-hid-writes --usb 33FA:0001` diagnostic pe
 6. Listen a bounded interval (default 30 seconds) and decode **only** notifications arriving on the two mapped value handles, using existing `A2854Decoder`. Log button names and a capped sample of touch coordinates/hover states; no raw HID payloads, BLE addresses, LTK, IRK, STK, RAND or secret storage. Do **not** inject mouse or media-key inputs into Windows yet.
 7. Attempt best-effort write `00 00` to the two explicitly mapped CCCDs to unsubscribe, if link remains established. Await HCI Disconnect / Disconnection Complete; if link recovery is necessary reset **only** the external Barrot controller. Leave protected bond, Intel AX200/BTHUSB, Windows pairing data, drivers and certificates untouched.
 
-**Important:** writing F0 to activate input may temporarily affect the remote's behavior, even if no new pairing occurs. Do not run the experimental feature write without user confirmation. The F0 unlock has been observed on Linux, **not yet physically verified on the Windows WinUSB path**. The diagnostic cannot promise to restore any undocumented remote feature state other than writing the two CCCDs back to 0, best effort.
+**Important:** writing F0 to activate input may temporarily affect the remote's behavior, even if no new pairing occurs. Do not run the experimental feature write without user confirmation. F0 AF has now completed on the Windows WinUSB path alongside real input capture; its exact causal role remains unproven. The diagnostic cannot promise to restore any undocumented remote feature state other than writing the two CCCDs back to 0, best effort. Those disable writes were not reached in the observed remote-ended trial.
 
 ## Fake-HCI regression tests
 
@@ -36,7 +37,7 @@ A separate `--hid-input-only --confirm-hid-writes --usb 33FA:0001` diagnostic pe
 - An unrelated/unknown notification is dropped, with no raw data forwarding. The diagnostic contains no microphone subscription or audio decoding path.
 - Live physical-handle mismatch causes **zero writes**; missing `0xFB` prevents any subscription/unlock.
 
-**Validation boundary:** The new HID code has now passed native Windows software validation: **179/179 Release tests**, including **12 HID capture cases** and the existing 167 tests; full solution and Probe builds have **0 warnings/errors**. Handle validation is mandatory and write maps are bound to their discovering GATT client. No physical CCCD/F0 writes were issued during validation; live Windows input remains unverified.
+**Validation boundary:** The new HID code has passed native Windows software validation: **179/179 Release tests**, including **12 HID capture cases** and the existing 167 tests; full solution and Probe builds have **0 warnings/errors**. Handle validation is mandatory and write maps are bound to their discovering GATT client. The subsequent approved hardware retry verified button/touch input, but normal CCCD cleanup and local disconnect reason 16 still need physical validation.
 
 ## Local agent steps
 

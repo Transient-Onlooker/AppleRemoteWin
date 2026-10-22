@@ -1,5 +1,7 @@
 # Axxen / Barrot BR8652A12 USB Bluetooth dongle — hardware investigation
 
+> **Latest physical milestone (2026-10-23):** Windows 11 + USB 3.0 hub + Barrot `33FA:0001` WinUSB received **59 A2854 button FB frames and 720 touch FC frames**, zero malformed, using the existing protected-LTK encrypted link. CCCDs were physically discovered at `003A`/`003E`; both enables and F0 `AF` completed. The remote disconnected with reason `13` before host cleanup (exit 1), so stable capture and clean CCCD-disable/local-disconnect remain unverified. See [sanitized hardware record](HID_INPUT_HARDWARE_2026-10-23.md). No driver, certificate, bond or Intel changes were made. The dated investigation below is historical.
+
 **Status (2026-10-21): PHYSICAL ADAPTER ENUMERATED ON WINDOWS; BARROT STOCK DRIVER FAILS CODE 31. Native WinUSB/HCI operation remains untested.**
 
 The owner reports purchasing the available **Daiso Axxen Bluetooth 5.3** USB adapter after the older Realtek 5.0 product was no longer available, and identifies its chipset as **Barrot / BRLink BR8652A12**. This is **not** the BR8651 chip mentioned as a guess in earlier notes. The claim is owner-provided product/chip identification, **not yet confirmed by USB descriptor or HCI controller response**.

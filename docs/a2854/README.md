@@ -1,6 +1,6 @@
 # Siri Remote A2854 — project home
 
-> **Experimental / Windows native input NOT verified.** This index is the canonical entry point after the two repositories were consolidated. It supersedes historical handoff instructions that still suggest repeating the final internal-HID restart.
+> **Experimental / Windows-native button and touch capture verified; stable capture and normal teardown remain incomplete.** The approved HID retry received 59 FB and 720 FC frames, then the remote disconnected with reason 13. Windows mouse/media input synthesis is not implemented. This index supersedes historical instructions suggesting another internal-HID restart.
 
 ## Project layout
 
@@ -21,9 +21,9 @@
 | [Full SMP pair-only implementation](SMP_PAIR_ONLY_IMPLEMENTATION_2026-10-22.md) | Physical Confirm/Random, STK encryption and LTK receipt now confirmed |
 | [Protected bond, encrypted reconnect and read-only GATT](PROTECTED_BOND_AND_GATT_2026-10-22.md) | Validated Windows software; physical protected save, encrypted reconnect and read-only GATT verified |
 | [Protected-bond hardware logs](PROTECTED_BOND_HARDWARE_2026-10-22.md) | A/B/C success, report value handles and earlier failures; retained bond and next input gate |
-| [HID input probe — implementation/safety gates](HID_INPUT_DIAGNOSTIC_2026-10-22.md) | Opt-in CCCD/feature activation and button/touch capture code; Windows software validated, physical writes await approval |
+| [HID input probe — implementation/safety gates](HID_INPUT_DIAGNOSTIC_2026-10-22.md) | Opt-in CCCD/feature activation and button/touch capture; actual FB/FC input verified, further writes require approval |
 | [2026-10-23 HID software validation](HID_INPUT_VALIDATION_2026-10-23.md) | 179/179 tests, clean Release builds, handle/write restrictions and notification teardown fixes |
-| [2026-10-23 first HID hardware attempt](HID_INPUT_HARDWARE_2026-10-23.md) | One approved trial timed out before LE connection completion; no ATT writes or input capture, external Reset cleanup succeeded |
+| [2026-10-23 HID hardware attempts](HID_INPUT_HARDWARE_2026-10-23.md) | First connection timeout; newly approved retry captured 59 FB / 720 FC frames, remote-ended reason 13 before normal cleanup |
 | [Consolidation record](CONSOLIDATION.md) | Source commit, copied-file SHA checks, licenses and Git history |
 
 ## Latest verified status
@@ -37,26 +37,26 @@
 | Windows C# A2854 decoder and diagnostic program | **179/179 Release tests passed**, including 12 HID cases; solution and Probe builds **0 warnings/errors**. See [Oct 23 validation](HID_INPUT_VALIDATION_2026-10-23.md). |
 | Current privacy-address implementation | **Physical A2854 LE connection and clean local disconnect verified**, including via the USB 3.0 hub. Address type was public in tested sessions; privacy/reconnect across rotations unverified |
 | ThinkPad T490s built-in Bluetooth | Owner confirmed **Intel Wireless-AC 9560**; A2854 test **not conducted** |
-| **Purchased Axxen USB dongle** | **USB 3.0 hub + WinUSB `oem86.inf`**, physical A2854 pairing, CurrentUser DPAPI bond save, stored-LTK encrypted reconnect and **read-only GATT HID metadata verified**, with clean `0x16` disconnects. Report value handles: `0xFB=0x0039`, `0xFC=0x003D`, `0xF0=0x004D`. HID input notifications remain unverified. |
+| **Purchased Axxen USB dongle** | **USB 3.0 hub + WinUSB `oem86.inf`**: pairing, DPAPI bond, encrypted reconnect, GATT discovery and **59 FB / 720 FC notifications verified**. Values FB `0039`, FC `003D`, F0 `004D`; CCCDs `003A`/`003E`. Earlier link/GATT checks ended with 16; the HID trial ended with **13**, so host notification cleanup is still unverified. |
 | Working Windows mouse / media remote | **Not yet delivered** |
 
-## Latest validated and source-prepared checkpoint (2026-10-22)
+## Earlier protected-bond checkpoint (2026-10-22)
 
 **Physical milestone confirmed:** Windows 11 with Barrot `33FA:0001` WinUSB completed A2854 Legacy Just Works pairing and CurrentUser DPAPI bond saving, with pairing at **958ms** and clean `0x16` disconnect at **989ms**. A separate `--reconnect-only` process loaded the protected bond, confirmed LTK link encryption through HCI Encryption Change and disconnected with `0x16`.
 
-Validated source `4c86fae`: **167/167 Release tests passed**, full solution and Probe Release builds at **zero warnings/errors**. Following an initial C connection timeout, an explicitly approved `--gatt-inspect-only` retry with a normal-button wake succeeded: encrypted reconnect, HID service `0x1812`, eight Report References and exact `0xFB`/`0xFC`/`0xF0` value handles. It made no ATT writes or notification subscriptions and disconnected with `0x16`. The protected bond remains present; see [sanitized per-stage logs](PROTECTED_BOND_HARDWARE_2026-10-22.md). Actual Windows input reports remain unverified.
+Validated source `4c86fae`: **167/167 Release tests passed**, full solution and Probe Release builds at **zero warnings/errors**. Following an initial C connection timeout, an explicitly approved `--gatt-inspect-only` retry with a normal-button wake succeeded: encrypted reconnect, HID service `0x1812`, eight Report References and exact `0xFB`/`0xFC`/`0xF0` value handles. It made no ATT writes or notification subscriptions and disconnected with `0x16`. See [sanitized per-stage logs](PROTECTED_BOND_HARDWARE_2026-10-22.md). At that checkpoint actual input had not yet been captured; the later HID result is below.
 
-## Next gate — live button/touch inputs
+## Latest input result and next gate — normal cleanup
 
-The first separately approved HID trial at Release `fde9554` timed out before LE connection completion. No encryption, GATT writes or input observation occurred, and external HCI Reset cleanup succeeded. A further attempt requires fresh approval and a coordinated ordinary-button wake; see [trial log](HID_INPUT_HARDWARE_2026-10-23.md).
+The first approved HID trial timed out before LE connection completion. A separately approved retry of the same verified Release build then encrypted with the existing LTK, rediscovered the value/CCCD handles, completed CCCD enables and F0 AF, and received **59 button / 720 touch frames with zero malformed frames**. The remote disconnected during observation with reason **13**; the process exited 1 before CCCD disables and host disconnect. This is actual Windows-native input capture, with normal cleanup and longer stability still unverified; see [trial evidence](HID_INPUT_HARDWARE_2026-10-23.md).
 
-The HID-input source now passes **179/179 Release tests** (12 HID cases plus all 167 existing tests), with clean full solution and Probe builds. This validates software and mocks; live button/touch inputs still need a separately approved trial.
+The HID-input source passes **179/179 Release tests** (12 HID cases plus all 167 existing tests), with clean full solution and Probe builds. These tests do not establish the cause of the physical reason 13 disconnect.
 
 1. **Built and software-tested:** `--hid-input-only --confirm-hid-writes --usb 33FA:0001` uses the **existing DPAPI bond** and known-public-address encrypted reconnect; it will NOT SMP pair, delete or overwrite the bond.
 2. It rediscovers report reference `0x2908` and exact CCCDs `0x2902`, verifies the real observed `0xFB=0x0039`, `0xFC=0x003D` and `0xF0=0x004D` **value handles before writing**, and permits only two CCCD notification enables plus one `0xF0 <- 0xAF` unlock. No microphone `0xFA` subscription/reads, Windows input synthesis or raw payload/key logging.
 3. [Software validation is complete](HID_INPUT_VALIDATION_2026-10-23.md), including the first-generation, DPAPI and GATT regressions. Mandatory measured-handle checks and client-bound maps prevent writes through an unverified or reused map; partial enable and notification teardown paths were hardened.
-4. After **new explicit human approval**, perform one bounded hardware trial using ordinary button wake (**not Back+VolumeUp**), observe decoded `0xFB` buttons and `0xFC` touch, attempt CCCD cleanup, and normally HCI disconnect. A lack of reports is not evidence of incorrect SMP keys if encrypted link and ATT writes succeed.
-5. Only after authentic Windows-native 0xFB/0xFC events are captured, design optional mouse/media-key injection as a separate opt-in task. Keep the external Barrot WinUSB / internal Intel BTHUSB separation intact.
+4. A further hardware trial requires **new explicit human approval**. Use ordinary button wake (**not Back+VolumeUp**), capture bounded input and confirm both CCCD disables, HCI Disconnect status and reason 16. Preserve event timing to investigate any early remote disconnect; do not auto-re-pair or try different Feature values.
+5. Mouse/media-key injection and long-term reconnect/service behavior remain separate development tasks. The input milestone does not authorize running Windows input synthesis. Keep the external Barrot WinUSB / internal Intel BTHUSB separation intact.
 
 See [full probe implementation and hardware gate](HID_INPUT_DIAGNOSTIC_2026-10-22.md).
 

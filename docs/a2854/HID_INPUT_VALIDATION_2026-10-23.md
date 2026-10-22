@@ -4,6 +4,8 @@ Validated on 2026-10-23 (Asia/Seoul), starting from `e6750376ead29ae1da0bbe15003
 
 **Subsequent hardware update:** the owner approved one trial of validated Release `fde9554`. It timed out before LE connection completion; no ATT writes or input capture occurred. External HCI Reset cleanup succeeded. See [complete sanitized trial record](HID_INPUT_HARDWARE_2026-10-23.md). The validation results below describe the earlier software-only check.
 
+**Later, separately approved retry:** the same Release binary captured **59 FB and 720 FC frames**, zero malformed, after successful encrypted reconnect and CCCD/F0 writes. The remote then ended the link with reason 13 before normal host cleanup; program exit 1. Dynamic physical CCCDs were 003A/003E, matching the earlier synthetic fixture by observation, not by assumption. Software results below remain unchanged; no new code was needed to capture inputs.
+
 ## Results
 
 | Check | Actual result |

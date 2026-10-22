@@ -1,4 +1,8 @@
-# A2854 HID input trial: connection timeout before ATT writes
+# A2854 HID input trials: real button/touch capture, teardown still incomplete
+
+**Latest result:** a separately approved retry received **59 button FB frames and 720 touch FC frames**, with **zero malformed frames**. The remote ended the link during observation with reason **13**, so normal host-driven CCCD cleanup and disconnect reason **16** were not verified. Native input capture succeeded; the complete diagnostic still exited **1**. This supersedes the first connection-timeout attempt below without erasing it.
+
+## First approved attempt: connection timeout
 
 On 2026-10-23 (Asia/Seoul), the owner explicitly approved one 30-second HID input trial. The clean `feat/a2854-support` tree and verified Release binary were at `fde9554a51d496cc8e276b460557b5896242e466`. The owner was instructed to wake the remote with an ordinary button and exercise buttons/touch, without entering pairing mode. Actual wake timing was not independently observed.
 
@@ -35,4 +39,45 @@ No HCI failure status or disconnection reason was reported in this attempt. Do n
 
 There was **no automatic retry**, no SMP pairing, bond reset/overwrite, GATT write, notification subscription, microphone recording, Windows input synthesis, driver or certificate change. Intel AX200 was not used for the trial. Prior [179/179 tests and clean Release builds](HID_INPUT_VALIDATION_2026-10-23.md) still apply; this documentation-only update does not change code.
 
-Next action requires a fresh owner-approved attempt when the remote is ready for an ordinary-button wake. Start the same verified binary and coordinate the wake with its startup message; do not re-pair or try different Feature values. Confirm connection/encryption/metadata/write results before interpreting missing input frames. Live Windows FB/FC capture remains unverified.
+At the end of this first attempt, live Windows FB/FC capture remained unverified. A fresh owner-approved retry was subsequently performed as recorded below.
+
+## Separately approved retry: native input received
+
+The owner then agreed to the requested single retry and actively pressed ordinary buttons. The source tree was clean at documentation commit `413ee7cccd48a53a1b833dc502695d7e17b8dfc0`; the unchanged Release binary was the verified `fde9554` build (179/179 tests, clean solution/Probe builds). The same command above ran exactly once. No rebuild, re-pairing or bond mutation was performed.
+
+Selected runtime output, omitting repetitive decoded input lines and all raw data:
+
+```text
+Controller initialized. Extended LE commands: True.
+LE Connection Complete OK; stored peer address redacted.
+Encrypted LE reconnection confirmed by HCI Encryption Change.
+HID report map verified: 0xFB=0x0039, 0xFC=0x003D, 0xF0=0x004D.
+Discovered input CCCDs: buttons=0x003A, touch=0x003E.
+button +up - (0xFB).
+button + -up (0xFB).
+Subscribed ONLY to button 0xFB and touch 0xFC; F0 feature unlock sent.
+Observe remote buttons/touch for up to 30s. Microphone excluded.
+HID summary: button_frames=59, touch_frames=720, malformed_buttons=0, malformed_touches=0, ignored_handles=0.
+Protected-bond diagnostic FAILED at bounded A2854 HID report observation: IOException: Remote disconnected during HID observation (HCI reason 0x13).
+```
+
+| Stage | Actual result |
+| --- | --- |
+| Existing protected LTK reconnect/encryption | Connection Complete and HCI Encryption Change succeeded |
+| HID report values | FB `0039`, FC `003D`, F0 `004D`, dynamically rediscovered and verified |
+| CCCD descriptor handles | **Physically discovered** FB `003A`, FC `003E`; these are not inferred offsets |
+| Allowed activation | Both CCCD `0100` requests and F0 `AF` Write Requests completed before the subscription-success message |
+| Button input | **59 frames**, 0 malformed; press/release decoding observed |
+| Touch input | **720 frames**, 0 malformed; one-finger coordinates and both hover states decoded |
+| Unknown handles | 0 notifications counted on other handles |
+| End of link | Disconnection Complete reason **13** during observation, before host Disconnect |
+| CCCD `0000` cleanup / host Disconnect status / local reason `16` | **Not reached/verified** because the link had already ended |
+| Program result | Exit **1**; no automatic retry or external Reset was needed after the observed disconnect |
+
+Decoded button names included `up`, `down`, `left`, `right`, `click`, `tv`, `menu`, `volup`, `voldown`, `playpause`, `mute` and `siri`. The `siri` event is a button bit in report FB; no microphone report FA subscription, collection or decoding was performed. This trial does not establish every possible button, multi-contact touch, long-term stability or Windows mouse/media-key operation.
+
+Source review distinguishes this `13` from the reason byte used by `LeCentral.DisconnectAsync`: here the observation branch consumed `central.Disconnected`, which is raised only by successful HCI Disconnection Complete events (event `05`, status 0, reason from its payload). The host Disconnect call is later in the method and was not reached. Since the disconnect task was already complete, the cleanup deliberately skipped further ATT writes, detached the handler and cleared decoder state. No successful host-disconnect status or CCCD-disabled message was printed.
+
+The controller reason is named **Remote User Terminated Connection**. It does not identify which button, remote policy or timing condition caused termination. There are no per-event timestamps sufficient to establish that cause; do not infer power-button behavior or a missing proprietary keepalive from this capture. Some button notifications arrived before the F0-completed log line, so this single trial also does not prove F0 AF is necessary for every input report.
+
+The Windows-native path is now physically demonstrated through encrypted GATT button/touch notifications with no Linux/WSL/server. **The complete capture-and-normal-cleanup test remains incomplete.** Preserve the bond, Barrot WinUSB, Intel BTHUSB and certificates. Before any further HID writes, obtain new owner approval; target a bounded capture that reaches both CCCD disables and host-driven disconnect reason `16`, recording event timing if needed. Do not auto-repair the bond, change Feature values or implement Windows input synthesis as a consequence of this trial.
