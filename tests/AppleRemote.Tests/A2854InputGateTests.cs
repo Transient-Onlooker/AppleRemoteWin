@@ -69,6 +69,49 @@ public sealed class A2854InputGateTests
     }
 
     [Fact]
+    public void Terminal_receiver_exception_still_executes_emergency_pointer_release()
+    {
+        bool simulatedButtonHeld = true;
+        int emergencyReleases = 0;
+        var gate = new A2854InputGate(
+            report =>
+            {
+                if (report is { Length: 0 })
+                    throw new InvalidOperationException("GUI subscriber threw during terminal event.");
+            },
+            () =>
+            {
+                simulatedButtonHeld = false;
+                Interlocked.Increment(ref emergencyReleases);
+            });
+
+        Assert.Throws<InvalidOperationException>(gate.Close);
+        Assert.False(simulatedButtonHeld);
+        Assert.True(gate.IsClosed);
+        Assert.Equal(1, emergencyReleases);
+        gate.Close();
+        Assert.Equal(1, emergencyReleases);
+        Assert.False(gate.TryForward([0xFB, 0x08, 0x00]));
+    }
+
+    [Fact]
+    public void Terminal_emergency_release_runs_once_under_concurrent_close()
+    {
+        int normalReleases = 0, backupReleases = 0;
+        var gate = new A2854InputGate(
+            report =>
+            {
+                if (report is { Length: 0 }) Interlocked.Increment(ref normalReleases);
+            },
+            () => Interlocked.Increment(ref backupReleases));
+
+        gate.Close();
+        gate.Close();
+        Assert.Equal(1, normalReleases);
+        Assert.Equal(1, backupReleases);
+    }
+
+    [Fact]
     public void Null_report_cannot_enter_gate()
     {
         var gate = new A2854InputGate(_ => { });
