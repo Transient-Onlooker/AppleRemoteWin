@@ -41,6 +41,8 @@ A separate `--hid-input-only --confirm-hid-writes --usb 33FA:0001` diagnostic pe
 
 ## Latest post-hardware follow-up: peer 0x13 is not failed input capture (code-only)
 
+**Windows software validation complete:** [218/218 Release tests and clean solution/Probe builds](HID_CAPTURE_ASSESSMENT_2026-10-23.md). The new assessment and race/response fixes have not been physically rerun. The next hardware gate is one separately approved **8-second** trial.
+
 The local Windows agent reported a physical A2854 HID session at **`f2ea655`**:
 - 0xFB: **59 button frames**, press/release decoded.
 - 0xFC: **720 touch frames**, coordinates and hover decoded.
@@ -48,7 +50,7 @@ The local Windows agent reported a physical A2854 HID session at **`f2ea655`**:
 - Existing DPAPI-protected LTK, encrypted reconnection, verified CCCD enable writes, and 0xF0 <- 0xAF all succeeded.
 - The peer terminated the link during input observation with HCI **`0x13` (Remote User Terminated Connection)**, so the then-current CLI threw and exited with code 1. This does not negate frames already received. The precise reason the remote chose to close (idle/sleep/user action/etc.) **is not known**. **Local HCI Disconnect `0x16` and CCCD disable were not possible after the peer had already ended the link**, and remain unverified.
 
-**A new source-only follow-up (no Windows build or physical test yet) now separates capture quality from the link-termination source**:
+**The software-validated follow-up now separates capture quality from the link-termination source; the next physical test is still pending**:
 - A small pure assessment helper classifies **both report streams / one report stream / zero streams / unexpected disconnect**. `0x13` is not relabeled as `0x16`, and `0x08` or `0x3E` are not accepted as ordinary peer ends.
 - The CLI collects frame counts and reports a complete 0xFB+0xFC capture **success** even if the peer voluntarily ends the connection with `0x13`. It explicitly says CCCD unsubscribe and host-initiated 0x16 were not verified and does **not** issue HCI Disconnect against an already ended link.
 - If the observation timer completes while still linked, the program still attempts CCCD disable and local HCI Disconnect, then classifies input quality. Partial/empty capture does not misleadingly return success.
@@ -63,7 +65,7 @@ The local Windows agent reported a physical A2854 HID session at **`f2ea655`**:
 3. Before physically issuing ATT writes, obtain the remote owner's **new explicit approval**. There is a protected LTK bond already: do not re-pair, regenerate, delete or overwrite it. Confirm only Barrot `33FA:0001` is selected and the owner can interact with the remote.
 4. If authorized, run **one** bounded hardware trial:
    ```powershell
-   dotnet run -c Release --project tools/A2854.Probe/A2854.Probe.csproj -- --usb 33FA:0001 --hid-input-only --confirm-hid-writes --seconds 30
+   dotnet run -c Release --no-build --project tools/A2854.Probe/A2854.Probe.csproj -- --usb 33FA:0001 --hid-input-only --confirm-hid-writes --seconds 8
    ```
    Use an **ordinary remote button press** to wake it; do not hold Back+VolumeUp to re-enter pairing mode.
 5. Observe button and touch events separately; if only one report arrives, record it as a partial success. If no events arrive, document encrypted reconnect, dynamic report/CCCD handles, Write Responses, F0 unlock result and disconnect reason, then stop. Do not silently change report IDs or retry different feature payloads.

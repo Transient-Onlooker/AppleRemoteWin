@@ -827,8 +827,9 @@ internal static partial class Program
                                     if (!acceptingInput) return;
                                     try
                                     {
-                                        if (!A2854HidCapture.TryDecode(
-                                            decoder, map, valueHandle, payload, out var events, out byte reportId))
+                                        bool valid = A2854HidCapture.TryDecode(
+                                            decoder, map, valueHandle, payload, out var events, out byte reportId);
+                                        if (reportId == 0)
                                         {
                                             // Never log or decode unknown reports, including Siri microphone 0xFA.
                                             Interlocked.Increment(ref ignoredOtherHandles);
@@ -837,7 +838,7 @@ internal static partial class Program
                                         if (reportId == A2854Decoder.ButtonsReportId)
                                         {
                                             Interlocked.Increment(ref buttonFrames);
-                                            if (payload.Length != 2)
+                                            if (!valid)
                                             {
                                                 Interlocked.Increment(ref malformedButtons);
                                                 return;
@@ -850,12 +851,12 @@ internal static partial class Program
                                         else if (reportId == A2854Decoder.TouchReportId)
                                         {
                                             Interlocked.Increment(ref touchFrames);
-                                            var touch = A2854Decoder.ParseTouch(payload);
-                                            if (touch is null)
+                                            if (!valid)
                                             {
                                                 Interlocked.Increment(ref malformedTouches);
                                                 return;
                                             }
+                                            var touch = A2854Decoder.ParseTouch(payload)!;
                                             if (Interlocked.Increment(ref printedTouchFrames) <= 25)
                                             {
                                                 A2854Finger? primary = touch.First ?? touch.Second;
@@ -907,9 +908,11 @@ internal static partial class Program
                                     using var cleanup = new CancellationTokenSource(TimeSpan.FromSeconds(5));
                                     try
                                     {
-                                        await A2854HidCapture.DisableAsync(gatt, map, cleanup.Token);
-                                        hidCccdCleanupVerified = true;
-                                        Console.WriteLine("CCCD notification subscriptions disabled (both ATT Write Responses received).");
+                                        var result = await A2854HidCapture.DisableWithResultAsync(gatt, map, cleanup.Token);
+                                        hidCccdCleanupVerified = result.BothDisabled;
+                                        Console.WriteLine($"CCCD disable ATT Write Responses: buttons={result.ButtonDisabled}, touch={result.TouchDisabled}.");
+                                        if (result.Failure is not null)
+                                            Console.Error.WriteLine($"CCCD cleanup incomplete ({result.Failure.GetType().Name}); disconnect will follow.");
                                     }
                                     catch (Exception e)
                                     {
@@ -974,16 +977,30 @@ internal static partial class Program
                         }
                     }
 
-                    if (hidInputOnly && disconnected.Task.IsCompleted)
+                    if (hidInputOnly)
                     {
-                        var remoteEnded = await disconnected.Task;
+                        stage = "HID HCI Disconnect / Disconnection Complete";
+                        var termination = await A2854HidCapture.DisconnectAsync(
+                            central, handle, disconnected.Task, stop.Token);
                         linkEnded = true;
+                        if (termination.CommandStatusSucceeded)
+                            Console.WriteLine("HCI Disconnect Command Status OK.");
+                        else if (termination.CommandFailure is HciException hciError)
+                            Console.Error.WriteLine($"HCI Disconnect Command Status failed: 0x{hciError.Status:X2}.");
+                        else if (termination.CommandFailure is not null)
+                            Console.Error.WriteLine($"HCI Disconnect command failed: {termination.CommandFailure.GetType().Name}.");
+                        else
+                            Console.WriteLine("HCI Disconnect not sent: connection had already ended.");
+                        Console.WriteLine($"Disconnection Complete reason=0x{termination.Reason:X2} ({HciDisconnectReason.Describe(termination.Reason)}).");
                         var outcome = A2854HidCaptureAssessment.Evaluate(
-                            hidButtonFrames ?? 0, hidTouchFrames ?? 0, remoteEnded.Reason);
-                        Console.WriteLine($"HID capture outcome={outcome}; connection ended by peer before host Disconnect.");
+                            hidButtonFrames ?? 0, hidTouchFrames ?? 0,
+                            termination.LocalHostVerified ? null : termination.Reason);
+                        Console.WriteLine($"HID capture outcome={outcome}.");
                         Console.WriteLine($"Both CCCD disable writes verified={hidCccdCleanupVerified}. " +
-                            "Local host Disconnect 0x16 NOT verified: peer had already ended this LE connection.");
-                        return outcome == A2854HidCaptureOutcome.BothReportsCaptured ? 0 : 1;
+                            $"Local host Disconnect 0x16 verified={termination.LocalHostVerified}.");
+                        return outcome == A2854HidCaptureOutcome.BothReportsCaptured &&
+                            (termination.Reason == 0x13 ||
+                                (termination.LocalHostVerified && hidCccdCleanupVerified)) ? 0 : 1;
                     }
 
                     stage = "HCI Disconnect / Disconnection Complete";
@@ -1001,15 +1018,6 @@ internal static partial class Program
                         : gattInspectOnly
                             ? "Encrypted reconnect and GATT metadata discovery completed without ATT writes."
                             : "Encrypted reconnect-only completed; no GATT or SMP traffic was sent.");
-                    if (hidInputOnly)
-                    {
-                        var outcome = A2854HidCaptureAssessment.Evaluate(
-                            hidButtonFrames ?? 0, hidTouchFrames ?? 0, remoteDisconnectReason: null);
-                        Console.WriteLine($"HID capture outcome={outcome}; local host disconnect 0x16 verified; " +
-                            $"both CCCD disable writes verified={hidCccdCleanupVerified}.");
-                        return outcome == A2854HidCaptureOutcome.BothReportsCaptured &&
-                            hidCccdCleanupVerified ? 0 : 1;
-                    }
                     return 0;
                 }
                 catch (OperationCanceledException)

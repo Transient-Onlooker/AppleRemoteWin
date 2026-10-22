@@ -217,6 +217,16 @@ public sealed class GattClient
                 _central.SendL2cap(_connection, LeCentral.CidAtt, [ErrorResponse, opcode, .. U16(handle), error]);
                 break;
             default:
+                if (pending is { Request: 0x12 } write && opcode == 0x13 && pdu.Length != 1)
+                {
+                    var malformedWrite = new InvalidDataException("Malformed ATT Write Response; disconnect before further requests.");
+                    lock (_stateLock)
+                    {
+                        _closedException ??= malformedWrite;
+                        write.Done.TrySetException(malformedWrite);
+                    }
+                    break;
+                }
                 if (pending is { } q && opcode == q.Request + 1) q.Done.TrySetResult(pdu);   // response = request + 1
                 break;
         }

@@ -40,6 +40,7 @@ sealed class FakeRemote
     readonly FakeA2854Faults _a2854Faults;
     readonly ushort _a2854HandleShift;
     public ushort? RejectWriteHandle { get; set; }
+    public ushort? SuppressWriteResponseHandle { get; set; }
     byte[] _preq = [], _pres = [], _mconfirm = [], _srand = [], _stk = [];
 
     public FakeRemote(bool randomAddress = false, bool rejectEncryption = false,
@@ -215,6 +216,7 @@ sealed class FakeRemote
                     break;
                 }
                 Writes.Add(attempt);
+                if (SuppressWriteResponseHandle == start) break;
                 Att(0x13);
                 if ((start == 0x001D || start == 0x004D) && pdu[3] == 0xAF)
                     Att(0x1B, 0x23, 0x00, 0xE0, 0x20, 0x60, 0x02);

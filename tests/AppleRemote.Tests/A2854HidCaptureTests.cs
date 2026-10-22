@@ -13,19 +13,26 @@ public sealed class A2854HidCaptureTests
     [InlineData(0, 0, 0x13, A2854HidCaptureOutcome.NoReportsCaptured)]
     [InlineData(59, 720, 0x08, A2854HidCaptureOutcome.UnexpectedLinkTermination)]
     [InlineData(59, 720, 0x3E, A2854HidCaptureOutcome.UnexpectedLinkTermination)]
+    [InlineData(59, 720, 0x16, A2854HidCaptureOutcome.UnexpectedLinkTermination)]
+    [InlineData(59, 720, 0xFF, A2854HidCaptureOutcome.UnexpectedLinkTermination)]
     [InlineData(59, 720, null, A2854HidCaptureOutcome.BothReportsCaptured)]
     [InlineData(0, 0, null, A2854HidCaptureOutcome.NoReportsCaptured)]
     public void Remote_disconnect_reason_and_HID_data_quality_are_independent(
-        int buttons, int touches, byte? reason, A2854HidCaptureOutcome expected)
+        int buttons, int touches, int? reason, A2854HidCaptureOutcome expected)
     {
-        Assert.Equal(expected, A2854HidCaptureAssessment.Evaluate(buttons, touches, reason));
+        Assert.Equal(expected, A2854HidCaptureAssessment.Evaluate(
+            buttons, touches, reason.HasValue ? checked((byte)reason.Value) : null));
     }
 
-    [Fact]
-    public void Negative_HID_frame_counts_are_rejected()
+    [Theory]
+    [InlineData(-1, 10, "buttonFrames")]
+    [InlineData(10, -1, "touchFrames")]
+    public void Negative_HID_frame_counts_are_rejected(
+        int buttons, int touches, string parameterName)
     {
-        Assert.Throws<ArgumentOutOfRangeException>(() =>
-            A2854HidCaptureAssessment.Evaluate(-1, 10, 0x13));
+        var error = Assert.Throws<ArgumentOutOfRangeException>(() =>
+            A2854HidCaptureAssessment.Evaluate(buttons, touches, 0x13));
+        Assert.Equal(parameterName, error.ParamName);
     }
 
     [Fact]

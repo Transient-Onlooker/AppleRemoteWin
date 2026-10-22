@@ -23,6 +23,7 @@
 | [Protected-bond hardware logs](PROTECTED_BOND_HARDWARE_2026-10-22.md) | A/B/C success, report value handles and earlier failures; retained bond and next input gate |
 | [HID input probe — implementation/safety gates](HID_INPUT_DIAGNOSTIC_2026-10-22.md) | Opt-in CCCD/feature activation and button/touch capture; actual FB/FC input verified, further writes require approval |
 | [2026-10-23 HID software validation](HID_INPUT_VALIDATION_2026-10-23.md) | 179/179 tests, clean Release builds, handle/write restrictions and notification teardown fixes |
+| [2026-10-23 capture assessment validation](HID_CAPTURE_ASSESSMENT_2026-10-23.md) | 218/218 tests, clean Release builds, independent capture/CCCD/host-disconnect outcomes; 8-second trial awaits approval |
 | [2026-10-23 HID hardware attempts](HID_INPUT_HARDWARE_2026-10-23.md) | First connection timeout; newly approved retry captured 59 FB / 720 FC frames, remote-ended reason 13 before normal cleanup |
 | [Consolidation record](CONSOLIDATION.md) | Source commit, copied-file SHA checks, licenses and Git history |
 
@@ -34,7 +35,7 @@
 | Windows WinRT access to HID 0x1812 | **Denied** when enumerating protected HID characteristics |
 | Windows A2854 HIDClass child | **Code 10 / 0xC00000B9**; one explicitly authorized PnP child restart did **not** recover it |
 | Windows internal Intel AX200 | **Healthy BTHUSB**, driver 23.160.0.9 at last check |
-| Windows C# A2854 decoder and diagnostic program | **179/179 Release tests passed**, including 12 HID cases; solution and Probe builds **0 warnings/errors**. See [Oct 23 validation](HID_INPUT_VALIDATION_2026-10-23.md). |
+| Windows C# A2854 decoder and diagnostic program | **218/218 Release tests passed**, including capture, assessment and completion regressions; solution and Probe builds **0 warnings/errors**. See [assessment validation](HID_CAPTURE_ASSESSMENT_2026-10-23.md). |
 | Current privacy-address implementation | **Physical A2854 LE connection and clean local disconnect verified**, including via the USB 3.0 hub. Address type was public in tested sessions; privacy/reconnect across rotations unverified |
 | ThinkPad T490s built-in Bluetooth | Owner confirmed **Intel Wireless-AC 9560**; A2854 test **not conducted** |
 | **Purchased Axxen USB dongle** | **USB 3.0 hub + WinUSB `oem86.inf`**: pairing, DPAPI bond, encrypted reconnect, GATT discovery and **59 FB / 720 FC notifications verified**. Values FB `0039`, FC `003D`, F0 `004D`; CCCDs `003A`/`003E`. Earlier link/GATT checks ended with 16; the HID trial ended with **13**, so host notification cleanup is still unverified. |
@@ -52,7 +53,7 @@ The first approved HID trial timed out before LE connection completion. A separa
 
 The HID-input source at physical experiment commit `f2ea655` passed **179/179 Release tests** (12 HID cases plus all 167 existing tests), with clean full solution and Probe builds. These tests do not establish the cause of the physical reason 13 disconnect.
 
-**Post-experiment source follow-up, not yet rebuilt:** the CLI now reports `0x13` plus both valid 0xFB and 0xFC streams as a successful **input-capture milestone** rather than a blanket diagnostic failure. It explicitly labels remote termination as different from local 0x16 and does not falsely claim unsubscribed CCCDs. A successful host-terminated session must confirm **both** CCCD disable Write Responses and local 0x16. Partial/no valid reports or unexpected link termination remain failures. New unit tests cover the exact 59+720/0x13 case and other outcomes. Build and run fresh Release tests before any further hardware attempt.
+**Post-experiment follow-up software-validated:** **218/218 Release tests**, solution and Probe builds at **0 warnings/errors**. The CLI reports `0x13` plus both valid FB and FC streams as an **input-capture milestone**, while independently recording individual CCCD disable responses, HCI Command Status and Disconnection Complete. Partial/no valid reports, missing responses, cancellation and unexpected termination do not become complete success. Peer/host command races and malformed responses are regression-tested. No new physical connection or write was performed; see [validation and prepared 8-second command](HID_CAPTURE_ASSESSMENT_2026-10-23.md).
 
 1. **Built and software-tested:** `--hid-input-only --confirm-hid-writes --usb 33FA:0001` uses the **existing DPAPI bond** and known-public-address encrypted reconnect; it will NOT SMP pair, delete or overwrite the bond.
 2. It rediscovers report reference `0x2908` and exact CCCDs `0x2902`, verifies the real observed `0xFB=0x0039`, `0xFC=0x003D` and `0xF0=0x004D` **value handles before writing**, and permits only two CCCD notification enables plus one `0xF0 <- 0xAF` unlock. No microphone `0xFA` subscription/reads, Windows input synthesis or raw payload/key logging.

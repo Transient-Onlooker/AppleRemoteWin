@@ -19,9 +19,11 @@ public enum A2854HidCaptureOutcome
 public static class A2854HidCaptureAssessment
 {
     /// <summary>
-    /// Null reason: observation timer completed while linked. 0x13: peer/user
-    /// terminated the link. All other reasons are unexpected. Receiving a valid
-    /// 0x13 is NOT equivalent to a verified host-initiated 0x16 disconnect.
+    /// Counts are valid decoded input frames for the 0xFB button and 0xFC touch
+    /// reports. Null reason means the observation timer completed while linked;
+    /// 0x13 means the peer/user terminated the link. All other reasons, including
+    /// 0x16, are unexpected. A 0x13 capture can still have both reports, and is
+    /// not evidence of a verified host-initiated 0x16 disconnect.
     /// </summary>
     public static A2854HidCaptureOutcome Evaluate(
         int buttonFrames, int touchFrames, byte? remoteDisconnectReason)
@@ -38,6 +40,18 @@ public static class A2854HidCaptureAssessment
             return A2854HidCaptureOutcome.PartialReportsCaptured;
         return A2854HidCaptureOutcome.NoReportsCaptured;
     }
+}
+
+public sealed record A2854HidCleanupResult(
+    bool ButtonDisabled, bool TouchDisabled, Exception? Failure)
+{
+    public bool BothDisabled => ButtonDisabled && TouchDisabled;
+}
+
+public sealed record A2854HidDisconnectResult(
+    bool CommandStatusSucceeded, byte Reason, Exception? CommandFailure)
+{
+    public bool LocalHostVerified => CommandStatusSucceeded && Reason == HciDisconnectReason.LocalHost;
 }
 
 /// <summary>
@@ -200,13 +214,59 @@ public static class A2854HidCapture
     public static async Task DisableAsync(GattClient gatt, A2854HidInputMap map,
         CancellationToken cancellationToken = default)
     {
+        var result = await DisableWithResultAsync(gatt, map, cancellationToken);
+        if (result.Failure is not null)
+            System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(result.Failure).Throw();
+    }
+
+    public static async Task<A2854HidCleanupResult> DisableWithResultAsync(
+        GattClient gatt, A2854HidInputMap map, CancellationToken cancellationToken = default)
+    {
         ValidateWriteMap(gatt, map);
         Exception? firstFailure = null;
-        try { await gatt.WriteAsync(map.ButtonCccd, cancellationToken, 0x00, 0x00); }
+        bool buttonDisabled = false, touchDisabled = false;
+        try
+        {
+            await gatt.WriteAsync(map.ButtonCccd, cancellationToken, 0x00, 0x00);
+            buttonDisabled = true;
+        }
         catch (Exception ex) { firstFailure = ex; }
-        try { await gatt.WriteAsync(map.TouchCccd, cancellationToken, 0x00, 0x00); }
+        try
+        {
+            await gatt.WriteAsync(map.TouchCccd, cancellationToken, 0x00, 0x00);
+            touchDisabled = true;
+        }
         catch (Exception ex) { firstFailure ??= ex; }
-        if (firstFailure is not null) throw firstFailure;
+        return new(buttonDisabled, touchDisabled, firstFailure);
+    }
+
+    /// <summary>Keep a peer disconnect racing with the host command distinct from its Command Status.</summary>
+    public static async Task<A2854HidDisconnectResult> DisconnectAsync(
+        LeCentral central, ushort handle, Task<(ushort Handle, byte Reason)> disconnected,
+        CancellationToken cancellationToken = default, TimeSpan? eventTimeout = null)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        bool commandStatusSucceeded = false;
+        Exception? commandFailure = null;
+        if (!disconnected.IsCompleted)
+        {
+            try
+            {
+                await central.DisconnectAsync(handle);
+                commandStatusSucceeded = true;
+            }
+            catch (Exception e) when (e is HciException or TimeoutException)
+            {
+                // Unknown Connection Identifier can race with a genuine peer-ended event.
+                // Still require that event; a command rejection alone never proves link closure.
+                commandFailure = e;
+            }
+        }
+        var ended = await disconnected.WaitAsync(eventTimeout ?? TimeSpan.FromSeconds(5), cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
+        if (ended.Handle != handle)
+            throw new InvalidDataException("Unmatched HID Disconnection Complete handle.");
+        return new(commandStatusSucceeded, ended.Reason, commandFailure);
     }
 
     private static void ValidateWriteMap(GattClient gatt, A2854HidInputMap map)
@@ -221,7 +281,7 @@ public static class A2854HidCapture
             throw new InvalidDataException("Invalid A2854 HID write map.");
     }
 
-    /// <summary>Accept ONLY the two agreed input report value handles.</summary>
+    /// <summary>Decode only valid mapped reports; a known malformed report retains its nonzero report ID.</summary>
     public static bool TryDecode(A2854Decoder decoder, A2854HidInputMap map,
         ushort valueHandle, byte[] value, out List<RemoteEvent> events, out byte reportId)
     {
@@ -230,6 +290,9 @@ public static class A2854HidCapture
         if (valueHandle == map.ButtonValue) reportId = A2854Decoder.ButtonsReportId;
         else if (valueHandle == map.TouchValue) reportId = A2854Decoder.TouchReportId;
         else return false;
+        if ((reportId == A2854Decoder.ButtonsReportId && value.Length != 2) ||
+            (reportId == A2854Decoder.TouchReportId && A2854Decoder.ParseTouch(value) is null))
+            return false;
         events = decoder.Decode([reportId, .. value]);
         return true;
     }
