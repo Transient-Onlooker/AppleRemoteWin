@@ -91,7 +91,11 @@ public static class SmpPairing
             cancellationToken.ThrowIfCancellationRequested();
             central.SendL2cap(handle, LeCentral.CidSmp, pdu);
         }
-        void Stage(SmpPairingStage stage) => onStage?.Invoke(stage);
+        void Stage(SmpPairingStage stage)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            onStage?.Invoke(stage);
+        }
 
         async Task<byte[]> Expect(byte opcode, int length)
         {
@@ -216,8 +220,10 @@ public static class SmpPairing
         SmpPairingResponse response = SmpPairingResponse.Parse(pdu);
         if (response.IoCapability != SmpIoCapability.NoInputNoOutput || response.OobDataFlag != 0)
             throw new SmpException("Legacy Just Works requires peer NoInputNoOutput and no OOB data.");
-        if (response.MitmRequested || response.SecureConnectionsRequested)
-            throw new SmpException("Peer requested MITM or LE Secure Connections; refusing legacy Just Works.");
+        if (response.AuthReq != 0x01)
+            throw new SmpException("Unexpected AuthReq; A2854 diagnostic requires observed Bonding-only legacy profile.");
+        if (response.MaxKeySize != 16)
+            throw new SmpException("Unexpected encryption key size; A2854 diagnostic requires observed 16 bytes.");
         if (!response.BondingRequested || !response.HasEncKey)
             throw new SmpException("Peer did not negotiate bonding and responder encryption-key distribution.");
         if (response.InitiatorKeyDistribution != 0 ||
