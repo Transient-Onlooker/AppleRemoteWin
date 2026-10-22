@@ -9,9 +9,10 @@ namespace AppleRemote;
 /// </summary>
 public sealed class A2854SessionFaultGate : IDisposable
 {
+    readonly object _sync = new();
     readonly CancellationTokenSource _linked;
     readonly Action _revokeInputs;
-    int _state; // 0=active, 1=failed, 2=disposed
+    bool _failed, _disposed;
 
     public A2854SessionFaultGate(CancellationToken userStop, Action revokeInputs)
     {
@@ -22,25 +23,34 @@ public sealed class A2854SessionFaultGate : IDisposable
     public CancellationToken Token => _linked.Token;
 
     /// <summary>
-    /// Returns true on the first failure only. Even if a UI/input callback
-    /// throws, its linked token is cancelled in finally. A late WinUSB failure
-    /// from a disposed adapter cannot revoke input belonging to a new session.
+    /// Runs revocation only once. Holding the same lock used by Dispose
+    /// makes a prior session's in-progress failure callback finish BEFORE
+    /// Dispose returns and a new session can start. Cancellation happens
+    /// even when a report/UI callback throws.
     /// </summary>
     public bool Fail()
     {
-        if (Interlocked.CompareExchange(ref _state, 1, 0) != 0) return false;
-        try { _revokeInputs(); }
-        finally
+        lock (_sync)
         {
-            try { _linked.Cancel(); }
-            catch (ObjectDisposedException) { } // dispose raced USB reader callback
+            if (_disposed || _failed) return false;
+            _failed = true;
+            try { _revokeInputs(); }
+            finally { _linked.Cancel(); }
+            return true;
         }
-        return true;
     }
 
+    /// <summary>
+    /// Cannot return while an already-started Fail() is still revoking
+    /// inputs. Late Fail() calls after disposal are ignored.
+    /// </summary>
     public void Dispose()
     {
-        Interlocked.Exchange(ref _state, 2);
-        _linked.Dispose();
+        lock (_sync)
+        {
+            if (_disposed) return;
+            _disposed = true;
+            _linked.Dispose();
+        }
     }
 }
