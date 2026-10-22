@@ -5,6 +5,16 @@ using Xunit;
 
 namespace AppleRemote.Tests;
 
+[Flags]
+public enum FakeA2854Faults
+{
+    None = 0,
+    MissingButtonCccd = 1,
+    DuplicateButtonCccd = 2,
+    MissingButtonReportReference = 4,
+    DuplicateButtonReportReference = 8,
+}
+
 /// <summary>
 /// Fake Siri Remote seen from the HCI host: controller (connection, encryption, disconnection), "Just Works" pairing
 /// on the responder side and a GATT server reproducing the real one's layout (Windows HCI trace, handles of
@@ -21,58 +31,95 @@ sealed class FakeRemote
     public static readonly BondKeys Bond = new(Enumerable.Range(0x30, 16).Select(i => (byte)i).ToArray(), 0x4D3E, [1, 2, 3, 4, 5, 6, 7, 8]);
     public readonly HciHost Hci;
     public readonly List<string> Writes = new();
+    public readonly List<string> WriteAttempts = new();
     public int Pairings;
     readonly SortedDictionary<ushort, (byte[] Type, byte[] Value)> _db = new();
     bool _connected;
     readonly byte _addressType;
     readonly bool _rejectEncryption, _suppressBondKeys, _suppressMasterIdentification;
+    readonly FakeA2854Faults _a2854Faults;
+    readonly ushort _a2854HandleShift;
+    public ushort? RejectWriteHandle { get; set; }
     byte[] _preq = [], _pres = [], _mconfirm = [], _srand = [], _stk = [];
 
     public FakeRemote(bool randomAddress = false, bool rejectEncryption = false,
         bool suppressBondKeys = false, bool suppressMasterIdentification = false,
-        bool includeA2854ButtonInput = false)
+        bool includeA2854ButtonInput = false, FakeA2854Faults a2854Faults = FakeA2854Faults.None,
+        bool mismatchA2854ValueHandles = false)
     {
         _addressType = randomAddress ? (byte)1 : (byte)0;
         _rejectEncryption = rejectEncryption;
         _suppressBondKeys = suppressBondKeys;
         _suppressMasterIdentification = suppressMasterIdentification;
+        _a2854Faults = a2854Faults;
+        _a2854HandleShift = mismatchA2854ValueHandles ? (ushort)1 : (ushort)0;
         Hci = new HciHost(OnCommand, OnAcl);
         Service(0x0001, 0x1800); Service(0x0006, 0x1801); Service(0x000A, 0x180A);
         Service(0x0015, 0x1812);
         Characteristic(0x0016, 0x02, 0x2A4A, [0x11, 0x01, 0x00, 0x00]);       // HID Information
         Characteristic(0x0018, 0x02, 0x2A4B, [0x05, 0x01]);                   // Report Map (extrait)
         Characteristic(0x001A, 0x04, 0x2A4C, [0x00]);                         // HID Control Point
-        Characteristic(0x001C, 0x0A, 0x2A4D, [0x00]); Descriptor(0x001E, 0x2908, [0xF0, 3]);   // feature 0xF0
         if (includeA2854ButtonInput)
         {
-            // Isolated fake A2854 layout for the opt-in HID-input probe.
-            // Default legacy fake layout remains unchanged for gen-1 tests.
-            Characteristic(0x001F, 0x12, 0x2A4D, [0x00]);
-            Descriptor(0x0021, 0x2902, [0x00, 0x00]);
-            Descriptor(0x0022, 0x2908, [0xFB, 1]); // button input 0xFB
-            Characteristic(0x0023, 0x12, 0x2A4D, [0x00]);
-            Descriptor(0x0025, 0x2902, [0x00, 0x00]);
-            Descriptor(0x0026, 0x2908, [0xFC, 1]); // touch input 0xFC
-            Service(0x0027, 0x180F);
-            Characteristic(0x0028, 0x12, 0x2A19, [87]);
-            Descriptor(0x002A, 0x2902, [0x00, 0x00]);
+            // Opt-in fixture uses the observed A2854 value handles. Legacy defaults below stay unchanged.
+            Characteristic(0x001F, 0x12, 0x2A4D, [0x00]); // microphone, intentionally excluded
+            Descriptor(0x0021, 0x2902, [0x00, 0x00]); Descriptor(0x0022, 0x2908, [0xFA, 1]);
+            Characteristic((ushort)(0x0038 + _a2854HandleShift), 0x12, 0x2A4D, [0x00]); // FB buttons
+            AddA2854ButtonDescriptors();
+            ushort touchDeclaration = (ushort)(((_a2854Faults & FakeA2854Faults.DuplicateButtonCccd) != 0
+                ? 0x0040 : 0x003C) + _a2854HandleShift);
+            Characteristic(touchDeclaration, 0x12, 0x2A4D, [0x00]); // FC touch
+            Descriptor((ushort)(touchDeclaration + 2), 0x2902, [0x00, 0x00]);
+            Descriptor((ushort)(touchDeclaration + 3), 0x2908, [0xFC, 1]);
+            Characteristic((ushort)(0x004C + _a2854HandleShift), 0x08, 0x2A4D, [0x00]); // F0 feature
+            Descriptor((ushort)(0x004E + _a2854HandleShift), 0x2908, [0xF0, 3]);
+            Service((ushort)(0x0050 + _a2854HandleShift), 0x180F);
+            Characteristic((ushort)(0x0051 + _a2854HandleShift), 0x12, 0x2A19, [87]);
+            Descriptor((ushort)(0x0053 + _a2854HandleShift), 0x2902, [0x00, 0x00]);
         }
         else
         {
+            Characteristic(0x001C, 0x0A, 0x2A4D, [0x00]); Descriptor(0x001E, 0x2908, [0xF0, 3]);   // feature 0xF0
             Characteristic(0x001F, 0x0A, 0x2A4D, [0x00]); Descriptor(0x0021, 0x2908, [0xF1, 3]); // feature 0xF1
             Characteristic(0x0022, 0x12, 0x2A4D, [0x00]); // input 0xFC
             Descriptor(0x0024, 0x2902, [0x00, 0x00]); Descriptor(0x0025, 0x2908, [0xFC, 1]);
             Service(0x0026, 0x180F);
             Characteristic(0x0027, 0x12, 0x2A19, [87]); Descriptor(0x0029, 0x2902, [0x00, 0x00]);
         }
-        Service(0x002D, 0x181E);
-        _db[0x0032] = (U16(0x2800), Convert.FromHexString("DC262EB4CDC49781044F13C0B4F24183"));   // service Apple (128 bits)
+        ushort appleService = includeA2854ButtonInput ? (ushort)(0x0055 + _a2854HandleShift) : (ushort)0x002D;
+        Service(appleService, 0x181E);
+        _db[(ushort)(appleService + 5)] = (U16(0x2800), Convert.FromHexString("DC262EB4CDC49781044F13C0B4F24183"));
+    }
+
+    void AddA2854ButtonDescriptors()
+    {
+        ushort h1 = (ushort)(0x003A + _a2854HandleShift), h2 = (ushort)(0x003B + _a2854HandleShift);
+        if ((_a2854Faults & FakeA2854Faults.DuplicateButtonCccd) != 0)
+        {
+            Descriptor(h1, 0x2902, [0, 0]); Descriptor(h2, 0x2902, [0, 0]);
+            Descriptor((ushort)(h2 + 1), 0x2908, [0xFB, 1]);
+        }
+        else if ((_a2854Faults & FakeA2854Faults.DuplicateButtonReportReference) != 0)
+        {
+            Descriptor(h1, 0x2908, [0xFB, 1]); Descriptor(h2, 0x2908, [0xFB, 1]);
+        }
+        else if ((_a2854Faults & FakeA2854Faults.MissingButtonCccd) != 0)
+        {
+            if ((_a2854Faults & FakeA2854Faults.MissingButtonReportReference) == 0)
+                Descriptor(h1, 0x2908, [0xFB, 1]);
+        }
+        else
+        {
+            Descriptor(h1, 0x2902, [0, 0]);
+            if ((_a2854Faults & FakeA2854Faults.MissingButtonReportReference) == 0)
+                Descriptor(h2, 0x2908, [0xFB, 1]);
+        }
     }
 
     public void Event(params byte[] e) => Hci.ReceiveEventBytes(e);
     public void Att(params byte[] pdu) => L2cap(0x04, pdu);
-    public void EmitA2854Buttons(byte low, byte high) => Att(0x1B, 0x20, 0x00, low, high);
-    public void EmitA2854Touch(params byte[] payload) => Att([0x1B, 0x24, 0x00, .. payload]);
+    public void EmitA2854Buttons(byte low, byte high) => Att(0x1B, 0x39, 0x00, low, high);
+    public void EmitA2854Touch(params byte[] payload) => Att([0x1B, 0x3D, 0x00, .. payload]);
     public void EmitUnknownNotification(params byte[] payload) => Att([0x1B, 0x70, 0x00, .. payload]);
     void Smp(params byte[] pdu) => L2cap(0x06, pdu);
     void L2cap(byte cid, byte[] pdu) => Hci.ReceiveAclBytes([0x40, 0x20, (byte)(pdu.Length + 4), 0, (byte)pdu.Length, 0, cid, 0x00, .. pdu]);
@@ -160,9 +207,17 @@ sealed class FakeRemote
                 Att([0x0B, .. _db[start].Value]);
                 break;
             case 0x12:
-                Writes.Add($"0x{start:X4} {Convert.ToHexString(pdu[3..])}");
+                string attempt = $"0x{start:X4} {Convert.ToHexString(pdu[3..])}";
+                WriteAttempts.Add(attempt);
+                if (RejectWriteHandle == start)
+                {
+                    Att([0x01, 0x12, (byte)start, (byte)(start >> 8), 0x03]);
+                    break;
+                }
+                Writes.Add(attempt);
                 Att(0x13);
-                if (start == 0x001D && pdu[3] == 0xAF) Att(0x1B, 0x23, 0x00, 0xE0, 0x20, 0x60, 0x02);   // unlock response
+                if ((start == 0x001D || start == 0x004D) && pdu[3] == 0xAF)
+                    Att(0x1B, 0x23, 0x00, 0xE0, 0x20, 0x60, 0x02);
                 break;
         }
     }

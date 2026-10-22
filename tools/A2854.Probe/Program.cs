@@ -809,60 +809,67 @@ internal static partial class Program
                         {
                             stage = "validate observed A2854 report handles and find CCCDs";
                             A2854HidInputMap map = await A2854HidCapture.DiscoverAsync(
-                                gatt, gattWindow.Token, requireObservedValueHandles: true);
+                                gatt, gattWindow.Token);
                             Console.WriteLine($"HID report map verified: 0xFB=0x{map.ButtonValue:X4}, " +
                                 $"0xFC=0x{map.TouchValue:X4}, 0xF0=0x{map.UnlockFeatureValue:X4}.");
                             Console.WriteLine($"Discovered input CCCDs: buttons=0x{map.ButtonCccd:X4}, touch=0x{map.TouchCccd:X4}.");
                             var decoder = new A2854Decoder();
                             int buttonFrames = 0, touchFrames = 0, malformedButtons = 0, malformedTouches = 0;
                             int ignoredOtherHandles = 0, printedTouchFrames = 0;
-                            gatt.Notification += (valueHandle, payload) =>
+                            var inputLock = new object();
+                            bool acceptingInput = true;
+                            void OnHidNotification(ushort valueHandle, byte[] payload)
                             {
-                                try
+                                lock (inputLock)
                                 {
-                                    if (!A2854HidCapture.TryDecode(
-                                        decoder, map, valueHandle, payload, out var events, out byte reportId))
+                                    if (!acceptingInput) return;
+                                    try
                                     {
-                                        // Never log or decode unknown reports, including Siri microphone 0xFA.
-                                        Interlocked.Increment(ref ignoredOtherHandles);
-                                        return;
-                                    }
-                                    if (reportId == A2854Decoder.ButtonsReportId)
-                                    {
-                                        Interlocked.Increment(ref buttonFrames);
-                                        if (payload.Length != 2)
+                                        if (!A2854HidCapture.TryDecode(
+                                            decoder, map, valueHandle, payload, out var events, out byte reportId))
                                         {
-                                            Interlocked.Increment(ref malformedButtons);
+                                            // Never log or decode unknown reports, including Siri microphone 0xFA.
+                                            Interlocked.Increment(ref ignoredOtherHandles);
                                             return;
                                         }
-                                        foreach (RemoteEvent ev in events)
-                                            if (ev is ButtonsEvent buttons)
-                                                Console.WriteLine($"button +{string.Join("+", buttons.Pressed)} " +
-                                                    $"-{string.Join("+", buttons.Released)} (0xFB).");
+                                        if (reportId == A2854Decoder.ButtonsReportId)
+                                        {
+                                            Interlocked.Increment(ref buttonFrames);
+                                            if (payload.Length != 2)
+                                            {
+                                                Interlocked.Increment(ref malformedButtons);
+                                                return;
+                                            }
+                                            foreach (RemoteEvent ev in events)
+                                                if (ev is ButtonsEvent buttons)
+                                                    Console.WriteLine($"button +{string.Join("+", buttons.Pressed)} " +
+                                                        $"-{string.Join("+", buttons.Released)} (0xFB).");
+                                        }
+                                        else if (reportId == A2854Decoder.TouchReportId)
+                                        {
+                                            Interlocked.Increment(ref touchFrames);
+                                            var touch = A2854Decoder.ParseTouch(payload);
+                                            if (touch is null)
+                                            {
+                                                Interlocked.Increment(ref malformedTouches);
+                                                return;
+                                            }
+                                            if (Interlocked.Increment(ref printedTouchFrames) <= 25)
+                                            {
+                                                A2854Finger? primary = touch.First ?? touch.Second;
+                                                Console.WriteLine(primary is { } finger
+                                                    ? $"touch fingers={touch.FingerCount} x={finger.X} y={finger.Y} hover={finger.Hover} (0xFC)."
+                                                    : "touch released (0xFC).");
+                                            }
+                                        }
                                     }
-                                    else if (reportId == A2854Decoder.TouchReportId)
+                                    catch (Exception e)
                                     {
-                                        Interlocked.Increment(ref touchFrames);
-                                        var touch = A2854Decoder.ParseTouch(payload);
-                                        if (touch is null)
-                                        {
-                                            Interlocked.Increment(ref malformedTouches);
-                                            return;
-                                        }
-                                        if (Interlocked.Increment(ref printedTouchFrames) <= 25)
-                                        {
-                                            A2854Finger? primary = touch.First ?? touch.Second;
-                                            Console.WriteLine(primary is { } finger
-                                                ? $"touch fingers={touch.FingerCount} x={finger.X} y={finger.Y} hover={finger.Hover} (0xFC)."
-                                                : "touch released (0xFC).");
-                                        }
+                                        Console.Error.WriteLine($"HID input decode error: {e.GetType().Name}.");
                                     }
                                 }
-                                catch (Exception e)
-                                {
-                                    Console.Error.WriteLine($"HID input decode error: {e.GetType().Name}.");
-                                }
-                            };
+                            }
+                            gatt.Notification += OnHidNotification;
 
                             bool mayHaveSubscriptions = false;
                             try
@@ -875,10 +882,12 @@ internal static partial class Program
                                 Console.WriteLine("Subscribed ONLY to button 0xFB and touch 0xFC; F0 feature unlock sent.");
                                 Console.WriteLine($"Observe remote buttons/touch for up to {seconds}s. Microphone excluded.");
                                 stage = "bounded A2854 HID report observation";
-                                Task sampling = Task.Delay(TimeSpan.FromSeconds(seconds), stop.Token);
+                                using var samplingWindow = CancellationTokenSource.CreateLinkedTokenSource(stop.Token);
+                                Task sampling = Task.Delay(TimeSpan.FromSeconds(seconds), samplingWindow.Token);
                                 Task winner = await Task.WhenAny(sampling, disconnected.Task);
                                 if (winner == disconnected.Task)
                                 {
+                                    samplingWindow.Cancel();
                                     var early = await disconnected.Task;
                                     linkEnded = true;
                                     throw new IOException($"Remote disconnected during HID observation (HCI reason 0x{early.Reason:X2}).");
@@ -892,7 +901,6 @@ internal static partial class Program
                                     using var cleanup = new CancellationTokenSource(TimeSpan.FromSeconds(5));
                                     try
                                     {
-                                        stage = "disable 0xFB/0xFC CCCDs";
                                         await A2854HidCapture.DisableAsync(gatt, map, cleanup.Token);
                                         Console.WriteLine("CCCD notification subscriptions disabled.");
                                     }
@@ -901,11 +909,16 @@ internal static partial class Program
                                         Console.Error.WriteLine($"CCCD cleanup incomplete ({e.GetType().Name}); disconnect will follow.");
                                     }
                                 }
-                                // Release decoder button/touch state in memory.
-                                decoder.Decode([]);
+                                gatt.Notification -= OnHidNotification;
+                                lock (inputLock)
+                                {
+                                    // A transport callback may already have captured the delegate.
+                                    acceptingInput = false;
+                                    decoder.Decode([]);
+                                    Console.WriteLine($"HID summary: button_frames={buttonFrames}, touch_frames={touchFrames}, " +
+                                        $"malformed_buttons={malformedButtons}, malformed_touches={malformedTouches}, ignored_handles={ignoredOtherHandles}.");
+                                }
                             }
-                            Console.WriteLine($"HID summary: button_frames={buttonFrames}, touch_frames={touchFrames}, " +
-                                $"malformed_buttons={malformedButtons}, malformed_touches={malformedTouches}, ignored_handles={ignoredOtherHandles}.");
                         }
                         else
                         {

@@ -9,10 +9,37 @@ namespace AppleRemote;
 /// Verified HID report layout and dynamically discovered CCCDs. Attribute handles are
 /// per-firmware-instance values and must NEVER be inferred from neighboring handles.
 /// </summary>
-public sealed record A2854HidInputMap(
-    ushort ButtonValue, ushort ButtonCccd,
-    ushort TouchValue, ushort TouchCccd,
-    ushort UnlockFeatureValue);
+public sealed class A2854HidInputMap
+{
+    public ushort ButtonValue { get; }
+    public ushort ButtonCccd { get; }
+    public ushort TouchValue { get; }
+    public ushort TouchCccd { get; }
+    public ushort UnlockFeatureValue { get; }
+    internal bool WasDiscovered { get; }
+    internal GattClient? DiscoveredBy { get; }
+
+    public A2854HidInputMap(ushort buttonValue, ushort buttonCccd,
+        ushort touchValue, ushort touchCccd, ushort unlockFeatureValue)
+        : this(buttonValue, buttonCccd, touchValue, touchCccd, unlockFeatureValue, false, null) { }
+
+    private A2854HidInputMap(ushort buttonValue, ushort buttonCccd,
+        ushort touchValue, ushort touchCccd, ushort unlockFeatureValue, bool wasDiscovered,
+        GattClient? discoveredBy)
+    {
+        ButtonValue = buttonValue;
+        ButtonCccd = buttonCccd;
+        TouchValue = touchValue;
+        TouchCccd = touchCccd;
+        UnlockFeatureValue = unlockFeatureValue;
+        WasDiscovered = wasDiscovered;
+        DiscoveredBy = discoveredBy;
+    }
+
+    internal static A2854HidInputMap CreateDiscovered(GattClient gatt, ushort buttonValue,
+        ushort buttonCccd, ushort touchValue, ushort touchCccd, ushort unlockFeatureValue) =>
+        new(buttonValue, buttonCccd, touchValue, touchCccd, unlockFeatureValue, true, gatt);
+}
 
 /// <summary>
 /// Discovers ONLY reports 0xFB and 0xFC and the F0 feature; enables only their
@@ -22,14 +49,15 @@ public static class A2854HidCapture
 {
     private const ushort HidService = 0x1812, Report = 0x2A4D;
     private const ushort ReportReference = 0x2908, Cccd = 0x2902;
+    private const ushort ButtonValue = 0x0039, TouchValue = 0x003D, UnlockFeatureValue = 0x004D;
     private const byte Input = 1, Feature = 3, NotifyProperty = 0x10, WriteProperty = 0x08;
 
     /// <summary>
-    /// Discard unexpected report characteristics. A2854 value handles observed on
-    /// the real remote are optional additional validation for the first physical gate.
+    /// Discard unexpected report characteristics and fail closed unless all three
+    /// value handles match the observed A2854 mapping.
     /// </summary>
     public static async Task<A2854HidInputMap> DiscoverAsync(GattClient gatt,
-        CancellationToken cancellationToken = default, bool requireObservedValueHandles = false)
+        CancellationToken cancellationToken = default)
     {
         List<GattService> services = await gatt.DiscoverPrimaryServicesAsync(cancellationToken);
         List<GattService> hidServices = services.Where(s => GattClient.Is(s.Uuid, HidService)).ToList();
@@ -87,12 +115,12 @@ public static class A2854HidCapture
             buttons.Value.Cccd == feature.Value || touch.Value.Cccd == feature.Value)
             throw new InvalidDataException("Overlapping A2854 HID handles.");
 
-        var map = new A2854HidInputMap(
+        var map = A2854HidInputMap.CreateDiscovered(gatt,
             buttons.Value.Value, buttons.Value.Cccd,
             touch.Value.Value, touch.Value.Cccd,
             feature.Value);
-        if (requireObservedValueHandles &&
-            (map.ButtonValue != 0x0039 || map.TouchValue != 0x003D || map.UnlockFeatureValue != 0x004D))
+        if (!map.WasDiscovered || map.ButtonValue != ButtonValue || map.TouchValue != TouchValue ||
+            map.UnlockFeatureValue != UnlockFeatureValue)
             throw new InvalidDataException(
                 "HID value handles differ from real 2026-10-22 A2854 mapping; stop before any writes.");
         return map;
@@ -113,17 +141,49 @@ public static class A2854HidCapture
     public static async Task EnableAsync(GattClient gatt, A2854HidInputMap map,
         CancellationToken cancellationToken = default)
     {
-        await gatt.WriteAsync(map.ButtonCccd, cancellationToken, 0x01, 0x00);
-        await gatt.WriteAsync(map.TouchCccd, cancellationToken, 0x01, 0x00);
-        await gatt.WriteAsync(map.UnlockFeatureValue, cancellationToken, 0xAF);
+        ValidateWriteMap(gatt, map);
+        try
+        {
+            await gatt.WriteAsync(map.ButtonCccd, cancellationToken, 0x01, 0x00);
+            await gatt.WriteAsync(map.TouchCccd, cancellationToken, 0x01, 0x00);
+            await gatt.WriteAsync(map.UnlockFeatureValue, cancellationToken, 0xAF);
+        }
+        catch
+        {
+            // A write may have reached the peer even when its response was lost.
+            // Best effort disable both subscriptions, even if the caller canceled.
+            using var cleanup = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+            try { await gatt.WriteAsync(map.ButtonCccd, cleanup.Token, 0x00, 0x00); }
+            catch { }
+            try { await gatt.WriteAsync(map.TouchCccd, cleanup.Token, 0x00, 0x00); }
+            catch { }
+            throw;
+        }
     }
 
     /// <summary>Best-effort cleanup when the encrypted link is still alive.</summary>
     public static async Task DisableAsync(GattClient gatt, A2854HidInputMap map,
         CancellationToken cancellationToken = default)
     {
-        await gatt.WriteAsync(map.ButtonCccd, cancellationToken, 0x00, 0x00);
-        await gatt.WriteAsync(map.TouchCccd, cancellationToken, 0x00, 0x00);
+        ValidateWriteMap(gatt, map);
+        Exception? firstFailure = null;
+        try { await gatt.WriteAsync(map.ButtonCccd, cancellationToken, 0x00, 0x00); }
+        catch (Exception ex) { firstFailure = ex; }
+        try { await gatt.WriteAsync(map.TouchCccd, cancellationToken, 0x00, 0x00); }
+        catch (Exception ex) { firstFailure ??= ex; }
+        if (firstFailure is not null) throw firstFailure;
+    }
+
+    private static void ValidateWriteMap(GattClient gatt, A2854HidInputMap map)
+    {
+        if (!map.WasDiscovered || !ReferenceEquals(map.DiscoveredBy, gatt) ||
+            map.ButtonValue != ButtonValue || map.TouchValue != TouchValue ||
+            map.UnlockFeatureValue != UnlockFeatureValue ||
+            map.ButtonCccd == map.TouchCccd ||
+            map.ButtonCccd == map.UnlockFeatureValue || map.TouchCccd == map.UnlockFeatureValue ||
+            map.ButtonValue == map.ButtonCccd || map.ButtonValue == map.TouchCccd ||
+            map.TouchValue == map.ButtonCccd || map.TouchValue == map.TouchCccd)
+            throw new InvalidDataException("Invalid A2854 HID write map.");
     }
 
     /// <summary>Accept ONLY the two agreed input report value handles.</summary>

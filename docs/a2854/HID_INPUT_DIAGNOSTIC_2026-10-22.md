@@ -1,6 +1,6 @@
 # A2854 Windows-native HID input diagnostic — implementation and safety gates
 
-**2026-10-22: source and mock tests committed; actual Windows-side 0xFB/0xFC notifications not yet captured.**
+**2026-10-23 update: Windows Release software validation passed (179/179 tests; solution and Probe builds with 0 warnings/errors). Actual Windows-side 0xFB/0xFC notifications have not yet been captured.** See [validation, fixes and next approval gate](HID_INPUT_VALIDATION_2026-10-23.md).
 The latest physical result recorded at commit `50916bc` demonstrates successful DPAPI-protected LTK encrypted reconnection, GATT HID service `0x1812` and Report Reference `0x2908` discovery on Windows 11 with external WinUSB Barrot `33FA:0001` connected through a USB 3.0 hub. The physical A2854 advertised:
 
 | HID Report Reference | Physically observed characteristic **value handle** |
@@ -11,7 +11,7 @@ The latest physical result recorded at commit `50916bc` demonstrates successful 
 
 The old read-only probe **did not determine CCCD handle locations**. The remote was disconnected normally with local HCI reason `0x16`, and the DPAPI bond was retained. This milestone confirms encrypted GATT **metadata**, NOT live input notifications.
 
-## New opt-in code (requires fresh Windows build/tests)
+## New opt-in code (Windows build/tests validated)
 
 A separate `--hid-input-only --confirm-hid-writes --usb 33FA:0001` diagnostic performs the following:
 
@@ -34,7 +34,7 @@ A separate `--hid-input-only --confirm-hid-writes --usb 33FA:0001` diagnostic pe
 - An unrelated/unknown notification is dropped, with no raw data forwarding. The diagnostic contains no microphone subscription or audio decoding path.
 - Live physical-handle mismatch causes **zero writes**; missing `0xFB` prevents any subscription/unlock.
 
-**Validation boundary:** Previous **167/167 Release tests passed** at `4c86fae`, before this new HID code. The newest tests and code **have not been built or run in the user's native Windows environment**. Do not claim live Windows input success yet.
+**Validation boundary:** The new HID code has now passed native Windows software validation: **179/179 Release tests**, including **12 HID capture cases** and the existing 167 tests; full solution and Probe builds have **0 warnings/errors**. Handle validation is mandatory and write maps are bound to their discovering GATT client. No physical CCCD/F0 writes were issued during validation; live Windows input remains unverified.
 
 ## Local agent steps
 

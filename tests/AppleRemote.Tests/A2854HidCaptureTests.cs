@@ -7,7 +7,7 @@ namespace AppleRemote.Tests;
 public sealed class A2854HidCaptureTests
 {
     [Fact]
-    public async Task Maps_both_inputs_and_F0_then_subscribes_only_to_two_allowlisted_CCCDs()
+    public async Task Observed_mapping_discovers_decodes_and_writes_only_allowlisted_handles()
     {
         var remote = new FakeRemote(includeA2854ButtonInput: true);
         var central = new LeCentral(remote.Hci);
@@ -18,51 +18,48 @@ public sealed class A2854HidCaptureTests
         try
         {
             var map = await A2854HidCapture.DiscoverAsync(gatt);
-            Assert.Equal((ushort)0x0020, map.ButtonValue);
-            Assert.Equal((ushort)0x0021, map.ButtonCccd);
-            Assert.Equal((ushort)0x0024, map.TouchValue);
-            Assert.Equal((ushort)0x0025, map.TouchCccd);
-            Assert.Equal((ushort)0x001D, map.UnlockFeatureValue);
-            Assert.Empty(remote.Writes); // Discovery is read-only.
+            Assert.Equal((ushort)0x0039, map.ButtonValue);
+            Assert.Equal((ushort)0x003A, map.ButtonCccd);
+            Assert.Equal((ushort)0x003D, map.TouchValue);
+            Assert.Equal((ushort)0x003E, map.TouchCccd);
+            Assert.Equal((ushort)0x004D, map.UnlockFeatureValue);
+            Assert.Empty(remote.Writes);
 
             var decoder = new A2854Decoder();
-            var allEvents = new List<RemoteEvent>();
             var reportIds = new List<byte>();
+            var events = new List<RemoteEvent>();
             gatt.Notification += (valueHandle, value) =>
             {
-                bool accepted = A2854HidCapture.TryDecode(
-                    decoder, map, valueHandle, value, out var events, out byte reportId);
-                if (!accepted) return;
+                if (!A2854HidCapture.TryDecode(decoder, map, valueHandle, value,
+                    out var decoded, out byte reportId)) return;
                 reportIds.Add(reportId);
-                allEvents.AddRange(events);
+                events.AddRange(decoded);
             };
 
             await A2854HidCapture.EnableAsync(gatt, map);
-            Assert.Equal(new[] { "0x0021 0100", "0x0025 0100", "0x001D AF" }, remote.Writes);
-
-            remote.EmitA2854Buttons(0x40, 0x00); // Back/Menu
+            Assert.Equal(new[] { "0x003A 0100", "0x003E 0100", "0x004D AF" }, remote.Writes);
+            remote.EmitA2854Buttons(0x40, 0x00);
             remote.EmitA2854Touch(0x32, 0x14, 0xFC, 0x01, 0xC9, 0x9E, 0xFB, 0x51, 0x44, 0x01, 0x66);
-            remote.EmitUnknownNotification(0xFA, 0x99, 0x88, 0x77); // Excluded microphone/unknown.
+            remote.EmitUnknownNotification(0xFA, 0x99, 0x88, 0x77);
             remote.EmitA2854Buttons(0x00, 0x00);
-
             Assert.Equal(new byte[] { 0xFB, 0xFC, 0xFB }, reportIds);
-            var buttons = allEvents.OfType<ButtonsEvent>().ToList();
-            Assert.Contains(buttons, e => e.Pressed.Contains("menu"));
-            Assert.Contains(buttons, e => e.Released.Contains("menu"));
-            Assert.Single(allEvents.OfType<TouchEvent>());
+            Assert.Contains(events.OfType<ButtonsEvent>(), e => e.Pressed.Contains("menu"));
+            Assert.Contains(events.OfType<ButtonsEvent>(), e => e.Released.Contains("menu"));
+            Assert.Single(events.OfType<TouchEvent>());
 
             await A2854HidCapture.DisableAsync(gatt, map);
             Assert.Equal(new[] {
-                "0x0021 0100", "0x0025 0100", "0x001D AF",
-                "0x0021 0000", "0x0025 0000"
+                "0x003A 0100", "0x003E 0100", "0x004D AF",
+                "0x003A 0000", "0x003E 0000"
             }, remote.Writes);
-            Assert.Equal(0, remote.Pairings); // Reconnected using preexisting LTK, no SMP.
+            Assert.DoesNotContain(remote.Writes, w => w.StartsWith("0x0021 "));
+            Assert.Equal(0, remote.Pairings);
         }
         finally { gatt.Detach(); }
     }
 
     [Fact]
-    public async Task Real_handle_gate_rejects_mismatch_before_any_writes()
+    public async Task Enable_and_disable_reject_forged_exact_and_mismatched_maps_before_any_writes()
     {
         var remote = new FakeRemote(includeA2854ButtonInput: true);
         var central = new LeCentral(remote.Hci);
@@ -72,10 +69,114 @@ public sealed class A2854HidCaptureTests
         var gatt = new GattClient(central, handle);
         try
         {
-            // Fake handles are deliberately different from observed 0x0039/0x003D/0x004D.
-            await Assert.ThrowsAsync<InvalidDataException>(() =>
-                A2854HidCapture.DiscoverAsync(gatt, requireObservedValueHandles: true));
+            var forgedExact = new A2854HidInputMap(0x0039, 0x003A, 0x003D, 0x003E, 0x004D);
+            var forgedMismatch = new A2854HidInputMap(0x0020, 0x0021, 0x0024, 0x0025, 0x001D);
+            await Assert.ThrowsAsync<InvalidDataException>(() => A2854HidCapture.EnableAsync(gatt, forgedExact));
+            await Assert.ThrowsAsync<InvalidDataException>(() => A2854HidCapture.DisableAsync(gatt, forgedExact));
+            await Assert.ThrowsAsync<InvalidDataException>(() => A2854HidCapture.EnableAsync(gatt, forgedMismatch));
             Assert.Empty(remote.Writes);
+        }
+        finally { gatt.Detach(); }
+    }
+
+    [Theory]
+    [InlineData(FakeA2854Faults.MissingButtonCccd)]
+    [InlineData(FakeA2854Faults.DuplicateButtonCccd)]
+    [InlineData(FakeA2854Faults.MissingButtonReportReference)]
+    [InlineData(FakeA2854Faults.DuplicateButtonReportReference)]
+    public async Task Invalid_button_descriptors_fail_discovery_before_writes(FakeA2854Faults faults)
+    {
+        var remote = new FakeRemote(includeA2854ButtonInput: true, a2854Faults: faults);
+        var central = new LeCentral(remote.Hci);
+        await central.InitializeAsync();
+        ushort handle = await central.ConnectAsync(FakeRemote.Address);
+        await central.EncryptAsync(handle, FakeRemote.Bond);
+        var gatt = new GattClient(central, handle);
+        try
+        {
+            var error = await Assert.ThrowsAsync<InvalidDataException>(() => A2854HidCapture.DiscoverAsync(gatt));
+            if (faults == FakeA2854Faults.DuplicateButtonCccd)
+                Assert.Contains("Expected exactly one CCCD", error.Message);
+            if (faults == FakeA2854Faults.DuplicateButtonReportReference)
+                Assert.Contains("Duplicate HID Report Reference", error.Message);
+            Assert.Empty(remote.Writes);
+        }
+        finally { gatt.Detach(); }
+    }
+
+    [Fact]
+    public async Task Mismatched_observed_value_handles_fail_before_any_write()
+    {
+        var remote = new FakeRemote(includeA2854ButtonInput: true, mismatchA2854ValueHandles: true);
+        var central = new LeCentral(remote.Hci);
+        await central.InitializeAsync();
+        ushort handle = await central.ConnectAsync(FakeRemote.Address);
+        await central.EncryptAsync(handle, FakeRemote.Bond);
+        var gatt = new GattClient(central, handle);
+        try
+        {
+            var error = await Assert.ThrowsAsync<InvalidDataException>(() => A2854HidCapture.DiscoverAsync(gatt));
+            Assert.Contains("differ", error.Message);
+            Assert.Empty(remote.Writes);
+        }
+        finally { gatt.Detach(); }
+    }
+
+    [Fact]
+    public async Task Discovered_map_is_bound_to_its_gatt_client()
+    {
+        var remote = new FakeRemote(includeA2854ButtonInput: true);
+        var central = new LeCentral(remote.Hci);
+        await central.InitializeAsync();
+        ushort handle = await central.ConnectAsync(FakeRemote.Address);
+        await central.EncryptAsync(handle, FakeRemote.Bond);
+        var first = new GattClient(central, handle);
+        var second = new GattClient(central, handle);
+        try
+        {
+            var map = await A2854HidCapture.DiscoverAsync(first);
+            await Assert.ThrowsAsync<InvalidDataException>(() => A2854HidCapture.EnableAsync(second, map));
+            Assert.Empty(remote.Writes);
+        }
+        finally { first.Detach(); second.Detach(); }
+    }
+
+    [Fact]
+    public async Task Partial_enable_rejection_attempts_both_cccd_disables_and_preserves_failure()
+    {
+        var remote = new FakeRemote(includeA2854ButtonInput: true) { RejectWriteHandle = 0x003E };
+        var central = new LeCentral(remote.Hci);
+        await central.InitializeAsync();
+        ushort handle = await central.ConnectAsync(FakeRemote.Address);
+        await central.EncryptAsync(handle, FakeRemote.Bond);
+        var gatt = new GattClient(central, handle);
+        try
+        {
+            var map = await A2854HidCapture.DiscoverAsync(gatt);
+            var error = await Assert.ThrowsAsync<AttException>(() => A2854HidCapture.EnableAsync(gatt, map));
+            Assert.Equal((byte)0x03, error.Error);
+            Assert.Equal(new[] { "0x003A 0100", "0x003E 0100", "0x003A 0000", "0x003E 0000" }, remote.WriteAttempts);
+            Assert.DoesNotContain(remote.WriteAttempts, w => w == "0x004D AF");
+        }
+        finally { gatt.Detach(); }
+    }
+
+    [Fact]
+    public async Task Disable_attempts_touch_cccd_when_button_cccd_is_rejected()
+    {
+        var remote = new FakeRemote(includeA2854ButtonInput: true) { RejectWriteHandle = 0x003A };
+        var central = new LeCentral(remote.Hci);
+        await central.InitializeAsync();
+        ushort handle = await central.ConnectAsync(FakeRemote.Address);
+        await central.EncryptAsync(handle, FakeRemote.Bond);
+        var gatt = new GattClient(central, handle);
+        try
+        {
+            var map = await A2854HidCapture.DiscoverAsync(gatt);
+            var error = await Assert.ThrowsAsync<AttException>(() => A2854HidCapture.DisableAsync(gatt, map));
+            Assert.Equal((byte)0x03, error.Error);
+            Assert.Equal(new[] { "0x003A 0000", "0x003E 0000" }, remote.WriteAttempts);
+            Assert.Equal(new[] { "0x003E 0000" }, remote.Writes);
         }
         finally { gatt.Detach(); }
     }
