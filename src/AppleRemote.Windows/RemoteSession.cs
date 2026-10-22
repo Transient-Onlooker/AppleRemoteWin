@@ -180,7 +180,7 @@ public sealed class RemoteSession : IDisposable
                         FeedA2854([]); // mouse-up/key-up, serialized with input callbacks
                     }
                 });
-                a2854Hci.Failed += status =>
+                a2854Hci.WatchFailure(status =>
                 {
                     try { Status?.Invoke(status); }
                     catch { /* status subscribers must not break USB fault cleanup */ }
@@ -192,7 +192,7 @@ public sealed class RemoteSession : IDisposable
                         try { Status?.Invoke($"A2854: input release failed ({e.GetType().Name})."); }
                         catch { }
                     }
-                };
+                });
                 var a2854 = new A2854RemoteBle(a2854Hci.Host, FeedA2854, status => Status?.Invoke(status));
                 _driverTask = Task.Run(async () =>
                 {
