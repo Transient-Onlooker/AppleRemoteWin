@@ -25,11 +25,14 @@ sealed class FakeRemote
     readonly SortedDictionary<ushort, (byte[] Type, byte[] Value)> _db = new();
     bool _connected;
     readonly byte _addressType;
+    readonly bool _rejectEncryption, _suppressBondKeys;
     byte[] _preq = [], _pres = [], _mconfirm = [], _srand = [], _stk = [];
 
-    public FakeRemote(bool randomAddress = false)
+    public FakeRemote(bool randomAddress = false, bool rejectEncryption = false, bool suppressBondKeys = false)
     {
         _addressType = randomAddress ? (byte)1 : (byte)0;
+        _rejectEncryption = rejectEncryption;
+        _suppressBondKeys = suppressBondKeys;
         Hci = new HciHost(OnCommand, OnAcl);
         Service(0x0001, 0x1800); Service(0x0006, 0x1801); Service(0x000A, 0x180A);
         Service(0x0015, 0x1812);
@@ -78,11 +81,15 @@ sealed class FakeRemote
                 ushort ediv = (ushort)(c[13] | c[14] << 8);
                 bool withStk = ltk.SequenceEqual(_stk) && ediv == 0 && rand.All(b => b == 0);
                 bool withBond = ltk.SequenceEqual(Bond.Ltk) && ediv == Bond.Ediv && rand.SequenceEqual(Bond.Rand);
-                Event(0x08, 0x04, withStk || withBond ? (byte)0x00 : (byte)0x06, 0x40, 0x00, withStk || withBond ? (byte)1 : (byte)0);
-                if (withStk)   // end of pairing: LTK distribution
+                bool allowed = (withStk || withBond) && !_rejectEncryption;
+                Event(0x08, 0x04, allowed ? (byte)0x00 : (byte)0x06, 0x40, 0x00, allowed ? (byte)1 : (byte)0);
+                if (withStk && allowed)   // end of pairing: optional key-distribution fault injection
                 {
-                    Smp([0x06, .. Bond.Ltk]);
-                    Smp([0x07, (byte)Bond.Ediv, (byte)(Bond.Ediv >> 8), .. Bond.Rand]);
+                    if (!_suppressBondKeys)
+                    {
+                        Smp([0x06, .. Bond.Ltk]);
+                        Smp([0x07, (byte)Bond.Ediv, (byte)(Bond.Ediv >> 8), .. Bond.Rand]);
+                    }
                     Pairings++;
                 }
                 break;
