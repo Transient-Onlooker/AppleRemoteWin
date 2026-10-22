@@ -170,15 +170,22 @@ internal static partial class Program
                     stop.Cancel();
                 };
                 Console.CancelKeyPress += onCancel;
-                bool connectionAttempted = false, cleanDisconnect = false;
+                bool connectionAttempted = false, linkEnded = false;
                 string stage = "controller initialization";
                 try
                 {
                     // Suppress even automatic L2CAP connection-parameter signaling
                     // to ensure this mode sends only link-layer HCI commands.
                     var central = new LeCentral(usb.Host, respondToSignaling: false);
-                    var disconnected = new TaskCompletionSource<byte>(TaskCreationOptions.RunContinuationsAsynchronously);
-                    central.Disconnected += (_, reason) => disconnected.TrySetResult(reason);
+                    // Preserve event timing relative to our explicit HCI Disconnect request.
+                    // 0x3E means a link-layer establishment/synchronization failure, NOT
+                    // a clean locally initiated disconnect. Never report it as OK.
+                    int disconnectRequestStarted = 0;
+                    var disconnected = new TaskCompletionSource<(ushort Handle, byte Reason, bool AfterRequest)>(
+                        TaskCreationOptions.RunContinuationsAsynchronously);
+                    central.Disconnected += (observedHandle, reason) =>
+                        disconnected.TrySetResult((observedHandle, reason,
+                            Volatile.Read(ref disconnectRequestStarted) != 0));
 
                     Console.WriteLine($"LE connect-only: {usb.Name}; EP0=0x{usb.CommandRequestType:X2}.");
                     Console.WriteLine("No pairing, SMP, GATT, HID, bond reads/writes, or user data output.");
@@ -204,13 +211,54 @@ internal static partial class Program
                     connectionAttempted = true;
                     ushort handle = await central.ConnectAsync(peer.Address, connectionWindow.Token, peer.AddressType);
                     Console.WriteLine("LE Connection Complete OK (peer address redacted).");
+                    var linkTimer = Stopwatch.StartNew();
 
-                    stage = "HCI Disconnect / Disconnection Complete";
+                    // A short, bounded observation separates spontaneous link failure
+                    // from completion of our own disconnect command. This sends NO SMP
+                    // or GATT traffic and does not read or persist any BLE identity.
+                    stage = "1500ms LE link observation (no pairing/GATT)";
+                    Console.WriteLine("Observing link for 1500ms before requesting local disconnect (no SMP/GATT).");
+                    Task observation = Task.Delay(TimeSpan.FromMilliseconds(1500), stop.Token);
+                    if (await Task.WhenAny(disconnected.Task, observation) == disconnected.Task)
+                    {
+                        var early = await disconnected.Task;
+                        if (early.Handle != handle)
+                            throw new InvalidDataException("Unexpected disconnection event handle during observation.");
+                        linkEnded = true;
+                        Console.Error.WriteLine($"LE link ended BEFORE host Disconnect at {linkTimer.Elapsed.TotalMilliseconds:F0}ms: " +
+                            $"reason=0x{early.Reason:X2} ({HciDisconnectReason.Describe(early.Reason)}).");
+                        return 1;
+                    }
+                    await observation; // Respect Ctrl+C if the observation timer was cancelled.
+                    if (disconnected.Task.IsCompleted)
+                    {
+                        var early = await disconnected.Task;
+                        if (early.Handle != handle)
+                            throw new InvalidDataException("Unexpected disconnection event handle immediately before Disconnect.");
+                        linkEnded = true;
+                        Console.Error.WriteLine($"LE link ended before host Disconnect at {linkTimer.Elapsed.TotalMilliseconds:F0}ms: " +
+                            $"reason=0x{early.Reason:X2} ({HciDisconnectReason.Describe(early.Reason)}).");
+                        return 1;
+                    }
+
+                    stage = "HCI Disconnect Command Status / Disconnection Complete";
+                    Volatile.Write(ref disconnectRequestStarted, 1);
                     await central.DisconnectAsync(handle);
-                    byte reason = await disconnected.Task.WaitAsync(TimeSpan.FromSeconds(5), stop.Token);
-                    cleanDisconnect = true;
-                    Console.WriteLine($"Disconnection Complete OK (reason=0x{reason:X2}).");
-                    Console.WriteLine("Link-only complete: no SMP pairing, GATT, HID reports, or bond writes.");
+                    Console.WriteLine("HCI Disconnect Command Status OK.");
+                    var ended = await disconnected.Task.WaitAsync(TimeSpan.FromSeconds(5), stop.Token);
+                    if (ended.Handle != handle)
+                        throw new InvalidDataException("Disconnection Complete handle did not match LE connection handle.");
+                    linkEnded = true;
+                    Console.WriteLine($"Disconnection Complete received at {linkTimer.Elapsed.TotalMilliseconds:F0}ms: " +
+                        $"reason=0x{ended.Reason:X2} ({HciDisconnectReason.Describe(ended.Reason)}), " +
+                        $"after_host_request={ended.AfterRequest}.");
+                    if (!HciDisconnectReason.IsExpectedHostDisconnect(ended.Reason))
+                    {
+                        Console.Error.WriteLine("Link is gone, but termination reason is NOT the expected local-host 0x16. " +
+                            "Classified as an anomalous link termination, not a verified clean disconnect.");
+                        return 1;
+                    }
+                    Console.WriteLine("LE link established and clean local disconnect verified. No SMP/GATT/bond writes.");
                     return 0;
                 }
                 catch (OperationCanceledException)
@@ -225,7 +273,17 @@ internal static partial class Program
                 }
                 finally
                 {
-                    if (connectionAttempted && !cleanDisconnect)
+                    // If a matching Disconnection Complete arrived while an earlier
+                    // HCI command failed, the link is already gone: avoid an unnecessary
+                    // controller reset. The event does NOT imply a clean local termination.
+                    if (!linkEnded && connectionAttempted && disconnected.Task.IsCompleted)
+                    {
+                        // The completion event already carries an exact connection handle;
+                        // this branch uses it only to skip a last-resort Reset when the
+                        // external controller has reported that link terminated.
+                        linkEnded = true;
+                    }
+                    if (connectionAttempted && !linkEnded)
                     {
                         // An in-flight LE create-connection can complete late. Resetting
                         // ONLY this dedicated WinUSB controller is the fallback to avoid
