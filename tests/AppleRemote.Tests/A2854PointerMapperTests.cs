@@ -10,8 +10,16 @@ public sealed class A2854PointerMapperTests
     {
         public List<(int X, int Y)> Moves { get; } = [];
         public List<bool> Clicks { get; } = [];
+        public int FailedReleases { get; set; }
+        public int FailedPresses { get; set; }
         public void Move(int dx, int dy) => Moves.Add((dx, dy));
-        public void LeftButton(bool down) => Clicks.Add(down);
+        public bool LeftButton(bool down)
+        {
+            if (down && FailedPresses-- > 0) return false;
+            if (!down && FailedReleases-- > 0) return false;
+            Clicks.Add(down);
+            return true;
+        }
     }
 
     static TouchEvent Touch(int x, int y, bool down, params Finger[] fingers) =>
@@ -21,6 +29,48 @@ public sealed class A2854PointerMapperTests
     static Finger Hover(int x, int y) => new(x, y, 7);
     static ButtonsEvent Press(params string[] names) => new(0, names, [], []);
     static ButtonsEvent Release(params string[] names) => new(0, [], names, []);
+
+    [Fact]
+    public void Failed_mouse_up_keeps_held_state_until_backend_confirms_release()
+    {
+        var sink = new FakePointer { FailedReleases = 1 };
+        var mapper = new A2854PointerMapper(sink);
+        mapper.OnEvent(Press("click"));
+        Assert.True(mapper.HasHeldClick);
+        mapper.OnEvent(Release("click")); // failed OS mouse-up
+        Assert.True(mapper.HasHeldClick);
+        Assert.Equal(new[] { true }, sink.Clicks);
+        Assert.True(mapper.Reset()); // retry mouse-up
+        Assert.False(mapper.HasHeldClick);
+        Assert.Equal(new[] { true, false }, sink.Clicks);
+    }
+
+    [Fact]
+    public void Consecutive_mouse_up_failures_keep_state_for_next_cleanup_attempt()
+    {
+        var sink = new FakePointer { FailedReleases = 4 };
+        var mapper = new A2854PointerMapper(sink);
+        mapper.OnEvent(Press("click"));
+        mapper.OnEvent(Release("click")); // 1st failure
+        Assert.False(mapper.Reset()); // next 3 failed attempts
+        Assert.True(mapper.HasHeldClick);
+        Assert.True(mapper.Reset()); // next try succeeds
+        Assert.False(mapper.HasHeldClick);
+        Assert.Equal(new[] { true, false }, sink.Clicks);
+    }
+
+    [Fact]
+    public void Mouse_down_rejected_by_backend_is_not_assumed_held()
+    {
+        var sink = new FakePointer { FailedPresses = 1 };
+        var mapper = new A2854PointerMapper(sink);
+        mapper.OnEvent(Press("click"));
+        Assert.False(mapper.HasHeldClick);
+        mapper.OnEvent(Press("click"));
+        Assert.True(mapper.HasHeldClick);
+        mapper.OnEvent(Release("click"));
+        Assert.Equal(new[] { true, false }, sink.Clicks);
+    }
 
     [Fact]
     public void First_contact_is_anchor_then_relative_motion_not_absolute_cursor_jump()
