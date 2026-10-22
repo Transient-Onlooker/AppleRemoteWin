@@ -744,6 +744,7 @@ internal static partial class Program
                 bool attempted = false, linkEnded = false;
                 ushort? connectedHandle = null;
                 GattClient? gatt = null;
+                int? hidButtonFrames = null, hidTouchFrames = null;
                 (string Address, byte AddressType, BondKeys Keys)? stored = null;
                 var disconnected = new TaskCompletionSource<(ushort Handle, byte Reason)>(
                     TaskCreationOptions.RunContinuationsAsynchronously);
@@ -890,9 +891,13 @@ internal static partial class Program
                                     samplingWindow.Cancel();
                                     var early = await disconnected.Task;
                                     linkEnded = true;
-                                    throw new IOException($"Remote disconnected during HID observation (HCI reason 0x{early.Reason:X2}).");
+                                    // A peer-end 0x13 can be an ordinary power/idle decision,
+                                    // not a failure of the already received HID frames.
+                                    // Classification happens after the input callback is detached.
+                                    Console.WriteLine($"Remote ended HID observation with HCI reason=0x{early.Reason:X2} " +
+                                        $"({HciDisconnectReason.Describe(early.Reason)}).");
                                 }
-                                await sampling;
+                                else await sampling;
                             }
                             finally
                             {
@@ -915,6 +920,8 @@ internal static partial class Program
                                     // A transport callback may already have captured the delegate.
                                     acceptingInput = false;
                                     decoder.Decode([]);
+                                    hidButtonFrames = buttonFrames;
+                                    hidTouchFrames = touchFrames;
                                     Console.WriteLine($"HID summary: button_frames={buttonFrames}, touch_frames={touchFrames}, " +
                                         $"malformed_buttons={malformedButtons}, malformed_touches={malformedTouches}, ignored_handles={ignoredOtherHandles}.");
                                 }
@@ -962,6 +969,18 @@ internal static partial class Program
                         }
                     }
 
+                    if (hidInputOnly && disconnected.Task.IsCompleted)
+                    {
+                        var remoteEnded = await disconnected.Task;
+                        linkEnded = true;
+                        var outcome = A2854HidCaptureAssessment.Evaluate(
+                            hidButtonFrames ?? 0, hidTouchFrames ?? 0, remoteEnded.Reason);
+                        Console.WriteLine($"HID capture outcome={outcome}; connection ended by peer before host cleanup.");
+                        Console.WriteLine("CCCD disable and local host Disconnect (0x16) NOT verified: " +
+                            "the peer had already terminated this LE connection.");
+                        return outcome == A2854HidCaptureOutcome.BothReportsCaptured ? 0 : 1;
+                    }
+
                     stage = "HCI Disconnect / Disconnection Complete";
                     await central.DisconnectAsync(handle);
                     Console.WriteLine("HCI Disconnect Command Status OK.");
@@ -977,6 +996,13 @@ internal static partial class Program
                         : gattInspectOnly
                             ? "Encrypted reconnect and GATT metadata discovery completed without ATT writes."
                             : "Encrypted reconnect-only completed; no GATT or SMP traffic was sent.");
+                    if (hidInputOnly)
+                    {
+                        var outcome = A2854HidCaptureAssessment.Evaluate(
+                            hidButtonFrames ?? 0, hidTouchFrames ?? 0, remoteDisconnectReason: null);
+                        Console.WriteLine($"HID capture outcome={outcome}; CCCD cleanup and local host 0x16 observed.");
+                        return outcome == A2854HidCaptureOutcome.BothReportsCaptured ? 0 : 1;
+                    }
                     return 0;
                 }
                 catch (OperationCanceledException)
