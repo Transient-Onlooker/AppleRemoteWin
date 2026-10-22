@@ -44,3 +44,10 @@ Output/
 
 # Signing keys (the dongle firmware's lives in AppleRemoteWin-Dongle): never commit them
 *.pem
+
+# A2854 pairing secrets: protected ciphertext is stored outside the repo in
+# LocalApplicationData. Defense in depth if someone copies it into this tree.
+**/bond.v1.dpapi
+**/bond.v1.dpapi.*.tmp
+**/siri-remote-keys.json
+**/bonds.json
