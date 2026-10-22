@@ -159,8 +159,10 @@ public sealed record SmpPairingResponse(
 
     public static SmpPairingResponse Parse(ReadOnlySpan<byte> pdu)
     {
-        if (pdu.Length < 7)
-            throw new ArgumentException($"Pairing Response PDU too short ({pdu.Length} < 7).", nameof(pdu));
+        // SMP Pairing Response is a fixed seven-byte PDU. Reject both
+        // truncated and overlong frames instead of silently ignoring a suffix.
+        if (pdu.Length != 7)
+            throw new ArgumentException($"Pairing Response PDU has invalid length ({pdu.Length}, expected 7).", nameof(pdu));
         if (pdu[0] != SmpOpcode.PairingResponse)
             throw new ArgumentException($"Unexpected opcode 0x{pdu[0]:X2} (expected 0x02).", nameof(pdu));
 
