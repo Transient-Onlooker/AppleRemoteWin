@@ -24,6 +24,29 @@ public static class HciOpcode
     public const ushort LeExtendedCreateConnection = 0x2043;
 }
 
+/// <summary>
+/// Bluetooth Core Controller Error Codes (Vol 1, Part F).
+/// A successful Disconnection Complete event only confirms the link is gone:
+/// its Reason still distinguishes a host-requested disconnect from radio/link failure.
+/// </summary>
+public static class HciDisconnectReason
+{
+    public const byte LocalHost = 0x16;
+    public const byte FailedToEstablish = 0x3E;
+
+    public static bool IsExpectedHostDisconnect(byte reason) => reason == LocalHost;
+
+    public static string Describe(byte reason) => reason switch
+    {
+        LocalHost => "Connection Terminated by Local Host",
+        FailedToEstablish => "Connection Failed to be Established / Synchronization Timeout",
+        0x08 => "Connection Timeout",
+        0x13 => "Remote User Terminated Connection",
+        0x22 => "LL Response Timeout",
+        _ => "Other controller-reported reason",
+    };
+}
+
 /// <summary>An HCI command rejected by the controller (non-zero status).</summary>
 public sealed class HciException(ushort opcode, byte status)
     : Exception($"HCI command 0x{opcode:X4} rejected by the controller (status 0x{status:X2}).")
