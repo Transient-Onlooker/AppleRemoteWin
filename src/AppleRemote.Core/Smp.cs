@@ -38,6 +38,21 @@ public static class SmpCrypto
     static byte[] Xor(byte[] a, byte[] b) => a.Zip(b, (x, y) => (byte)(x ^ y)).ToArray();
 }
 
+/// <summary>Non-secret progress stages for a single bounded SMP legacy Just Works pairing.</summary>
+public enum SmpPairingStage
+{
+    PairingRequest,
+    PairingResponseValidated,
+    PairingConfirm,
+    PairingRandom,
+    PeerConfirmVerified,
+    StartEncryption,
+    LinkEncrypted,
+    ReceiveEncryptionInformation,
+    ReceiveMasterIdentification,
+    Complete,
+}
+
 /// <summary>
 /// LE "legacy" "Just Works" pairing (no display or keyboard, like the remote, Bluetooth 4.0), initiator side:
 /// confirm exchange, encryption with the short-term key, then reception of the LTK distributed by the remote.
@@ -49,66 +64,149 @@ public static class SmpPairing
         EncryptionInformation = 0x06, MasterIdentification = 0x07;
     const byte NoInputNoOutput = 0x03, Bonding = 0x01, EncKey = 0x01;
 
-    public static async Task<BondKeys> PairAsync(LeCentral central, ushort handle, byte[] localAddress, byte[] remoteAddress,
-        byte remoteAddressType = 0)
+    /// <summary>
+    /// Performs a single legacy Just Works pairing. This method NEVER stores bonds,
+    /// explores GATT, or prints keys. Callers own the returned key arrays and must
+    /// decide how to protect/dispose of them. A caller token bounds the entire run.
+    /// </summary>
+    public static async Task<BondKeys> PairAsync(LeCentral central, ushort handle,
+        byte[] localAddress, byte[] remoteAddress, byte remoteAddressType = 0,
+        CancellationToken cancellationToken = default,
+        Action<SmpPairingStage>? onStage = null)
     {
         if (remoteAddressType is not (0 or 1)) throw new ArgumentOutOfRangeException(nameof(remoteAddressType));
-        var inbox = Channel.CreateUnbounded<byte[]>();
-        void OnData(ushort h, ushort cid, byte[] pdu) { if (h == handle && cid == LeCentral.CidSmp && pdu.Length > 0) inbox.Writer.TryWrite(pdu); }
-        void Send(byte[] pdu) => central.SendL2cap(handle, LeCentral.CidSmp, pdu);
+        if (localAddress.Length != 6 || remoteAddress.Length != 6)
+            throw new ArgumentException("Local and peer BLE addresses must each be 6 bytes.");
+        cancellationToken.ThrowIfCancellationRequested();
+
+        var inbox = Channel.CreateUnbounded<byte[]>(new UnboundedChannelOptions { SingleReader = true, SingleWriter = false });
+        void OnData(ushort h, ushort cid, byte[] pdu)
+        {
+            if (h == handle && cid == LeCentral.CidSmp && pdu.Length > 0)
+                inbox.Writer.TryWrite(pdu);
+        }
+        void Send(byte[] pdu)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            central.SendL2cap(handle, LeCentral.CidSmp, pdu);
+        }
+        void Stage(SmpPairingStage stage) => onStage?.Invoke(stage);
 
         async Task<byte[]> Expect(byte opcode, int length)
         {
-            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));   // SMP timeout from the spec
-            while (true)
+            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            timeout.CancelAfter(TimeSpan.FromSeconds(30));
+            try
             {
-                byte[] pdu;
-                try { pdu = await inbox.Reader.ReadAsync(timeout.Token); }
-                catch (OperationCanceledException)
+                while (true)
                 {
-                    throw new SmpException("The remote isn't answering the pairing: put it in pairing mode (Menu + Volume + ~5 s).");
+                    byte[] pdu = await inbox.Reader.ReadAsync(timeout.Token);
+                    if (pdu[0] == PairingFailed)
+                        throw new SmpException($"Pairing rejected by the remote (reason 0x{(pdu.Length > 1 ? pdu[1] : 0):X2}).");
+                    if (pdu[0] == opcode)
+                    {
+                        if (pdu.Length != length)
+                            throw new SmpException($"Malformed SMP opcode 0x{opcode:X2} length ({pdu.Length}, expected {length}).");
+                        return pdu;
+                    }
+                    // Unsolicited Security Request and unrelated PDUs are ignored.
                 }
-                if (pdu[0] == PairingFailed) throw new SmpException($"Pairing rejected by the remote (reason 0x{(pdu.Length > 1 ? pdu[1] : 0):X2}).");
-                if (pdu[0] == opcode && pdu.Length >= length) return pdu;
-                // Other messages (Security Request, unrequested keys…): ignored.
+            }
+            catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+            {
+                throw new SmpException($"Timed out waiting for SMP opcode 0x{opcode:X2}.");
             }
         }
 
+        byte[]? tk = null, mrand = null, srand = null, sconfirm = null, stk = null;
         central.L2capData += OnData;
         try
         {
-            byte[] preq = [PairingRequest, NoInputNoOutput, 0x00, Bonding, 16, 0x00, EncKey];
+            // Previously verified physical A2854 request: NoInputNoOutput,
+            // Bonding=1, SC=0, 16-byte key, receive EncKey from peripheral.
+            byte[] preq = SmpPairingRequest.Default.ToBytes();
+            Stage(SmpPairingStage.PairingRequest);
             Send(preq);
-            byte[] pres = (await Expect(PairingResponse, 7))[..7];
-            if ((pres[6] & EncKey) == 0) throw new SmpException("The remote distributes no key: pairing without bonding is impossible.");
+            byte[] pres = await Expect(PairingResponse, 7);
+            ValidateLegacyJustWorksResponse(pres);
+            Stage(SmpPairingStage.PairingResponseValidated);
 
-            byte[] tk = new byte[16];   // Just Works: all-zero temporary key
-            byte[] mrand = RandomNumberGenerator.GetBytes(16);
-            byte[] Confirm(byte[] rand) => SmpCrypto.C1(tk, rand, preq, pres, 0, localAddress, remoteAddressType, remoteAddress);
+            tk = new byte[16]; // Legacy Just Works: zero temporary key.
+            mrand = RandomNumberGenerator.GetBytes(16);
+            byte[] Confirm(byte[] random) => SmpCrypto.C1(tk, random, preq, pres, 0,
+                localAddress, remoteAddressType, remoteAddress);
 
+            Stage(SmpPairingStage.PairingConfirm);
             Send([PairingConfirm, .. Confirm(mrand)]);
-            byte[] sconfirm = (await Expect(PairingConfirm, 17))[1..17];
+            byte[] remoteConfirm = await Expect(PairingConfirm, 17);
+            sconfirm = remoteConfirm[1..17];
+            Stage(SmpPairingStage.PairingRandom);
             Send([PairingRandom, .. mrand]);
-            byte[] srand = (await Expect(PairingRandom, 17))[1..17];
-            if (!Confirm(srand).SequenceEqual(sconfirm))
+            byte[] remoteRandom = await Expect(PairingRandom, 17);
+            srand = remoteRandom[1..17];
+            byte[] actual = Confirm(srand);
+            try
             {
-                Send([PairingFailed, 0x04]);   // Confirm Value Failed
-                throw new SmpException("The remote's confirm value is incorrect.");
+                if (!CryptographicOperations.FixedTimeEquals(actual, sconfirm))
+                {
+                    Send([PairingFailed, 0x04]); // Confirm Value Failed
+                    throw new SmpException("Remote confirm did not match (legacy Just Works).");
+                }
             }
+            finally
+            {
+                CryptographicOperations.ZeroMemory(actual);
+            }
+            Stage(SmpPairingStage.PeerConfirmVerified);
 
-            // Short-term key reduced to the negotiated size (most significant bytes zeroed), then encryption with it.
-            byte[] stk = SmpCrypto.S1(tk, srand, mrand);
-            int keySize = Math.Min(16, (int)pres[4]);
-            Array.Clear(stk, keySize, 16 - keySize);
-            await central.EncryptAsync(handle, new BondKeys(stk, 0, new byte[8]));
+            stk = SmpCrypto.S1(tk, srand, mrand);
+            int keySize = pres[4]; // Validated to 7..16, physical A2854 advertises 16.
+            CryptographicOperations.ZeroMemory(stk.AsSpan(keySize));
+            Stage(SmpPairingStage.StartEncryption);
+            await central.EncryptAsync(handle, new BondKeys(stk, 0, new byte[8]), cancellationToken);
+            Stage(SmpPairingStage.LinkEncrypted);
 
-            byte[] ltk = (await Expect(EncryptionInformation, 17))[1..17];
+            Stage(SmpPairingStage.ReceiveEncryptionInformation);
+            byte[] ltkMessage = await Expect(EncryptionInformation, 17);
+            Stage(SmpPairingStage.ReceiveMasterIdentification);
             byte[] master = await Expect(MasterIdentification, 11);
-            return new BondKeys(ltk, (ushort)(master[1] | master[2] << 8), master[3..11]);
+
+            // Return fresh in-memory key arrays: no BondStore, files, JSON or logging.
+            byte[] ltk = ltkMessage[1..17];
+            byte[] rand = master[3..11];
+            ushort ediv = (ushort)(master[1] | master[2] << 8);
+            Stage(SmpPairingStage.Complete);
+            return new BondKeys(ltk, ediv, rand);
         }
         finally
         {
             central.L2capData -= OnData;
+            if (tk is not null) CryptographicOperations.ZeroMemory(tk);
+            if (mrand is not null) CryptographicOperations.ZeroMemory(mrand);
+            if (srand is not null) CryptographicOperations.ZeroMemory(srand);
+            if (sconfirm is not null) CryptographicOperations.ZeroMemory(sconfirm);
+            if (stk is not null) CryptographicOperations.ZeroMemory(stk);
+            inbox.Writer.TryComplete();
+            while (inbox.Reader.TryRead(out byte[]? pending))
+                CryptographicOperations.ZeroMemory(pending);
         }
+    }
+
+    /// <summary>
+    /// Refuse unexpected security requirements instead of silently proceeding
+    /// with an unauthenticated legacy pairing under incompatible feature flags.
+    /// </summary>
+    public static void ValidateLegacyJustWorksResponse(ReadOnlySpan<byte> pdu)
+    {
+        SmpPairingResponse response = SmpPairingResponse.Parse(pdu);
+        if (response.IoCapability != SmpIoCapability.NoInputNoOutput || response.OobDataFlag != 0)
+            throw new SmpException("Legacy Just Works requires peer NoInputNoOutput and no OOB data.");
+        if (response.MitmRequested || response.SecureConnectionsRequested)
+            throw new SmpException("Peer requested MITM or LE Secure Connections; refusing legacy Just Works.");
+        if (!response.BondingRequested || !response.HasEncKey)
+            throw new SmpException("Peer did not negotiate bonding and responder encryption-key distribution.");
+        if (response.InitiatorKeyDistribution != 0 ||
+            response.ResponderKeyDistribution != SmpKeyDistribution.EncKey)
+            throw new SmpException("Unexpected SMP key-distribution requirements; no silent fallback.");
     }
 }
