@@ -65,6 +65,53 @@ public sealed class A2854SessionFaultGateTests
     }
 
     [Fact]
+    public async Task Dispose_waits_for_an_already_started_failure_callback_before_new_session()
+    {
+        using var entered = new ManualResetEventSlim();
+        using var allowOldRelease = new ManualResetEventSlim();
+        int oldReleases = 0, newReleases = 0;
+        var previous = new A2854SessionFaultGate(CancellationToken.None, () =>
+        {
+            entered.Set();
+            if (!allowOldRelease.Wait(TimeSpan.FromSeconds(5)))
+                throw new TimeoutException("Paused simulated WinUSB reader did not resume.");
+            Interlocked.Increment(ref oldReleases);
+        });
+
+        Task<bool> failing = Task.Run(previous.Fail);
+        Assert.True(entered.Wait(TimeSpan.FromSeconds(5)));
+        Task disposing = Task.Run(previous.Dispose);
+        try
+        {
+            // The old implementation marked itself disposed while the old
+            // callback was paused between CAS and input revocation.
+            Assert.False(disposing.IsCompleted);
+        }
+        finally { allowOldRelease.Set(); }
+
+        Assert.True(await failing.WaitAsync(TimeSpan.FromSeconds(5)));
+        await disposing.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Equal(1, oldReleases);
+
+        using var next = new A2854SessionFaultGate(CancellationToken.None,
+            () => Interlocked.Increment(ref newReleases));
+        Assert.False(previous.Fail());
+        Assert.Equal(0, newReleases);
+        Assert.True(next.Fail());
+        Assert.Equal(1, newReleases);
+    }
+
+    [Fact]
+    public void Dispose_is_idempotent_after_failure()
+    {
+        var gate = new A2854SessionFaultGate(CancellationToken.None, () => { });
+        Assert.True(gate.Fail());
+        gate.Dispose();
+        gate.Dispose();
+        Assert.False(gate.Fail());
+    }
+
+    [Fact]
     public void User_Stop_also_cancels_linked_controller_task()
     {
         using var stop = new CancellationTokenSource();
