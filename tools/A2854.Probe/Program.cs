@@ -980,9 +980,9 @@ internal static partial class Program
                         linkEnded = true;
                         var outcome = A2854HidCaptureAssessment.Evaluate(
                             hidButtonFrames ?? 0, hidTouchFrames ?? 0, remoteEnded.Reason);
-                        Console.WriteLine($"HID capture outcome={outcome}; connection ended by peer before host cleanup.");
-                        Console.WriteLine("CCCD disable and local host Disconnect (0x16) NOT verified: " +
-                            "the peer had already terminated this LE connection.");
+                        Console.WriteLine($"HID capture outcome={outcome}; connection ended by peer before host Disconnect.");
+                        Console.WriteLine($"Both CCCD disable writes verified={hidCccdCleanupVerified}. " +
+                            "Local host Disconnect 0x16 NOT verified: peer had already ended this LE connection.");
                         return outcome == A2854HidCaptureOutcome.BothReportsCaptured ? 0 : 1;
                     }
 
