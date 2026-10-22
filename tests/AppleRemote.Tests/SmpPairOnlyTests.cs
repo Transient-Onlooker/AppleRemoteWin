@@ -140,4 +140,47 @@ public sealed class SmpPairOnlyTests
             Assert.Contains(sentAcl, acl => acl[8] == SmpOpcode.PairingFailed);
     }
 
+    static async Task<(FakeRemote Remote, LeCentral Central, LePeer Peer, ushort Handle)> ConnectFakeAsync(FakeRemote remote)
+    {
+        var central = new LeCentral(remote.Hci);
+        await central.InitializeAsync();
+        LePeer peer = await central.ScanPeerAsync(
+            SiriRemoteBle.IsA2854PairingAdvertisement, allowRandom: true);
+        ushort handle = await central.ConnectAsync(peer.Address, peerAddressType: peer.AddressType);
+        return (remote, central, peer, handle);
+    }
+
+    [Fact]
+    public async Task Encryption_rejection_fails_before_remote_bond_keys_are_available()
+    {
+        var (remote, central, peer, handle) = await ConnectFakeAsync(new FakeRemote(rejectEncryption: true));
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        var error = await Assert.ThrowsAsync<HciException>(() => SmpPairing.PairAsync(
+            central, handle, central.LocalAddress, BdAddr.Parse(peer.Address), peer.AddressType,
+            cts.Token, requireObservedA2854Profile: true));
+        Assert.Equal(HciOpcode.LeEnableEncryption, error.Opcode);
+        Assert.Equal((byte)0x06, error.Status);
+        Assert.Empty(remote.Writes); // No GATT/HID writes.
+    }
+
+    [Fact]
+    public async Task Missing_LTK_after_STK_encryption_can_be_cancelled_without_persistence()
+    {
+        var (remote, central, peer, handle) = await ConnectFakeAsync(new FakeRemote(suppressBondKeys: true));
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        var stages = new List<SmpPairingStage>();
+        Task<BondKeys> operation = SmpPairing.PairAsync(
+            central, handle, central.LocalAddress, BdAddr.Parse(peer.Address), peer.AddressType,
+            cts.Token, stage =>
+            {
+                stages.Add(stage);
+                if (stage == SmpPairingStage.ReceiveEncryptionInformation) cts.Cancel();
+            }, requireObservedA2854Profile: true);
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => operation);
+        Assert.Contains(SmpPairingStage.LinkEncrypted, stages);
+        Assert.DoesNotContain(SmpPairingStage.Complete, stages);
+        Assert.Empty(remote.Writes);
+    }
+
 }
