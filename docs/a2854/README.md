@@ -15,6 +15,7 @@
 | [Hardware validation](HARDWARE_VALIDATION.md) | Safe experimental order / stop conditions |
 | [Purchased BR8652A12 dongle](BARROT_BR8652A12.md) | Actual Barrot WinUSB/HCI/advertisement milestones, signing/rollback notes |
 | [2026-10-22 protocol research](RESEARCH_2026-10-22.md) | Bluetooth SIG/Apple/BlueZ research, connection-completion fix, pairing risks and next hardware gates |
+| [2026-10-22 live LE link probe](LINK_PROBE_2026-10-22.md) | Physical A2854 LE Connection Complete success; disconnection reason 0x3E requires follow-up |
 | [Consolidation record](CONSOLIDATION.md) | Source commit, copied-file SHA checks, licenses and Git history |
 
 ## Latest verified status
@@ -28,21 +29,21 @@
 | Windows C# A2854 decoder and diagnostic program | **Implemented**; most recent reported agent run at `1375d4d`: **103/103 Release tests passed**, Probe Release build succeeded |
 | Current privacy-address implementation | **Previously built and scanned on real Barrot WinUSB hardware**; new connection-mask and strong-pairing-match fixes await fresh local build |
 | ThinkPad T490s built-in Bluetooth | Owner confirmed **Intel Wireless-AC 9560**; A2854 test **not conducted** |
-| **Purchased Axxen USB dongle** | **WinUSB `oem86.inf` Started; physical HCI Reset/Read Local Version OK (`0x21`).** Fresh 30-second scan: **595 events, 95 strong A2854-format packets** matching Apple 0x004C + HID 0x1812 + manufacturer header. **LE connection/pairing/GATT/Windows input remain unverified.** |
+| **Purchased Axxen USB dongle** | **WinUSB `oem86.inf` Started; physical HCI Reset/Read Local Version OK (`0x21`).** Scanning produced 95 strong A2854-format packets and a subsequent real A2854 **LE Connection Complete OK**. Disconnection event carried **0x3E (abnormal link failure/sync timeout)**, so clean local termination/stability remains unverified. **SMP/GATT/native inputs not yet tested.** |
 | Working Windows mouse / media remote | **Not yet delivered** |
 
 ## Latest validation checkpoint (2026-10-22)
 
-The owner's Windows agent verified native Barrot USB HCI and a strong A2854-format advertisement fingerprint. **101/101** tests passed at the manufacturer-classifier milestone; after link-only preparation at **\`1375d4d\`**, a separate **103/103 Release run** and probe build passed. The latest \`--connect-only\` test timed out because the owner was **away and the remote did not advertise**. **No Create Connection command was sent**; this result says nothing about real link success/failure.
+The user/local Windows agent reported **109/109 Release tests passed**, probe and solution build success at `9c98435`. On actual hardware, A2854 entered pairing advertisement mode and Barrot `33FA:0001` produced **`LE Connection Complete OK`**, the first measured Windows-native physical BLE link completion. The diagnostic subsequently logged **`Disconnection Complete OK (reason=0x3E)`**. Bluetooth SIG defines `0x3E` as **Connection Failed to be Established / Synchronization Timeout**, while an ordinary local host-initiated Disconnect should yield `0x16`; therefore the old probe's "OK" message **must not be read as proven clean local termination**. [Physical session and standards evidence](LINK_PROBE_2026-10-22.md).
 
-Subsequent ChatGPT commits, documented in [the standards-backed research note](RESEARCH_2026-10-22.md), enable LE **Enhanced Connection Complete (bit 9)** for controllers with extended advertising and require strong A2854 manufacturer-format matching in the future bonding flow. **These post-\`1375d4d\` changes are not yet compiled or hardware validated.**
+After that agent run, source-only fixes in GitHub added a **1500 ms observation period** after link completion, correlated disconnect command/event stages, status and reason interpretation, and tests for `0x16` versus `0x3E`. **These edits have not been locally built or exercised on hardware.** The local agent also reported a backed-up uncommitted `Program.cs` patch. Inspect that patch and protect any local work **before** pulling the new branch.
 
 ## What to do next
 
-1. Until the user has the physical remote, preserve the working Barrot WinUSB \`oem86.inf\` binding and internal Intel \`oem116.inf\`; do not run live pairing or mutate trust stores.
-2. Pull latest \`feat/a2854-support\`; run \`dotnet test tests/AppleRemote.Tests -c Release\` and \`dotnet build tools/A2854.Probe/A2854.Probe.csproj -c Release\`. The local sandbox may require a writable temporary working copy for \`obj\` output. Only report newly completed tests as passing.
-3. Once the remote is available, start \`--connect-only --usb 33FA:0001 --seconds 30\`, then wake the remote **after the scan starts**. Record scan, LE Create Connection, connection-completion, and disconnection stages separately. **No SMP/GATT/bond writes** during this gate.
-4. After a clean link-only result and **separate approval for bonding**, investigate LE SMP/IRK privacy, encryption, GATT \`0x1812/0x2A4D/0x2908\`, unlock \`0xF0 <- 0xAF\`, then native \`0xFB\`/\`0xFC\` input. Leave microphone \`0xFA\` excluded.
-5. After all experiments, test safe restoration of the external vendor driver and remove only the experiment's recorded certificate thumbprint. The cert expires **2026-11-21** but does not disappear automatically.
+1. Preserve any local `Program.cs` patch and local report data. Compare it to the new remote source; do not overwrite uncommitted files or blindly apply a saved diff.
+2. Build and test the latest source in a writable Windows environment. Only report fresh tests after execution. Confirm the external Barrot remains WinUSB / Started and internal Intel remains BTHUSB / Started without changing them.
+3. With the A2854 present, rerun `--connect-only --usb 33FA:0001 --seconds 30`. Wake it after the scan begins. Observe **whether 0x3E occurs during the 1500 ms idle period, before the host Disconnect, or afterward**. Exact command-status and event chronology now matter more than adding features.
+4. Remain **SMP/GATT/bond-free** until the anomaly is understood. Do not proceed to experimental pairing based solely on a Connection Complete event.
+5. If repeated tests show stable links and clean local disconnect, proceed to a separately authorized SMP/encryption diagnostic before GATT report reference and button/touch tests.
 
 Past reports: [Oct 21 handoff](../HANDOFF_2026-10-21_A2854.md), [chronological engineering status](../A2854_PORT_STATUS.md), [Oct 18 historical handoff](../HANDOFF_2026-10-18_A2854.md).
