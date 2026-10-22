@@ -1,5 +1,7 @@
 # HID capture assessment and short cleanup trial preparation
 
+> **Subsequent hardware result:** after separate owner approval, the verified `a40c25c` Release binary completed the eight-second trial: **33 FB / 360 FC frames**, zero malformed, both CCCD disable responses, HCI Disconnect Command Status OK, Disconnection Complete **0x16**, exit **0**. See [actual sanitized output](HID_INPUT_HARDWARE_2026-10-23.md#third-approved-trial-eight-second-capture-and-normal-cleanup). The software-only preparation record below describes the earlier validation phase; its pending-test statements are historical.
+
 Software-only follow-up on 2026-10-23, starting from clean `feat/a2854-support` HEAD `a6f5d18539b3c17694baf6f4c83fc1f7b42b3a03`, fast-forwarded from the previous local documentation checkpoint. No real connection, GATT write, pairing or input subscription was run during this validation.
 
 The earlier [physical trial](HID_INPUT_HARDWARE_2026-10-23.md) still stands as **59 FB button frames, 720 FC touch frames, zero malformed frames**, followed by peer disconnect `13` and historical CLI exit 1. This follow-up changes software classification; it does not retrospectively change that recorded exit status or claim a new hardware success.

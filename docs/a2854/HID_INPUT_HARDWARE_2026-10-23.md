@@ -1,6 +1,36 @@
-# A2854 HID input trials: real button/touch capture, teardown still incomplete
+# A2854 HID input trials: real button/touch capture and normal teardown verified
 
-**Latest result:** a separately approved retry received **59 button FB frames and 720 touch FC frames**, with **zero malformed frames**. The remote ended the link during observation with reason **13**, so normal host-driven CCCD cleanup and disconnect reason **16** were not verified. Native input capture succeeded; the complete diagnostic still exited **1**. This supersedes the first connection-timeout attempt below without erasing it.
+**Latest result:** the separately approved **8-second trial** at `a40c25cc93f8cda6b879cdcc4ee0fb0b34579303` received **33 button FB frames and 360 touch FC frames**, with **zero malformed frames**. Both CCCD disable Write Responses, successful HCI Disconnect Command Status and Disconnection Complete reason **16** were verified. Process exit: **0**. Earlier attempts below retain their actual results; this bounded success does not establish long-term stability or Windows input synthesis.
+
+## Third approved trial: eight-second capture and normal cleanup
+
+On 2026-10-23 (Asia/Seoul), after the software validation described in [capture assessment](HID_CAPTURE_ASSESSMENT_2026-10-23.md), the owner separately approved one short trial and was instructed to use ordinary buttons and the touchpad, without entering pairing mode. The clean tree and verified Release binary were at `a40c25c` (218/218 tests, solution and Probe builds with zero warnings/errors). This command ran once:
+
+```powershell
+dotnet run -c Release --no-build --project tools/A2854.Probe/A2854.Probe.csproj -- --usb 33FA:0001 --hid-input-only --confirm-hid-writes --seconds 8
+```
+
+Selected actual output, excluding repetitive decoded inputs and all raw reports:
+
+```text
+Controller initialized. Extended LE commands: True.
+LE Connection Complete OK; stored peer address redacted.
+Encrypted LE reconnection confirmed by HCI Encryption Change.
+HID report map verified: 0xFB=0x0039, 0xFC=0x003D, 0xF0=0x004D.
+Discovered input CCCDs: buttons=0x003A, touch=0x003E.
+Subscribed ONLY to button 0xFB and touch 0xFC; F0 feature unlock sent.
+Observe remote buttons/touch for up to 8s. Microphone excluded.
+CCCD disable ATT Write Responses: buttons=True, touch=True.
+HID summary: button_frames=33, touch_frames=360, malformed_buttons=0, malformed_touches=0, ignored_handles=0.
+HCI Disconnect Command Status OK.
+Disconnection Complete reason=0x16 (Connection Terminated by Local Host).
+HID capture outcome=BothReportsCaptured.
+Both CCCD disable writes verified=True. Local host Disconnect 0x16 verified=True.
+```
+
+Button press/release and single-finger touch/hover decoding were observed. Each CCCD disable was independently acknowledged before host disconnect; this is actual cleanup evidence, not an inference from the exit code. The configured observation window was eight seconds, not a measured total connection duration. No per-event timing was recorded sufficient to quantify teardown latency.
+
+Only the existing protected bond and external Barrot `33FA:0001` were used. No SMP pairing, bond deletion/overwrite, microphone collection, Windows input synthesis, driver/certificate changes or Intel AX200 operations were performed. No automatic retry followed. This documentation-only result preserves the previously tested source; any further HID-write trial requires separate approval.
 
 ## First approved attempt: connection timeout
 
