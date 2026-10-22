@@ -713,6 +713,169 @@ internal static partial class Program
             }
         }
 
+        // Encrypted reconnect and read-only GATT inspection, using only a bond
+        // protected for the current Windows user (never plaintext BondStore).
+        // They NEVER issue SMP Pairing Request or overwrite an existing bond.
+        if (reconnectOnly || gattInspectOnly)
+        {
+            using (usb)
+            using (var stop = new CancellationTokenSource())
+            {
+                ConsoleCancelEventHandler onCancel = (_, e) => { e.Cancel = true; stop.Cancel(); };
+                Console.CancelKeyPress += onCancel;
+                bool attempted = false, linkEnded = false;
+                ushort? connectedHandle = null;
+                GattClient? gatt = null;
+                (string Address, byte AddressType, BondKeys Keys)? stored = null;
+                var disconnected = new TaskCompletionSource<(ushort Handle, byte Reason)>(
+                    TaskCreationOptions.RunContinuationsAsynchronously);
+                string stage = "protected bond load";
+                try
+                {
+                    stored = new ProtectedBondStore(ProtectedBondStore.DefaultPath).Load();
+                    if (stored is null)
+                    {
+                        Console.Error.WriteLine("No protected A2854 bond found for this Windows user.");
+                        Console.Error.WriteLine("Do not re-pair automatically. A separately approved --smp-pair-only --save-bond is required.");
+                        return 2;
+                    }
+                    if (stored.Value.AddressType != 0)
+                    {
+                        Console.Error.WriteLine("Bond uses a random BLE address; identity resolution is not implemented.");
+                        Console.Error.WriteLine("Refusing speculative reconnection to a possibly rotated address.");
+                        return 2;
+                    }
+
+                    var central = new LeCentral(usb.Host);
+                    central.Disconnected += (observedHandle, reason) =>
+                    {
+                        if (connectedHandle == observedHandle)
+                            disconnected.TrySetResult((observedHandle, reason));
+                    };
+                    Console.WriteLine(gattInspectOnly
+                        ? "A2854 protected-bond reconnect + READ-ONLY GATT inspection."
+                        : "A2854 protected-bond encrypted reconnect-only diagnostic.");
+                    Console.WriteLine("No pairing request, no key persistence changes, no feature writes, no HID input subscriptions.");
+                    Console.WriteLine("Wake the remote with an ordinary button press if needed (do NOT enter pairing mode).");
+
+                    stage = "controller initialization";
+                    await central.InitializeAsync();
+                    Console.WriteLine($"Controller initialized. Extended LE commands: {central.Extended}.");
+                    using var connectionWindow = CancellationTokenSource.CreateLinkedTokenSource(stop.Token);
+                    connectionWindow.CancelAfter(TimeSpan.FromSeconds(15));
+
+                    stage = "LE Create Connection from protected public address";
+                    attempted = true;
+                    ushort handle = await central.ConnectAsync(
+                        stored.Value.Address, connectionWindow.Token, stored.Value.AddressType);
+                    connectedHandle = handle;
+                    Console.WriteLine("LE Connection Complete OK; stored peer address redacted.");
+
+                    stage = "LE Enable Encryption with protected LTK";
+                    using var encryptionWindow = CancellationTokenSource.CreateLinkedTokenSource(stop.Token);
+                    encryptionWindow.CancelAfter(TimeSpan.FromSeconds(12));
+                    await central.EncryptAsync(handle, stored.Value.Keys, encryptionWindow.Token);
+                    Console.WriteLine("Encrypted LE reconnection confirmed by HCI Encryption Change.");
+
+                    if (gattInspectOnly)
+                    {
+                        stage = "read-only HID GATT discovery";
+                        gatt = new GattClient(central, handle);
+                        List<GattService> services = await gatt.DiscoverPrimaryServicesAsync();
+                        GattService? hid = services.FirstOrDefault(service => GattClient.Is(service.Uuid, 0x1812));
+                        if (hid is null)
+                            throw new InvalidDataException("Encrypted GATT discovery did not find HID service 0x1812.");
+                        Console.WriteLine("GATT HID service 0x1812 present.");
+                        List<GattCharacteristic> chars = await gatt.DiscoverCharacteristicsAsync(hid);
+                        int seenReports = 0, buttons = 0, touch = 0, unlock = 0;
+                        for (int i = 0; i < chars.Count; i++)
+                        {
+                            var c = chars[i];
+                            ushort end = i + 1 < chars.Count ? (ushort)(chars[i + 1].Declaration - 1) : hid.End;
+                            if (!GattClient.Is(c.Uuid, 0x2A4D) || c.Value >= end) continue;
+                            var descriptors = await gatt.DiscoverDescriptorsAsync((ushort)(c.Value + 1), end);
+                            var reference = descriptors.FirstOrDefault(d => GattClient.Is(d.Uuid, 0x2908));
+                            if (reference.Uuid is null) continue;
+                            byte[] idAndType = await gatt.ReadAsync(reference.Handle);
+                            if (idAndType.Length != 2)
+                                throw new InvalidDataException("Unexpected HID Report Reference length.");
+                            seenReports++;
+                            if (idAndType[0] == 0xFB && idAndType[1] == 0x01)
+                            {
+                                buttons++;
+                                Console.WriteLine($"Read-only GATT: button report 0xFB value handle=0x{c.Value:X4}.");
+                            }
+                            else if (idAndType[0] == 0xFC && idAndType[1] == 0x01)
+                            {
+                                touch++;
+                                Console.WriteLine($"Read-only GATT: touch report 0xFC value handle=0x{c.Value:X4}.");
+                            }
+                            else if (idAndType[0] == 0xF0 && idAndType[1] == 0x03)
+                            {
+                                unlock++;
+                                Console.WriteLine($"Read-only GATT: feature report 0xF0 value handle=0x{c.Value:X4} (NOT written).");
+                            }
+                        }
+                        Console.WriteLine($"GATT report-reference summary: total={seenReports}, buttons={buttons}, touch={touch}, featureF0={unlock}.");
+                        Console.WriteLine("No notifications, feature unlock, microphone reads or HID commands were issued.");
+                    }
+
+                    stage = "HCI Disconnect / Disconnection Complete";
+                    await central.DisconnectAsync(handle);
+                    Console.WriteLine("HCI Disconnect Command Status OK.");
+                    var ended = await disconnected.Task.WaitAsync(TimeSpan.FromSeconds(5), stop.Token);
+                    if (ended.Handle != handle)
+                        throw new InvalidDataException("Unmatched Disconnection Complete handle.");
+                    linkEnded = true;
+                    Console.WriteLine($"Disconnection Complete reason=0x{ended.Reason:X2} ({HciDisconnectReason.Describe(ended.Reason)}).");
+                    if (!HciDisconnectReason.IsExpectedHostDisconnect(ended.Reason))
+                        throw new InvalidDataException("Encrypted link ended with unexpected reason.");
+                    Console.WriteLine(gattInspectOnly
+                        ? "Encrypted reconnect and GATT metadata discovery completed without ATT writes."
+                        : "Encrypted reconnect-only completed; no GATT or SMP traffic was sent.");
+                    return 0;
+                }
+                catch (OperationCanceledException)
+                {
+                    Console.Error.WriteLine($"Protected-bond diagnostic cancelled/timed out at {stage}.");
+                    return 1;
+                }
+                catch (Exception e)
+                {
+                    // Do not log decrypted keys or captured raw protocol frames.
+                    Console.Error.WriteLine($"Protected-bond diagnostic FAILED at {stage}: {e.GetType().Name}: " +
+                        BluetoothAddress().Replace(e.Message, "[redacted]"));
+                    return 1;
+                }
+                finally
+                {
+                    gatt?.Detach();
+                    if (stored is { } bond)
+                    {
+                        CryptographicOperations.ZeroMemory(bond.Keys.Ltk);
+                        CryptographicOperations.ZeroMemory(bond.Keys.Rand);
+                    }
+                    if (!linkEnded && connectedHandle is ushort h && disconnected.Task.IsCompleted &&
+                        disconnected.Task.Result.Handle == h)
+                        linkEnded = true;
+                    if (attempted && !linkEnded)
+                    {
+                        try
+                        {
+                            // External Barrot HCI controller only. Never touch built-in Intel.
+                            await usb.Host.CommandAsync(HciOpcode.Reset);
+                            Console.WriteLine("Cleanup: external Barrot HCI Reset OK.");
+                        }
+                        catch (Exception e)
+                        {
+                            Console.Error.WriteLine($"Cleanup Reset failed: {e.GetType().Name}.");
+                        }
+                    }
+                    Console.CancelKeyPress -= onCancel;
+                }
+            }
+        }
+
         // Historical full BLE driver: ONLY reachable through explicit
         // --full-legacy-driver --confirm-plaintext-bond. It writes plaintext
         // bond material and is NOT an appropriate initial A2854 pairing test.
