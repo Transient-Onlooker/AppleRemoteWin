@@ -187,4 +187,36 @@ public sealed class SmpPairOnlyTests
         Assert.Empty(remote.Writes);
     }
 
+    [Fact]
+    public async Task Received_LTK_buffer_is_zeroed_when_Master_Identification_never_arrives()
+    {
+        // The responder sends its LTK but withholds EDIV/Rand. Cancel at the
+        // next stage and assert that the actual received SMP payload (shared
+        // with the pairing listener) was erased on the exception path.
+        var (remote, central, peer, handle) = await ConnectFakeAsync(
+            new FakeRemote(suppressMasterIdentification: true));
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        byte[]? observedLtkPdu = null;
+        central.L2capData += (observedHandle, cid, pdu) =>
+        {
+            if (observedHandle == handle && cid == LeCentral.CidSmp &&
+                pdu.Length == 17 && pdu[0] == SmpOpcode.EncryptionInformation)
+                observedLtkPdu = pdu;
+        };
+
+        Task<BondKeys> operation = SmpPairing.PairAsync(
+            central, handle, central.LocalAddress, BdAddr.Parse(peer.Address), peer.AddressType,
+            cts.Token,
+            stage =>
+            {
+                if (stage == SmpPairingStage.ReceiveMasterIdentification) cts.Cancel();
+            },
+            requireObservedA2854Profile: true);
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => operation);
+        Assert.NotNull(observedLtkPdu);
+        Assert.All(observedLtkPdu!, b => Assert.Equal((byte)0, b));
+        Assert.Empty(remote.Writes); // No GATT/HID access.
+    }
+
 }
