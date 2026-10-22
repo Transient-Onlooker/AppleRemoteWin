@@ -62,3 +62,15 @@ Exit code: **1**. Strong advertisement selection succeeded. No successful LE Con
 The failure is at the HCI connection procedure, before SMP or DPAPI. Source review shows a five-second HCI Command Status/Complete timeout in `HciHost.CommandAsync`; the connection procedure has a separate 12-second cancellation window. The current error omits the HCI opcode and event timing, so the log does not prove exactly which connection command/completion wait failed. No numerical controller rejection status was returned. The independent cleanup Reset timeout raises concern about controller responsiveness or USB event reception, rather than proving a remote pairing rejection. `ScanPeerAsync` also suppresses scan-disable cleanup exceptions, and the probe does not subscribe to `UsbHci.Failed`; those diagnostic gaps should be addressed before interpreting a future timeout more precisely.
 
 Recommended recovery: physically unplug/replug **only the external Barrot dongle**, then perform an HCI-only Reset/Read Local Version check before approving another pairing invocation. Do not reinstall its driver, alter the Intel adapter or remove bonds. No additional hardware command was issued after this failed invocation's built-in cleanup attempt.
+
+## Recovery check after external dongle unplug/replug
+
+The owner confirmed physically unplugging and reconnecting the external dongle. The existing validated Release binary was then invoked once with `--usb 33FA:0001 --hci-only` (no scan, pairing or bond access).
+
+```text
+USB controller: USB2.0-BT (33FA:0001); HCI EP0 request=0x21.
+HCI Reset OK; Read Local Version OK: HCI=0x09, revision=0x0202, LMP=0x09, manufacturer=0x08E7, subversion=0x0002.
+HCI-only complete: no BLE scan or pairing attempted.
+```
+
+Exit code: **0**. HCI command/event responsiveness is restored after physical reconnection. This does not establish the root cause of the previous timeout or verify SMP, DPAPI saving, encrypted reconnect or GATT. Another A-stage pairing invocation requires renewed approval; no further pairing was automatically started.

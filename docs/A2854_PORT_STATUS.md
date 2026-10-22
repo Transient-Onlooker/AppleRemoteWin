@@ -4,6 +4,8 @@
 
 > **Latest hardware attempts:** [A-stage protected-bond experiment](a2854/PROTECTED_BOND_HARDWARE_2026-10-22.md) first timed out in scanning. A separately reauthorized second invocation found a strong candidate, then timed out during the HCI connection procedure; cleanup Reset also timed out. Both used validated `4c86fae` binaries. SMP did not start, the protected bond is absent, and B/C remain unexecuted. Check external-dongle HCI responsiveness after physical reconnection before another pairing attempt.
 
+> **Recovery check:** after the owner unplugged/replugged the external Barrot, `--hci-only` succeeded (Reset and Read Local Version, manufacturer `0x08E7`, exit 0). HCI responsiveness recovered; no new pairing was started.
+
 > **Historical checkpoint (2026-10-21):** [consolidated Korean handoff](HANDOFF_2026-10-21_A2854.md). The initial implementation and commands below describe earlier work; use the latest checkpoint's explicit diagnostic gates for current operation.
 
 > **Full handoff (Korean, 2026-10-18):** [HANDOFF_2026-10-18_A2854.md](HANDOFF_2026-10-18_A2854.md). Read that document first when resuming after a conversation reset; the notes below are the chronological engineering log.
