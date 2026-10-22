@@ -71,11 +71,16 @@ public sealed class RemoteSession : IDisposable
             lock (_gate)
             {
                 if (_a2854PointerEnabled == value) return;
-                // Switching while a physical button is held must not strand
-                // an Enter key from the old mode or a mouse-down in the new one.
-                _binder.ReleaseAll();
-                if (!_pointer.Reset())
-                    Status?.Invoke("A2854: Windows rejected mouse-up; held click retained for cleanup retry.");
+                // This option must have no side effects on first-generation
+                // keyboard state. Only A2854 pointer-mode changes require
+                // releasing its keyboard binding alongside the mouse click.
+                if (_a2854Mode)
+                    _binder.ReleaseAll();
+                if (_a2854Mode || _pointer.HasHeldClick)
+                {
+                    if (!_pointer.Reset())
+                        Status?.Invoke("A2854: Windows rejected mouse-up; held click retained for cleanup retry.");
+                }
                 _a2854PointerEnabled = value;
             }
         }
@@ -284,46 +289,71 @@ public sealed class RemoteSession : IDisposable
     {
         lock (_gate)
         {
-            // A late USB notification after Stop must never inject mouse/key
-            // input into Windows. An empty release sentinel is always accepted.
-            if (!_acceptA2854Input && report is { Length: > 0 }) return;
-            foreach (RemoteEvent ev in _a2854Decoder.Decode(report))
-            {
-                if (_a2854PointerEnabled)
-                {
-                    _pointer.OnEvent(ev);
-                    if (ev is ButtonsEvent transition &&
-                        (transition.Pressed.Contains("click") || transition.Released.Contains("click")) &&
-                        !_pointer.LastButtonTransitionSucceeded)
-                        Status?.Invoke("A2854: Windows rejected a mouse button transition; mouse-up is still pending.");
-                }
+            // A terminal release sentinel must always run to completion, even
+            // when a GUI event subscriber or KeyBinder throws. Old notifications
+            // are forbidden once input has been revoked.
+            bool terminal = report is { Length: 0 };
+            if (!_acceptA2854Input && !terminal && report is { Length: > 0 }) return;
+            if (terminal) _acceptA2854Input = false;
 
-                if (_keyboardEnabled)
-                {
-                    // A mouse click must not also emit the default gen-1 Enter key
-                    // or any configured keyboard/macro action for the click button.
-                    if (_a2854PointerEnabled && ev is ButtonsEvent buttons)
-                    {
-                        _binder.OnEvent(new ButtonsEvent(buttons.Mask,
-                            buttons.Pressed.Where(name => name != "click" &&
-                                name is not ("tv" or "siri" or "power")).ToArray(),
-                            buttons.Released.Where(name => name != "click" &&
-                                name is not ("tv" or "siri" or "power")).ToArray(), buttons.Raw));
-                    }
-                    else if (ev is ButtonsEvent limited)
-                        _binder.OnEvent(new ButtonsEvent(limited.Mask,
-                            limited.Pressed.Where(name => name is not ("tv" or "siri" or "power")).ToArray(),
-                            limited.Released.Where(name => name is not ("tv" or "siri" or "power")).ToArray(),
-                            limited.Raw));
-                    else _binder.OnEvent(ev);
-                }
-                Event?.Invoke(ev); // keeps existing GUI event display and key-binding actions
-            }
-            if (report is { Length: 0 })
+            try
             {
-                _binder.ReleaseAll();
-                if (!_pointer.Reset())
-                    Status?.Invoke("A2854: Windows rejected mouse-up; held click retained for cleanup retry.");
+                foreach (RemoteEvent ev in _a2854Decoder.Decode(report))
+                {
+                    if (_a2854PointerEnabled)
+                    {
+                        _pointer.OnEvent(ev);
+                        if (ev is ButtonsEvent transition &&
+                            (transition.Pressed.Contains("click") || transition.Released.Contains("click")) &&
+                            !_pointer.LastButtonTransitionSucceeded)
+                            Status?.Invoke("A2854: Windows rejected a mouse button transition; mouse-up is still pending.");
+                    }
+
+                    if (_keyboardEnabled)
+                    {
+                        // A pointer click may not also emit the gen-1 Enter key.
+                        // TV/Siri/Power are deliberately inert for A2854.
+                        if (_a2854PointerEnabled && ev is ButtonsEvent buttons)
+                        {
+                            _binder.OnEvent(new ButtonsEvent(buttons.Mask,
+                                buttons.Pressed.Where(name => name != "click" &&
+                                    name is not ("tv" or "siri" or "power")).ToArray(),
+                                buttons.Released.Where(name => name != "click" &&
+                                    name is not ("tv" or "siri" or "power")).ToArray(), buttons.Raw));
+                        }
+                        else if (ev is ButtonsEvent limited)
+                            _binder.OnEvent(new ButtonsEvent(limited.Mask,
+                                limited.Pressed.Where(name => name is not ("tv" or "siri" or "power")).ToArray(),
+                                limited.Released.Where(name => name is not ("tv" or "siri" or "power")).ToArray(),
+                                limited.Raw));
+                        else _binder.OnEvent(ev);
+                    }
+                    Event?.Invoke(ev);
+                }
+            }
+            finally
+            {
+                if (terminal)
+                {
+                    // Keep these cleanup paths independent. If the GUI callback
+                    // above threw, the finally must still attempt mouse-up.
+                    try { _binder.ReleaseAll(); }
+                    catch (Exception e)
+                    {
+                        try { Status?.Invoke($"A2854: keyboard release failed ({e.GetType().Name})."); }
+                        catch { }
+                    }
+                    try
+                    {
+                        if (!_pointer.Reset())
+                            Status?.Invoke("A2854: Windows rejected mouse-up; held click retained for cleanup retry.");
+                    }
+                    catch (Exception e)
+                    {
+                        try { Status?.Invoke($"A2854: pointer release failed ({e.GetType().Name})."); }
+                        catch { }
+                    }
+                }
             }
         }
     }
