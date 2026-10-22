@@ -1,8 +1,8 @@
 # Siri Remote A2854 (third generation) — development branch
 
-> **Latest checkpoint (2026-10-22):** [protected bond, reconnect and GATT validation](a2854/PROTECTED_BOND_AND_GATT_2026-10-22.md). Windows Release tests **167/167**, solution and Probe builds **0 warnings/errors**. Physical A2854 pairing, CurrentUser DPAPI protected save and separate stored-LTK encrypted reconnect have succeeded with clean `0x16` disconnects. The following GATT probe timed out before LE connection; HID report handles remain unknown. Retain the protected bond and retry only read-only inspection with a coordinated normal-button wake.
+> **Latest checkpoint (2026-10-22):** [protected bond, reconnect and GATT validation](a2854/PROTECTED_BOND_AND_GATT_2026-10-22.md). Windows Release tests **167/167**, solution and Probe builds **0 warnings/errors**. Physical A2854 pairing, CurrentUser DPAPI protected save, stored-LTK encrypted reconnect and read-only GATT inspection succeeded with clean `0x16` disconnects. Report value handles: `0xFB=0x0039`, `0xFC=0x003D`, `0xF0=0x004D`. Preserve the bond; notification subscription and feature activation are the next separate gate, and actual Windows HID input is not yet verified.
 
-> **Hardware history and logs:** [A/B success, C connection timeout](a2854/PROTECTED_BOND_HARDWARE_2026-10-22.md) records earlier scan/HCI failures, physical dongle recovery, the subsequently approved A/B successes, and C's 15-second connection timeout. The protected bond remains present; no automatic retries or new pairing followed C failure.
+> **Hardware history and logs:** [A/B/C verification](a2854/PROTECTED_BOND_HARDWARE_2026-10-22.md) records earlier scan/HCI failures, dongle recovery, A/B successes, C's initial connection timeout and an explicitly approved successful C retry with a normal-button wake. No GATT writes, notifications or new pairing were performed during C.
 
 > **Recovery check:** after the owner unplugged/replugged the external Barrot, `--hci-only` succeeded (Reset and Read Local Version, manufacturer `0x08E7`, exit 0). HCI responsiveness recovered; no new pairing was started.
 

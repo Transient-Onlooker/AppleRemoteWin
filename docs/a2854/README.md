@@ -19,8 +19,8 @@
 | [2026-10-22 live SMP negotiation](SMP_NEGOTIATION_2026-10-22.md) | Physical A2854 SMP Pairing Response verified: Legacy Just Works accepted |
 | [Staged SMP full pairing](SMP_PAIRING_PLAN_2026-10-22.md) | Approval gates for live pairing and future protected bond persistence |
 | [Full SMP pair-only implementation](SMP_PAIR_ONLY_IMPLEMENTATION_2026-10-22.md) | Physical Confirm/Random, STK encryption and LTK receipt now confirmed |
-| [Protected bond, encrypted reconnect and read-only GATT](PROTECTED_BOND_AND_GATT_2026-10-22.md) | Validated Windows software; protected save and encrypted reconnect physically verified |
-| [Protected-bond hardware logs](PROTECTED_BOND_HARDWARE_2026-10-22.md) | A/B success and C connection timeout; retained bond and next read-only gate |
+| [Protected bond, encrypted reconnect and read-only GATT](PROTECTED_BOND_AND_GATT_2026-10-22.md) | Validated Windows software; physical protected save, encrypted reconnect and read-only GATT verified |
+| [Protected-bond hardware logs](PROTECTED_BOND_HARDWARE_2026-10-22.md) | A/B/C success, report value handles and earlier failures; retained bond and next input gate |
 | [Consolidation record](CONSOLIDATION.md) | Source commit, copied-file SHA checks, licenses and Git history |
 
 ## Latest verified status
@@ -34,20 +34,20 @@
 | Windows C# A2854 decoder and diagnostic program | **167/167 Release tests passed**, solution and Probe builds **0 warnings/errors** at `4c86fae` |
 | Current privacy-address implementation | **Physical A2854 LE connection and clean local disconnect verified**, including via the USB 3.0 hub. Address type was public in tested sessions; privacy/reconnect across rotations unverified |
 | ThinkPad T490s built-in Bluetooth | Owner confirmed **Intel Wireless-AC 9560**; A2854 test **not conducted** |
-| **Purchased Axxen USB dongle** | **USB 3.0 hub + WinUSB `oem86.inf`**, physical A2854 Legacy Just Works pairing, STK encryption and LTK/EDIV/RAND receipt confirmed. **CurrentUser DPAPI bond save and stored-LTK encrypted reconnect verified**, both cleanly disconnected with `0x16`. C timed out before LE connection; Windows GATT HID remains unverified. |
+| **Purchased Axxen USB dongle** | **USB 3.0 hub + WinUSB `oem86.inf`**, physical A2854 pairing, CurrentUser DPAPI bond save, stored-LTK encrypted reconnect and **read-only GATT HID metadata verified**, with clean `0x16` disconnects. Report value handles: `0xFB=0x0039`, `0xFC=0x003D`, `0xF0=0x004D`. HID input notifications remain unverified. |
 | Working Windows mouse / media remote | **Not yet delivered** |
 
 ## Latest validated and source-prepared checkpoint (2026-10-22)
 
 **Physical milestone confirmed:** Windows 11 with Barrot `33FA:0001` WinUSB completed A2854 Legacy Just Works pairing and CurrentUser DPAPI bond saving, with pairing at **958ms** and clean `0x16` disconnect at **989ms**. A separate `--reconnect-only` process loaded the protected bond, confirmed LTK link encryption through HCI Encryption Change and disconnected with `0x16`.
 
-Validated source `4c86fae`: **167/167 Release tests passed**, full solution and Probe Release builds at **zero warnings/errors**. The subsequent `--gatt-inspect-only` attempt timed out during its 15-second LE connection window, before GATT discovery; cleanup HCI Reset succeeded. The owner confirmed a normal-button press after the attempt had ended. The protected bond remains present; [sanitized per-stage logs](PROTECTED_BOND_HARDWARE_2026-10-22.md) distinguish successful A/B from unverified GATT and HID input.
+Validated source `4c86fae`: **167/167 Release tests passed**, full solution and Probe Release builds at **zero warnings/errors**. Following an initial C connection timeout, an explicitly approved `--gatt-inspect-only` retry with a normal-button wake succeeded: encrypted reconnect, HID service `0x1812`, eight Report References and exact `0xFB`/`0xFC`/`0xF0` value handles. It made no ATT writes or notification subscriptions and disconnected with `0x16`. The protected bond remains present; see [sanitized per-stage logs](PROTECTED_BOND_HARDWARE_2026-10-22.md). Actual Windows input reports remain unverified.
 
 ## What to do next
 
-1. Preserve the existing CurrentUser DPAPI bond. Do not run a new pairing, remove bonds or replace keys to recover from the C timeout.
-2. Coordinate a read-only `--gatt-inspect-only` retry with an ordinary remote-button wake at connection start. Do not use Back + Volume Up or enter pairing mode for bonded reconnect.
-3. Confirm service 0x1812 and Report Reference 0x2908 mapping for 0xFB/0xFC/0xF0. This mode must not subscribe, write the 0xF0 unlock value, or capture microphone/HID payloads.
-4. Only after exact handle mapping, separately implement and authorize button/touch subscriptions and feature activation. Preserve Barrot WinUSB, Intel BTHUSB, drivers and trust state.
+1. Preserve the existing CurrentUser DPAPI bond. Bonded reconnect needs an ordinary-button wake, not a new pairing or Back + Volume Up.
+2. Separately implement a bounded input probe that rediscovers report mappings and each input CCCD (`0x2902`); do not guess descriptor handles from the observed value handles.
+3. After explicit authorization, subscribe only to `0xFB`/`0xFC` and activate the confirmed `0xF0` feature with `0xAF`. Exclude microphone `0xFA`. These writes and notifications were not performed by the successful read-only C probe.
+4. Verify actual button/touch reports before connecting the decoder to Windows input injection. Preserve Barrot WinUSB, Intel BTHUSB, drivers and trust state.
 
 Past reports: [Oct 21 handoff](../HANDOFF_2026-10-21_A2854.md), [chronological engineering status](../A2854_PORT_STATUS.md), [Oct 18 historical handoff](../HANDOFF_2026-10-18_A2854.md).

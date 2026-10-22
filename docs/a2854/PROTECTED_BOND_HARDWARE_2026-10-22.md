@@ -1,4 +1,4 @@
-# A2854 protected-bond hardware gates: A/B success, C connection timeout (2026-10-22)
+# A2854 protected-bond hardware gates: A/B/C verified (2026-10-22)
 
 Source and validated Release binary: `4c86fae80e9a3fb42ab72d172426f74f1aac3522`, branch `feat/a2854-support`, Windows native Barrot `33FA:0001` WinUSB. No rebuild or code changes preceded this hardware run.
 
@@ -149,3 +149,43 @@ Exit **1**. The connection window in the current source is **15 seconds**; `--se
 No LE Connection Complete, LTK encryption attempt, ATT discovery, service `0x1812` confirmation, descriptor `0x2908` read or report-handle mapping was reached during C. Thus `0xFB`, `0xFC` and `0xF0` handles remain unknown on this physical Windows path. The observed failure is consistent with absent/tardy connectable advertisements, but there was no simultaneous scan and the exact RF cause remains unproven. No numeric HCI rejection code was reported; cancellation and cleanup Reset completed, unlike the earlier unresponsive-controller attempt.
 
 The protected bond remained present at **324 bytes** after B/C; only existence and length were checked externally. No bond deletion/overwrite, automatic pairing, GATT write, HID subscription or microphone operation occurred. Stop here as requested on C failure. The next experiment should coordinate a normal-button wake with a separately requested C retry, reusing this bond. **Do not run A again merely to recover from this C timeout.** Software is unchanged: prior Release validation remains 167/167 tests and zero-warning/error solution and Probe builds.
+
+## Explicitly approved C retry: encrypted read-only GATT inspection — success
+
+The owner explicitly requested one C retry and pressed an ordinary remote button at launch. The same validated Release binary was used with the existing protected bond. No new SMP pairing or protected-bond save was invoked.
+
+```powershell
+dotnet run -c Release --no-build --project tools/A2854.Probe/A2854.Probe.csproj -- --usb 33FA:0001 --gatt-inspect-only --seconds 30
+```
+
+Complete process output:
+
+```text
+A2854 protected-bond reconnect + READ-ONLY GATT inspection.
+No pairing request, no key persistence changes, no feature writes, no HID input subscriptions.
+Wake the remote with an ordinary button press if needed (do NOT enter pairing mode).
+Controller initialized. Extended LE commands: True.
+LE Connection Complete OK; stored peer address redacted.
+Encrypted LE reconnection confirmed by HCI Encryption Change.
+GATT HID service 0x1812 present.
+Read-only GATT: button report 0xFB value handle=0x0039.
+Read-only GATT: touch report 0xFC value handle=0x003D.
+Read-only GATT: feature report 0xF0 value handle=0x004D (NOT written).
+GATT report-reference summary: total=8, buttons=1, touch=1, featureF0=1.
+No notifications, feature unlock, microphone reads or HID commands were issued.
+HCI Disconnect Command Status OK.
+Disconnection Complete reason=0x16 (Connection Terminated by Local Host).
+Encrypted reconnect and GATT metadata discovery completed without ATT writes.
+```
+
+Exit code: **0**. The protected bond remained present after completion (existence-only shell check). This independently verifies another stored-LTK encrypted reconnect, read-only HID service discovery, and Report Reference `0x2908` ID/type mapping on the physical A2854.
+
+| Report | Reference type | Characteristic value handle |
+|---|---|---|
+| Buttons `0xFB` | Input `0x01` | `0x0039` |
+| Touch `0xFC` | Input `0x01` | `0x003D` |
+| Feature `0xF0` | Feature `0x03` | `0x004D` |
+
+Eight report-reference descriptors were read in total; each of the three target reports appeared once. These are characteristic **value** handles, not CCCD or Report Reference descriptor handles. The current console does not print those descriptor handles; do not infer them by offset. Attribute handles can change with firmware/database revisions, so future input code should continue discovering them by UUID and report reference.
+
+The C retry timing is consistent with a normal-button wake enabling connection, but does not isolate the earlier timeout's exact cause. A/B/C are now physically verified; actual `0xFB`/`0xFC` notification reception and feature activation remain **unimplemented/unverified by this experiment**. The next separately implemented/authorized gate should discover each target input CCCD (`0x2902`), allowlist notifications to `0xFB`/`0xFC`, and activate only the confirmed `0xF0` feature (planned value `0xAF`). No such writes/subscriptions were performed here. Preserve the existing protected bond, external WinUSB binding and Intel adapter. This is a documentation-only update; no new software test run is claimed.
