@@ -3,6 +3,7 @@
 // No Windows HID filter, service bypass, or adapter driver installation.
 
 using System.Diagnostics;
+using System.Security.Cryptography;
 using System.Text.RegularExpressions;
 using AppleRemote;
 using AppleRemote.Windows;
@@ -25,14 +26,21 @@ internal static partial class Program
         int seconds = 30;
         UsbHci.UsbId? targetUsbId = null;
         bool hciOnly = false, scanOnly = false, connectOnly = false, smpNegotiateOnly = false;
+        bool smpPairOnly = false, confirmPairing = false;
         for (int i = 0; i < args.Length;)
         {
-            if (args[i] is "--hci-only" or "--scan-only" or "--connect-only" or "--smp-negotiate-only")
+            if (args[i] is "--hci-only" or "--scan-only" or "--connect-only" or "--smp-negotiate-only" or "--smp-pair-only")
             {
                 if (args[i] == "--hci-only") hciOnly = true;
                 else if (args[i] == "--scan-only") scanOnly = true;
                 else if (args[i] == "--connect-only") connectOnly = true;
-                else smpNegotiateOnly = true;
+                else if (args[i] == "--smp-negotiate-only") smpNegotiateOnly = true;
+                else smpPairOnly = true;
+                i++;
+            }
+            else if (args[i] == "--confirm-pairing")
+            {
+                confirmPairing = true;
                 i++;
             }
             else if (i + 1 < args.Length && args[i] == "--seconds" &&
@@ -50,21 +58,35 @@ internal static partial class Program
             }
             else
             {
-                Console.Error.WriteLine("Usage: A2854.Probe [--seconds 30] [--usb 33FA:0001] [--hci-only | --scan-only | --connect-only | --smp-negotiate-only]");
+                Console.Error.WriteLine("Usage: A2854.Probe [--seconds 30] [--usb 33FA:0001] [--hci-only | --scan-only | --connect-only | --smp-negotiate-only | --smp-pair-only --confirm-pairing]");
                 return 2;
             }
         }
 
-        if ((hciOnly ? 1 : 0) + (scanOnly ? 1 : 0) + (connectOnly ? 1 : 0) + (smpNegotiateOnly ? 1 : 0) > 1)
+        if ((hciOnly ? 1 : 0) + (scanOnly ? 1 : 0) + (connectOnly ? 1 : 0) +
+            (smpNegotiateOnly ? 1 : 0) + (smpPairOnly ? 1 : 0) > 1)
         {
-            Console.Error.WriteLine("Choose only one of --hci-only, --scan-only, --connect-only, or --smp-negotiate-only.");
+            Console.Error.WriteLine("Choose only one probe mode.");
+            return 2;
+        }
+        if (confirmPairing && !smpPairOnly)
+        {
+            Console.Error.WriteLine("--confirm-pairing is valid only with --smp-pair-only.");
+            return 2;
+        }
+        if (smpPairOnly && !confirmPairing)
+        {
+            Console.Error.WriteLine("--smp-pair-only requires explicit --confirm-pairing.");
+            Console.Error.WriteLine("WARNING: live bonding may replace the remote's existing Apple TV pairing;");
+            Console.Error.WriteLine("keys are held in memory only and will NOT be saved for reconnection.");
             return 2;
         }
         // The experimental link-only mode is deliberately limited to the measured,
         // independently controlled external Barrot adapter. Never select the built-in Intel adapter.
-        if ((connectOnly || smpNegotiateOnly) && targetUsbId != new UsbHci.UsbId(0x33FA, 0x0001))
+        if ((connectOnly || smpNegotiateOnly || smpPairOnly) &&
+            targetUsbId != new UsbHci.UsbId(0x33FA, 0x0001))
         {
-            Console.Error.WriteLine($"{(connectOnly ? "--connect-only" : "--smp-negotiate-only")} requires --usb 33FA:0001 (the dedicated external WinUSB dongle).");
+            Console.Error.WriteLine("Link/SMP diagnostic modes require --usb 33FA:0001 (external WinUSB dongle).");
             return 2;
         }
 
@@ -485,6 +507,156 @@ internal static partial class Program
                 }
             }
         }
+        // Distinct explicitly authorized full pairing experiment: does not touch
+        // GATT/HID or BondStore and cannot silently run from the other probe modes.
+        // A successful in-memory pairing may still replace the remote's existing bond.
+        if (smpPairOnly)
+        {
+            using (usb)
+            using (var stop = new CancellationTokenSource())
+            {
+                ConsoleCancelEventHandler onCancel = (_, e) => { e.Cancel = true; stop.Cancel(); };
+                Console.CancelKeyPress += onCancel;
+                bool connectionAttempted = false, linkEnded = false;
+                ushort? connectedHandle = null;
+                BondKeys? ephemeralKeys = null;
+                CancellationTokenSource? pairingWindow = null;
+                int disconnectRequestStarted = 0;
+                var disconnected = new TaskCompletionSource<(ushort Handle, byte Reason, bool AfterRequest)>(
+                    TaskCreationOptions.RunContinuationsAsynchronously);
+                string stage = "controller initialization";
+                try
+                {
+                    // Keep LE connection parameter updates enabled during SMP, as in the
+                    // existing SiriRemoteBle driver. No ATT or HID client is instantiated.
+                    var central = new LeCentral(usb.Host);
+                    central.Disconnected += (observedHandle, reason) =>
+                    {
+                        if (connectedHandle == observedHandle)
+                        {
+                            disconnected.TrySetResult((observedHandle, reason,
+                                Volatile.Read(ref disconnectRequestStarted) != 0));
+                            pairingWindow?.Cancel();
+                        }
+                    };
+
+                    Console.WriteLine($"LE SMP pair-only: {usb.Name}; EP0=0x{usb.CommandRequestType:X2}.");
+                    Console.WriteLine("EXPLICIT PAIRING TEST: may replace Apple TV pairing; NO bond/key persistence.");
+                    Console.WriteLine("No GATT, HID, feature unlock, bond JSON, key dumps, or retries.");
+                    await central.InitializeAsync();
+                    Console.WriteLine($"Controller initialized. Extended LE commands: {central.Extended}.");
+
+                    stage = "strong A2854 advertisement scan";
+                    using var scanWindow = CancellationTokenSource.CreateLinkedTokenSource(stop.Token);
+                    scanWindow.CancelAfter(TimeSpan.FromSeconds(seconds));
+                    Console.WriteLine("Starting scan for A2854 manufacturer prefix + Apple 0x004C + HID 0x1812.");
+                    Console.WriteLine("Wake the remote / Back + Volume Up ~5 seconds after scan starts.");
+                    LePeer peer = await central.ScanPeerAsync(
+                        ad => A2854Advertisement.Classify(ad).StrongCandidate,
+                        allowRandom: true, scanWindow.Token);
+                    Console.WriteLine($"Strong A2854-format candidate acquired (address redacted, type={(peer.AddressType == 1 ? "random" : "public")}).");
+
+                    stage = "LE Create Connection / LE Connection Complete";
+                    using var connectionWindow = CancellationTokenSource.CreateLinkedTokenSource(stop.Token);
+                    connectionWindow.CancelAfter(TimeSpan.FromSeconds(12));
+                    connectionAttempted = true;
+                    ushort handle = await central.ConnectAsync(peer.Address, connectionWindow.Token, peer.AddressType);
+                    connectedHandle = handle;
+                    Console.WriteLine("LE Connection Complete OK (no BLE address/handle printed).");
+                    var linkTimer = Stopwatch.StartNew();
+
+                    stage = "500ms pre-pairing stability observation";
+                    Task observation = Task.Delay(TimeSpan.FromMilliseconds(500), stop.Token);
+                    if (await Task.WhenAny(disconnected.Task, observation) == disconnected.Task)
+                    {
+                        linkEnded = true;
+                        Console.Error.WriteLine("Link disconnected before pairing; no keys created.");
+                        return 1;
+                    }
+                    await observation;
+                    if (disconnected.Task.IsCompleted)
+                    {
+                        linkEnded = true;
+                        Console.Error.WriteLine("Link disconnected immediately before pairing; no keys created.");
+                        return 1;
+                    }
+
+                    stage = "legacy Just Works Confirm/Random, STK encryption and LTK distribution";
+                    pairingWindow = CancellationTokenSource.CreateLinkedTokenSource(stop.Token);
+                    pairingWindow.CancelAfter(TimeSpan.FromSeconds(45));
+                    Console.WriteLine("Beginning one bounded Legacy Just Works pairing attempt.");
+                    Console.WriteLine("Stages only; raw SMP PDU/key/address content is never logged.");
+                    ephemeralKeys = await SmpPairing.PairAsync(
+                        central, handle, central.LocalAddress, BdAddr.Parse(peer.Address),
+                        peer.AddressType, pairingWindow.Token,
+                        progress => {
+                            stage = $"SMP {progress}";
+                            Console.WriteLine($"Pairing stage: {progress}.");
+                        });
+                    if (ephemeralKeys.Ltk.Length != 16 || ephemeralKeys.Rand.Length != 8)
+                        throw new InvalidDataException("Invalid negotiated legacy bond-key lengths.");
+                    Console.WriteLine($"SMP full pairing / STK link encryption / responder LTK distribution completed at {linkTimer.Elapsed.TotalMilliseconds:F0}ms.");
+                    Console.WriteLine("Ephemeral LTK acquired in memory; NEVER written to disk, printed or uploaded.");
+
+                    stage = "HCI Disconnect Command Status / Disconnection Complete";
+                    Volatile.Write(ref disconnectRequestStarted, 1);
+                    await central.DisconnectAsync(handle);
+                    Console.WriteLine("HCI Disconnect Command Status OK.");
+                    var ended = await disconnected.Task.WaitAsync(TimeSpan.FromSeconds(5), stop.Token);
+                    linkEnded = true;
+                    Console.WriteLine($"Disconnection Complete received at {linkTimer.Elapsed.TotalMilliseconds:F0}ms: " +
+                        $"reason=0x{ended.Reason:X2} ({HciDisconnectReason.Describe(ended.Reason)}), after_host_request={ended.AfterRequest}.");
+                    if (ended.Handle != handle || !HciDisconnectReason.IsExpectedHostDisconnect(ended.Reason))
+                        throw new InvalidDataException("Unexpected disconnect handle or reason following SMP.");
+                    Console.WriteLine("SMP pair-only success. In-memory keys will be erased; reconnection NOT verified.");
+                    return 0;
+                }
+                catch (OperationCanceledException)
+                {
+                    string suffix = disconnected.Task.IsCompleted
+                        ? $" Physical link ended: reason=0x{disconnected.Task.Result.Reason:X2}."
+                        : "";
+                    Console.Error.WriteLine($"SMP pair-only cancelled or timed out at {stage}.{suffix}");
+                    return 1;
+                }
+                catch (Exception e)
+                {
+                    Console.Error.WriteLine($"SMP pair-only FAILED at {stage}: {e.GetType().Name}: " +
+                        BluetoothAddress().Replace(e.Message, "[redacted]"));
+                    return 1;
+                }
+                finally
+                {
+                    // Returned keys are only ever held in memory for this run.
+                    // Clear arrays after either success or a subsequent disconnect error.
+                    if (ephemeralKeys is not null)
+                    {
+                        CryptographicOperations.ZeroMemory(ephemeralKeys.Ltk);
+                        CryptographicOperations.ZeroMemory(ephemeralKeys.Rand);
+                    }
+                    pairingWindow?.Dispose();
+                    if (!linkEnded && connectedHandle is ushort establishedHandle && disconnected.Task.IsCompleted &&
+                        disconnected.Task.Result.Handle == establishedHandle)
+                        linkEnded = true;
+                    if (connectionAttempted && !linkEnded)
+                    {
+                        try
+                        {
+                            // Do not allow an unfinished encrypted pairing to leave an
+                            // orphan connection. Reset ONLY this dedicated external controller.
+                            await usb.Host.CommandAsync(HciOpcode.Reset);
+                            Console.WriteLine("Cleanup: external Barrot controller HCI Reset OK.");
+                        }
+                        catch (Exception e)
+                        {
+                            Console.Error.WriteLine($"Cleanup Reset failed: {e.GetType().Name}. Check dongle before retry.");
+                        }
+                    }
+                    Console.CancelKeyPress -= onCancel;
+                }
+            }
+        }
+
         // Full BLE workflow only if expressly selected without --hci-only.
         using (usb)
         using (var cts = new CancellationTokenSource())
