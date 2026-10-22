@@ -399,3 +399,20 @@ See [SMP pairing implementation details](a2854/SMP_PAIR_ONLY_IMPLEMENTATION_2026
 
 Full plan and official protocol references: [Protected bond/reconnect/read-only GATT gates](a2854/PROTECTED_BOND_AND_GATT_2026-10-22.md).
 
+## 2026-10-22 — physical encrypted GATT mapping verified; new gated 0xFB/0xFC input probe source
+
+The owner's local agent reported physical **Stage C success** with Windows-native WinUSB Barrot `33FA:0001` on a USB 3.0 hub, using retained **CurrentUser DPAPI LTK**: HCI encrypted reconnect, HID service `0x1812`, Report Reference descriptors `0x2908`, and normal local Disconnect `0x16`. Value handles grounded by real hardware:
+- A2854 button input Report ID `0xFB`: **value handle 0x0039**.
+- Touch input `0xFC`: **value handle 0x003D**.
+- Feature report `0xF0`: **value handle 0x004D**.
+
+Protected bond was preserved. **No GATT writes, CCCD subscription or live Windows button/touch report has been tested yet.** Source physical evidence commit: `50916bc`. Local full Release tests previously **167/167 passed** at `4c86fae`, prior to these latest changes.
+
+**New staged source only (not yet locally built or physically executed):** a distinct `--hid-input-only --confirm-hid-writes --usb 33FA:0001` mode requiring explicit user action. It decrypts the *existing* CurrentUser-protected LTK, reconnects encrypted with no SMP, then dynamically locates the two `0x2902` CCCD descriptors associated with the `0xFB` and `0xFC` characteristics. It also requires the same real `0x0039/0x003D/0x004D` value handles and correct Notify/Write properties. Abort before any ATT write on mismatch, missing/duplicate CCCD, missing report or missing protected bond.
+
+When explicitly authorized, the *only* writes are `01 00` to those two confirmed input CCCDs and `AF` to feature `F0` value handle; the program listens for decoded input on exactly the two mapped handles. It caps touch coordinate logging, prints no raw HID reports, excludes microphone `0xFA`, injects no Windows input, does no new pairing, does not overwrite or delete bond material, and best-effort disables the two CCCDs before normal HCI Disconnect. Feature unlock state may persist remotely; don't assert complete rollback of unknown feature state.
+
+Added fake-HCI `A2854HidCaptureTests` for dynamic discovery, precise write allowlist, input decoding, unknown notification ignore, actual physical handle mismatch refusal and missing-button fail-closed behavior. The mock's optional A2854 HID layout preserves first-generation fixture behavior. A cancellation-aware `GattClient.WriteAsync` overload was added; no new platform dependencies. **Current passing test count for new source is unknown until fresh Windows Release build/test.**
+
+Next gate: local Windows coding agent fetches latest branch, verifies tests and builds; diagnose/fix/commit failures; then **ask owner for a separate explicit authorization before a real `0xF0 <- 0xAF` write and CCCD subscription**. An ordinary button press wakes the already bonded remote; no Back+VolumeUp pairing trigger. Stop on failed encrypted reconnect/ATT write/CCCD mapping; do not automatically re-pair or change remote features through other values. Full design: [HID input diagnostic](a2854/HID_INPUT_DIAGNOSTIC_2026-10-22.md).
+
