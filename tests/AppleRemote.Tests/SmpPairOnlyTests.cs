@@ -24,7 +24,8 @@ public sealed class SmpPairOnlyTests
         {
             using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
             keys = await SmpPairing.PairAsync(central, handle, central.LocalAddress,
-                BdAddr.Parse(peer.Address), peer.AddressType, cts.Token, progress.Add);
+                BdAddr.Parse(peer.Address), peer.AddressType, cts.Token, progress.Add,
+                requireObservedA2854Profile: true);
 
             Assert.Equal(FakeRemote.Bond.Ltk, keys.Ltk);
             Assert.Equal(FakeRemote.Bond.Ediv, keys.Ediv);
