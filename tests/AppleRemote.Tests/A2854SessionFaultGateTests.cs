@@ -80,12 +80,19 @@ public sealed class A2854SessionFaultGateTests
 
         Task<bool> failing = Task.Run(previous.Fail);
         Assert.True(entered.Wait(TimeSpan.FromSeconds(5)));
-        Task disposing = Task.Run(previous.Dispose);
+        using var disposeStarted = new ManualResetEventSlim();
+        Task disposing = Task.Run(() =>
+        {
+            disposeStarted.Set();
+            previous.Dispose();
+        });
         try
         {
-            // The old implementation marked itself disposed while the old
-            // callback was paused between CAS and input revocation.
-            Assert.False(disposing.IsCompleted);
+            Assert.True(disposeStarted.Wait(TimeSpan.FromSeconds(5)));
+            // Reproduces the old CAS -> pause -> Dispose-return -> revoke
+            // race. Disposal must remain blocked until the old callback
+            // has completed (not merely until its task has been scheduled).
+            Assert.False(disposing.Wait(TimeSpan.FromMilliseconds(100)));
         }
         finally { allowOldRelease.Set(); }
 
