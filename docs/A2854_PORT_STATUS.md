@@ -2,6 +2,8 @@
 
 > **Latest checkpoint (2026-10-22):** [protected bond, reconnect and GATT validation](a2854/PROTECTED_BOND_AND_GATT_2026-10-22.md). Windows Release tests **167/167**, solution and Probe builds **0 warnings/errors**. Physical Legacy Just Works pairing and clean `0x16` disconnect were verified earlier. Protected-bond saving, LTK reconnect and GATT inspection still require the next approved hardware run. Barrot WinUSB and Intel AX200 are healthy and unchanged.
 
+> **Latest hardware attempt:** [A-stage protected-bond experiment](a2854/PROTECTED_BOND_HARDWARE_2026-10-22.md) ran once using validated `4c86fae` binaries. The 60-second strong-candidate scan timed out before LE connection/SMP; the protected bond is still absent. No retries or B/C runs followed.
+
 > **Historical checkpoint (2026-10-21):** [consolidated Korean handoff](HANDOFF_2026-10-21_A2854.md). The initial implementation and commands below describe earlier work; use the latest checkpoint's explicit diagnostic gates for current operation.
 
 > **Full handoff (Korean, 2026-10-18):** [HANDOFF_2026-10-18_A2854.md](HANDOFF_2026-10-18_A2854.md). Read that document first when resuming after a conversation reset; the notes below are the chronological engineering log.

@@ -4,6 +4,8 @@
 
 ## Windows verification and fixes (2026-10-22)
 
+Subsequent hardware result: [one approved A invocation timed out during advertisement selection](PROTECTED_BOND_HARDWARE_2026-10-22.md). No connection or SMP exchange occurred, no protected bond was created, and B/C were not executed. The software validation below remains valid; protected storage with a physical bond, encrypted reconnect and GATT inspection remain unverified.
+
 - Environment: Windows, .NET SDK `10.0.402`, original working directory on `feat/a2854-support`; the worktree was clean before fast-forward from `6cd4bbb` to `8671444`.
 - Initial solution build failed with `CS1061` in `Gatt.cs`: the descriptor list used an unnamed tuple but referenced `.Handle`. Named tuple fields fix this actual compile failure.
 - Final Release solution and A2854.Probe builds: **0 warnings, 0 errors**. Full Release tests: **167 passed, 0 failed, 0 skipped**. Separate filters: **ProtectedBondStoreTests 6/6**, **GattValidationTests 10/10**. DPAPI roundtrip, tampered ciphertext, size limits and no-overwrite tests used synthetic keys and temporary files only. The non-Windows rejection case returns early on Windows; cross-account decryption was not exercised.
