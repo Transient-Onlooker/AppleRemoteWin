@@ -28,10 +28,11 @@ internal static partial class Program
         bool hciOnly = false, scanOnly = false, connectOnly = false, smpNegotiateOnly = false;
         bool smpPairOnly = false, confirmPairing = false, saveBond = false;
         bool reconnectOnly = false, gattInspectOnly = false;
+        bool hidInputOnly = false, confirmHidWrites = false;
         bool legacyFullDriver = false, confirmPlaintextBond = false;
         for (int i = 0; i < args.Length;)
         {
-            if (args[i] is "--hci-only" or "--scan-only" or "--connect-only" or "--smp-negotiate-only" or "--smp-pair-only" or "--reconnect-only" or "--gatt-inspect-only" or "--full-legacy-driver")
+            if (args[i] is "--hci-only" or "--scan-only" or "--connect-only" or "--smp-negotiate-only" or "--smp-pair-only" or "--reconnect-only" or "--gatt-inspect-only" or "--hid-input-only" or "--full-legacy-driver")
             {
                 if (args[i] == "--hci-only") hciOnly = true;
                 else if (args[i] == "--scan-only") scanOnly = true;
@@ -40,13 +41,15 @@ internal static partial class Program
                 else if (args[i] == "--smp-pair-only") smpPairOnly = true;
                 else if (args[i] == "--reconnect-only") reconnectOnly = true;
                 else if (args[i] == "--gatt-inspect-only") gattInspectOnly = true;
+                else if (args[i] == "--hid-input-only") hidInputOnly = true;
                 else legacyFullDriver = true;
                 i++;
             }
-            else if (args[i] is "--confirm-pairing" or "--confirm-plaintext-bond" or "--save-bond")
+            else if (args[i] is "--confirm-pairing" or "--confirm-plaintext-bond" or "--save-bond" or "--confirm-hid-writes")
             {
                 if (args[i] == "--confirm-pairing") confirmPairing = true;
                 else if (args[i] == "--save-bond") saveBond = true;
+                else if (args[i] == "--confirm-hid-writes") confirmHidWrites = true;
                 else confirmPlaintextBond = true;
                 i++;
             }
@@ -65,7 +68,7 @@ internal static partial class Program
             }
             else
             {
-                Console.Error.WriteLine("Usage: A2854.Probe [--seconds 30] [--usb 33FA:0001] [--hci-only | --scan-only | --connect-only | --smp-negotiate-only | --smp-pair-only --confirm-pairing [--save-bond] | --reconnect-only | --gatt-inspect-only | --full-legacy-driver --confirm-plaintext-bond]");
+                Console.Error.WriteLine("Usage: A2854.Probe [--seconds 30] [--usb 33FA:0001] [--hci-only | --scan-only | --connect-only | --smp-negotiate-only | --smp-pair-only --confirm-pairing [--save-bond] | --reconnect-only | --gatt-inspect-only | --hid-input-only --confirm-hid-writes | --full-legacy-driver --confirm-plaintext-bond]");
                 return 2;
             }
         }
@@ -73,7 +76,7 @@ internal static partial class Program
         if ((hciOnly ? 1 : 0) + (scanOnly ? 1 : 0) + (connectOnly ? 1 : 0) +
             (smpNegotiateOnly ? 1 : 0) + (smpPairOnly ? 1 : 0) +
             (reconnectOnly ? 1 : 0) + (gattInspectOnly ? 1 : 0) +
-            (legacyFullDriver ? 1 : 0) > 1)
+            (hidInputOnly ? 1 : 0) + (legacyFullDriver ? 1 : 0) > 1)
         {
             Console.Error.WriteLine("Choose only one probe mode.");
             return 2;
@@ -81,6 +84,18 @@ internal static partial class Program
         if (saveBond && !smpPairOnly)
         {
             Console.Error.WriteLine("--save-bond requires --smp-pair-only and --confirm-pairing.");
+            return 2;
+        }
+        if (confirmHidWrites && !hidInputOnly)
+        {
+            Console.Error.WriteLine("--confirm-hid-writes is valid only with --hid-input-only.");
+            return 2;
+        }
+        if (hidInputOnly && !confirmHidWrites)
+        {
+            Console.Error.WriteLine("--hid-input-only requires explicit --confirm-hid-writes.");
+            Console.Error.WriteLine("This gate writes ONLY to 0xFB/0xFC CCCDs and to the mapped 0xF0 feature.");
+            Console.Error.WriteLine("It does not subscribe to microphone 0xFA or send Windows keyboard/mouse input.");
             return 2;
         }
         if (confirmPlaintextBond && !legacyFullDriver)
@@ -96,7 +111,8 @@ internal static partial class Program
             return 2;
         }
         if (!hciOnly && !scanOnly && !connectOnly && !smpNegotiateOnly &&
-            !smpPairOnly && !reconnectOnly && !gattInspectOnly && !legacyFullDriver)
+            !smpPairOnly && !reconnectOnly && !gattInspectOnly &&
+            !hidInputOnly && !legacyFullDriver)
         {
             Console.Error.WriteLine("Select an explicit probe mode; the historical bond-writing driver is not the default.");
             return 2;
@@ -117,7 +133,7 @@ internal static partial class Program
         }
         // The experimental link-only mode is deliberately limited to the measured,
         // independently controlled external Barrot adapter. Never select the built-in Intel adapter.
-        if ((connectOnly || smpNegotiateOnly || smpPairOnly || reconnectOnly || gattInspectOnly) &&
+        if ((connectOnly || smpNegotiateOnly || smpPairOnly || reconnectOnly || gattInspectOnly || hidInputOnly) &&
             targetUsbId != new UsbHci.UsbId(0x33FA, 0x0001))
         {
             Console.Error.WriteLine("Link/SMP diagnostic modes require --usb 33FA:0001 (external WinUSB dongle).");
@@ -718,7 +734,7 @@ internal static partial class Program
         // Encrypted reconnect and read-only GATT inspection, using only a bond
         // protected for the current Windows user (never plaintext BondStore).
         // They NEVER issue SMP Pairing Request or overwrite an existing bond.
-        if (reconnectOnly || gattInspectOnly)
+        if (reconnectOnly || gattInspectOnly || hidInputOnly)
         {
             using (usb)
             using (var stop = new CancellationTokenSource())
@@ -754,10 +770,14 @@ internal static partial class Program
                         if (connectedHandle == observedHandle)
                             disconnected.TrySetResult((observedHandle, reason));
                     };
-                    Console.WriteLine(gattInspectOnly
-                        ? "A2854 protected-bond reconnect + READ-ONLY GATT inspection."
-                        : "A2854 protected-bond encrypted reconnect-only diagnostic.");
-                    Console.WriteLine("No pairing request, no key persistence changes, no feature writes, no HID input subscriptions.");
+                    Console.WriteLine(hidInputOnly
+                        ? "A2854 protected-bond encrypted HID input capture: 0xFB/0xFC only."
+                        : gattInspectOnly
+                            ? "A2854 protected-bond reconnect + READ-ONLY GATT inspection."
+                            : "A2854 protected-bond encrypted reconnect-only diagnostic.");
+                    Console.WriteLine(hidInputOnly
+                        ? "Explicit HID writes enabled: 0xFB/0xFC CCCDs and 0xF0<-0xAF only. No microphone or Windows input synthesis."
+                        : "No pairing request, no key persistence changes, no feature writes, no HID input subscriptions.");
                     Console.WriteLine("Wake the remote with an ordinary button press if needed (do NOT enter pairing mode).");
 
                     stage = "controller initialization";
@@ -779,12 +799,116 @@ internal static partial class Program
                     await central.EncryptAsync(handle, stored.Value.Keys, encryptionWindow.Token);
                     Console.WriteLine("Encrypted LE reconnection confirmed by HCI Encryption Change.");
 
-                    if (gattInspectOnly)
+                    if (gattInspectOnly || hidInputOnly)
                     {
-                        stage = "read-only HID GATT discovery";
+                        stage = hidInputOnly ? "HID input metadata discovery" : "read-only HID GATT discovery";
                         using var gattWindow = CancellationTokenSource.CreateLinkedTokenSource(stop.Token);
                         gattWindow.CancelAfter(TimeSpan.FromSeconds(seconds));
                         gatt = new GattClient(central, handle);
+                        if (hidInputOnly)
+                        {
+                            stage = "validate observed A2854 report handles and find CCCDs";
+                            A2854HidInputMap map = await A2854HidCapture.DiscoverAsync(
+                                gatt, gattWindow.Token, requireObservedValueHandles: true);
+                            Console.WriteLine($"HID report map verified: 0xFB=0x{map.ButtonValue:X4}, " +
+                                $"0xFC=0x{map.TouchValue:X4}, 0xF0=0x{map.UnlockFeatureValue:X4}.");
+                            Console.WriteLine($"Discovered input CCCDs: buttons=0x{map.ButtonCccd:X4}, touch=0x{map.TouchCccd:X4}.");
+                            var decoder = new A2854Decoder();
+                            int buttonFrames = 0, touchFrames = 0, malformedButtons = 0, malformedTouches = 0;
+                            int ignoredOtherHandles = 0, printedTouchFrames = 0;
+                            gatt.Notification += (valueHandle, payload) =>
+                            {
+                                try
+                                {
+                                    if (!A2854HidCapture.TryDecode(
+                                        decoder, map, valueHandle, payload, out var events, out byte reportId))
+                                    {
+                                        // Never log or decode unknown reports, including Siri microphone 0xFA.
+                                        Interlocked.Increment(ref ignoredOtherHandles);
+                                        return;
+                                    }
+                                    if (reportId == A2854Decoder.ButtonsReportId)
+                                    {
+                                        Interlocked.Increment(ref buttonFrames);
+                                        if (payload.Length != 2)
+                                        {
+                                            Interlocked.Increment(ref malformedButtons);
+                                            return;
+                                        }
+                                        foreach (RemoteEvent ev in events)
+                                            if (ev is ButtonsEvent buttons)
+                                                Console.WriteLine($"button +{string.Join("+", buttons.Pressed)} " +
+                                                    $"-{string.Join("+", buttons.Released)} (0xFB).");
+                                    }
+                                    else if (reportId == A2854Decoder.TouchReportId)
+                                    {
+                                        Interlocked.Increment(ref touchFrames);
+                                        var touch = A2854Decoder.ParseTouch(payload);
+                                        if (touch is null)
+                                        {
+                                            Interlocked.Increment(ref malformedTouches);
+                                            return;
+                                        }
+                                        if (Interlocked.Increment(ref printedTouchFrames) <= 25)
+                                        {
+                                            A2854Finger? primary = touch.First ?? touch.Second;
+                                            Console.WriteLine(primary is { } finger
+                                                ? $"touch fingers={touch.FingerCount} x={finger.X} y={finger.Y} hover={finger.Hover} (0xFC)."
+                                                : "touch released (0xFC).");
+                                        }
+                                    }
+                                }
+                                catch (Exception e)
+                                {
+                                    Console.Error.WriteLine($"HID input decode error: {e.GetType().Name}.");
+                                }
+                            };
+
+                            bool mayHaveSubscriptions = false;
+                            try
+                            {
+                                stage = "enable only 0xFB/0xFC CCCDs and unlock 0xF0";
+                                // If a Write Response is lost, a write may still have succeeded:
+                                // always attempt best-effort cleanup while the link remains.
+                                mayHaveSubscriptions = true;
+                                await A2854HidCapture.EnableAsync(gatt, map, gattWindow.Token);
+                                Console.WriteLine("Subscribed ONLY to button 0xFB and touch 0xFC; F0 feature unlock sent.");
+                                Console.WriteLine($"Observe remote buttons/touch for up to {seconds}s. Microphone excluded.");
+                                stage = "bounded A2854 HID report observation";
+                                Task sampling = Task.Delay(TimeSpan.FromSeconds(seconds), stop.Token);
+                                Task winner = await Task.WhenAny(sampling, disconnected.Task);
+                                if (winner == disconnected.Task)
+                                {
+                                    var early = await disconnected.Task;
+                                    linkEnded = true;
+                                    throw new IOException($"Remote disconnected during HID observation (HCI reason 0x{early.Reason:X2}).");
+                                }
+                                await sampling;
+                            }
+                            finally
+                            {
+                                if (mayHaveSubscriptions && !disconnected.Task.IsCompleted)
+                                {
+                                    using var cleanup = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+                                    try
+                                    {
+                                        stage = "disable 0xFB/0xFC CCCDs";
+                                        await A2854HidCapture.DisableAsync(gatt, map, cleanup.Token);
+                                        Console.WriteLine("CCCD notification subscriptions disabled.");
+                                    }
+                                    catch (Exception e)
+                                    {
+                                        Console.Error.WriteLine($"CCCD cleanup incomplete ({e.GetType().Name}); disconnect will follow.");
+                                    }
+                                }
+                                // Release decoder button/touch state in memory.
+                                decoder.Decode([]);
+                            }
+                            Console.WriteLine($"HID summary: button_frames={buttonFrames}, touch_frames={touchFrames}, " +
+                                $"malformed_buttons={malformedButtons}, malformed_touches={malformedTouches}, ignored_handles={ignoredOtherHandles}.");
+                        }
+                        else
+                        {
                         List<GattService> services = await gatt.DiscoverPrimaryServicesAsync(gattWindow.Token);
                         GattService? hid = services.FirstOrDefault(service => GattClient.Is(service.Uuid, 0x1812));
                         if (hid is null)
@@ -822,6 +946,7 @@ internal static partial class Program
                         }
                         Console.WriteLine($"GATT report-reference summary: total={seenReports}, buttons={buttons}, touch={touch}, featureF0={unlock}.");
                         Console.WriteLine("No notifications, feature unlock, microphone reads or HID commands were issued.");
+                        }
                     }
 
                     stage = "HCI Disconnect / Disconnection Complete";
@@ -834,9 +959,11 @@ internal static partial class Program
                     Console.WriteLine($"Disconnection Complete reason=0x{ended.Reason:X2} ({HciDisconnectReason.Describe(ended.Reason)}).");
                     if (!HciDisconnectReason.IsExpectedHostDisconnect(ended.Reason))
                         throw new InvalidDataException("Encrypted link ended with unexpected reason.");
-                    Console.WriteLine(gattInspectOnly
-                        ? "Encrypted reconnect and GATT metadata discovery completed without ATT writes."
-                        : "Encrypted reconnect-only completed; no GATT or SMP traffic was sent.");
+                    Console.WriteLine(hidInputOnly
+                        ? "Encrypted A2854 HID input diagnostic finished and link closed."
+                        : gattInspectOnly
+                            ? "Encrypted reconnect and GATT metadata discovery completed without ATT writes."
+                            : "Encrypted reconnect-only completed; no GATT or SMP traffic was sent.");
                     return 0;
                 }
                 catch (OperationCanceledException)
