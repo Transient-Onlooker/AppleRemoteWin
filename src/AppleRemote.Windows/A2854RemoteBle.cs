@@ -15,7 +15,7 @@ namespace AppleRemote.Windows;
 /// </summary>
 public sealed class A2854RemoteBle(
     HciHost host, Action<byte[]?> onReport, Action<string> onStatus,
-    string? protectedBondPath = null)
+    string? protectedBondPath = null, Action? onTerminalCleanup = null)
 {
     readonly ProtectedBondStore _bonds = new(protectedBondPath ?? ProtectedBondStore.DefaultPath);
 
@@ -30,7 +30,7 @@ public sealed class A2854RemoteBle(
         bool alreadyDisconnected = false;
         var disconnected = new TaskCompletionSource<(ushort Handle, byte Reason)>(
             TaskCreationOptions.RunContinuationsAsynchronously);
-        var inputGate = new A2854InputGate(onReport);
+        var inputGate = new A2854InputGate(onReport, onTerminalCleanup);
         try
         {
             // Fail closed: never fall back to SMP PairAsync or the gen-1 plaintext BondStore.
