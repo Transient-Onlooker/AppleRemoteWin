@@ -30,6 +30,7 @@ public sealed class A2854RemoteBle(
         bool alreadyDisconnected = false;
         var disconnected = new TaskCompletionSource<(ushort Handle, byte Reason)>(
             TaskCreationOptions.RunContinuationsAsynchronously);
+        var inputGate = new A2854InputGate(onReport);
         try
         {
             // Fail closed: never fall back to SMP PairAsync or the gen-1 plaintext BondStore.
@@ -48,8 +49,12 @@ public sealed class A2854RemoteBle(
             central = new LeCentral(host);
             central.Disconnected += (h, reason) =>
             {
-                if (handle == h)
-                    disconnected.TrySetResult((h, reason));
+                if (handle != h) return;
+                // Invalidate input before completing the disconnect task. Any
+                // in-flight notification is ordered before the final release;
+                // a resumed callback after this point cannot re-press a button.
+                inputGate.Close();
+                disconnected.TrySetResult((h, reason));
             };
             onStatus(Loc.T("Status.WaitBonded"));
             onStatus("A2854: initializing dedicated external Barrot WinUSB controller.");
@@ -86,15 +91,16 @@ public sealed class A2854RemoteBle(
             A2854HidInputMap inputMap = map ??
                 throw new InvalidDataException("A2854 HID report map was not resolved.");
             var localDecoder = new A2854Decoder();
-            object reportLock = new();
+            object decoderLock = new();
             gatt.Notification += (valueHandle, value) =>
             {
-                lock (reportLock)
+                lock (decoderLock)
                 {
+                    if (inputGate.IsClosed) return;
                     if (!A2854HidCapture.TryDecode(
                         localDecoder, inputMap, valueHandle, value, out _, out byte id))
                         return; // drop microphone/unknown/malformed without printing raw payloads
-                    onReport([id, .. value]);
+                    inputGate.TryForward([id, .. value]);
                 }
             };
 
@@ -141,6 +147,9 @@ public sealed class A2854RemoteBle(
         }
         finally
         {
+            // Seal the input stream *before* any potentially slow ATT cleanup.
+            // The release marker is synchronized with every notification.
+            inputGate.Close();
             try
             {
                 if (gatt is not null && map is not null && subscribed &&
@@ -185,7 +194,7 @@ public sealed class A2854RemoteBle(
                 CryptographicOperations.ZeroMemory(bond.Keys.Ltk);
                 CryptographicOperations.ZeroMemory(bond.Keys.Rand);
             }
-            onReport([]); // release held click/key states on stop, peer sleep or error
+            // inputGate.Close already delivered exactly one release marker.
         }
     }
 
