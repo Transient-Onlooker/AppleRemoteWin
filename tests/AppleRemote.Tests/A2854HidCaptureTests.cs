@@ -6,6 +6,28 @@ namespace AppleRemote.Tests;
 
 public sealed class A2854HidCaptureTests
 {
+    [Theory]
+    [InlineData(59, 720, 0x13, A2854HidCaptureOutcome.BothReportsCaptured)]
+    [InlineData(59, 0, 0x13, A2854HidCaptureOutcome.PartialReportsCaptured)]
+    [InlineData(0, 720, 0x13, A2854HidCaptureOutcome.PartialReportsCaptured)]
+    [InlineData(0, 0, 0x13, A2854HidCaptureOutcome.NoReportsCaptured)]
+    [InlineData(59, 720, 0x08, A2854HidCaptureOutcome.UnexpectedLinkTermination)]
+    [InlineData(59, 720, 0x3E, A2854HidCaptureOutcome.UnexpectedLinkTermination)]
+    [InlineData(59, 720, null, A2854HidCaptureOutcome.BothReportsCaptured)]
+    [InlineData(0, 0, null, A2854HidCaptureOutcome.NoReportsCaptured)]
+    public void Remote_disconnect_reason_and_HID_data_quality_are_independent(
+        int buttons, int touches, byte? reason, A2854HidCaptureOutcome expected)
+    {
+        Assert.Equal(expected, A2854HidCaptureAssessment.Evaluate(buttons, touches, reason));
+    }
+
+    [Fact]
+    public void Negative_HID_frame_counts_are_rejected()
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+            A2854HidCaptureAssessment.Evaluate(-1, 10, 0x13));
+    }
+
     [Fact]
     public async Task Observed_mapping_discovers_decodes_and_writes_only_allowlisted_handles()
     {
