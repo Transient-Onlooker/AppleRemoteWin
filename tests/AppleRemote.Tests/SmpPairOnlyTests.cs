@@ -90,4 +90,53 @@ public sealed class SmpPairOnlyTests
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => pairing);
         Assert.Single(sentAcl); // No Confirm/Random/Encryption was sent after cancellation.
     }
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Failed_or_mismatching_peer_response_never_starts_link_encryption(bool sendWrongConfirm)
+    {
+        var sentCommands = new List<byte[]>();
+        var sentAcl = new List<byte[]>();
+        HciHost? hci = null;
+        const ushort handle = 0x0040;
+
+        void DeliverSmp(byte[] pdu)
+        {
+            hci!.ReceiveAclBytes([
+                0x40, 0x20, (byte)(pdu.Length + 4), 0x00,
+                (byte)pdu.Length, 0x00, 0x06, 0x00, .. pdu
+            ]);
+        }
+
+        hci = new HciHost(sentCommands.Add, acl =>
+        {
+            sentAcl.Add(acl);
+            byte opcode = acl[8];
+            if (opcode == SmpOpcode.PairingRequest)
+            {
+                DeliverSmp(sendWrongConfirm
+                    ? [0x02, 0x03, 0x00, 0x01, 16, 0x00, 0x01]
+                    : [0x05, 0x03]); // Authentication Requirements
+            }
+            else if (sendWrongConfirm && opcode == SmpOpcode.PairingConfirm)
+            {
+                DeliverSmp([0x03, .. new byte[16]]); // Deliberately wrong confirm.
+            }
+            else if (sendWrongConfirm && opcode == SmpOpcode.PairingRandom)
+            {
+                DeliverSmp([0x04, .. new byte[16]]);
+            }
+        });
+        var central = new LeCentral(hci);
+        var result = SmpPairing.PairAsync(central, handle,
+            new byte[] { 1, 2, 3, 4, 5, 6 }, new byte[] { 7, 8, 9, 10, 11, 12 });
+        await Assert.ThrowsAsync<SmpException>(() => result);
+        Assert.Empty(sentCommands); // No LE Enable Encryption.
+        Assert.DoesNotContain(sentAcl, acl => acl[6] == LeCentral.CidAtt); // No GATT.
+        if (!sendWrongConfirm)
+            Assert.Single(sentAcl); // Only a Pairing Request sent.
+        else
+            Assert.Contains(sentAcl, acl => acl[8] == SmpOpcode.PairingFailed);
+    }
+
 }
