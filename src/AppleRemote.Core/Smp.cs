@@ -72,7 +72,8 @@ public static class SmpPairing
     public static async Task<BondKeys> PairAsync(LeCentral central, ushort handle,
         byte[] localAddress, byte[] remoteAddress, byte remoteAddressType = 0,
         CancellationToken cancellationToken = default,
-        Action<SmpPairingStage>? onStage = null)
+        Action<SmpPairingStage>? onStage = null,
+        bool requireObservedA2854Profile = false)
     {
         if (remoteAddressType is not (0 or 1)) throw new ArgumentOutOfRangeException(nameof(remoteAddressType));
         if (localAddress.Length != 6 || remoteAddress.Length != 6)
@@ -128,7 +129,19 @@ public static class SmpPairing
             Stage(SmpPairingStage.PairingRequest);
             Send(preq);
             byte[] pres = await Expect(PairingResponse, 7);
-            ValidateLegacyJustWorksResponse(pres);
+            if (requireObservedA2854Profile)
+                ValidateLegacyJustWorksResponse(pres);
+            else
+            {
+                // Preserve compatibility with older remotes distributing more than
+                // just EncKey. Still reject impossible key sizes and SC pairing
+                // unsupported by this legacy c1/s1 implementation.
+                SmpPairingResponse offered = SmpPairingResponse.Parse(pres);
+                if (!offered.HasEncKey)
+                    throw new SmpException("The remote distributes no encryption key.");
+                if (offered.SecureConnectionsRequested)
+                    throw new SmpException("LE Secure Connections is unsupported by legacy pairing.");
+            }
             Stage(SmpPairingStage.PairingResponseValidated);
 
             tk = new byte[16]; // Legacy Just Works: zero temporary key.
@@ -175,6 +188,8 @@ public static class SmpPairing
             byte[] ltk = ltkMessage[1..17];
             byte[] rand = master[3..11];
             ushort ediv = (ushort)(master[1] | master[2] << 8);
+            CryptographicOperations.ZeroMemory(ltkMessage);
+            CryptographicOperations.ZeroMemory(master);
             Stage(SmpPairingStage.Complete);
             return new BondKeys(ltk, ediv, rand);
         }
