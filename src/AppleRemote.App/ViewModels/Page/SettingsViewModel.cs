@@ -84,6 +84,33 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
 
     [ObservableProperty] bool _keyboardEnabled;
 
+    /// <summary>Third-generation Siri Remote mode: available only while stopped.</summary>
+    [ObservableProperty] bool _a2854Mode;
+    partial void OnA2854ModeChanged(bool value)
+    {
+        _session.A2854Mode = value; // explicitly selected; no automatic pairing
+        _settings.A2854Mode = value;
+        _settings.Save();
+        Remote.RefreshTexts();
+    }
+
+    /// <summary>Pointer synthesis remains disabled until separately enabled by the user.</summary>
+    [ObservableProperty] bool _a2854PointerEnabled;
+    partial void OnA2854PointerEnabledChanged(bool value)
+    {
+        _session.A2854PointerEnabled = value;
+        _settings.A2854PointerEnabled = value;
+        _settings.Save();
+    }
+
+    [ObservableProperty] double _a2854PointerSensitivity = 0.18;
+    partial void OnA2854PointerSensitivityChanged(double value)
+    {
+        _session.A2854PointerSensitivity = value;
+        _settings.A2854PointerSensitivity = value;
+        _settings.Save();
+    }
+
     partial void OnKeyboardEnabledChanged(bool value)
     {
         _session.KeyboardEnabled = value;
@@ -149,6 +176,12 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
         SyncBindings();
 
         _keyboardEnabled = _settings.KeyboardEnabled;
+        _a2854Mode = _settings.A2854Mode;
+        _a2854PointerEnabled = _settings.A2854PointerEnabled;
+        _a2854PointerSensitivity =
+            double.IsFinite(_settings.A2854PointerSensitivity) &&
+            _settings.A2854PointerSensitivity is >= 0.02 and <= 3.0
+                ? _settings.A2854PointerSensitivity : 0.18;
         _language = _settings.Language;
         _closeToTray = _settings.CloseToTray;
         _notifyUpdates = _settings.NotifyUpdates;
@@ -157,6 +190,9 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
         _ = FetchLatestReleases();
         ShowLastChecked();
         _session.KeyboardEnabled = _settings.KeyboardEnabled;
+        _session.A2854Mode = _a2854Mode;
+        _session.A2854PointerSensitivity = _a2854PointerSensitivity;
+        _session.A2854PointerEnabled = _a2854PointerEnabled;
         _session.AdapterId = _settings.Adapter;
         _ = RefreshDriver();
     }
