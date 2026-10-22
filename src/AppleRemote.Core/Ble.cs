@@ -136,7 +136,10 @@ public sealed class LeCentral
     public async Task<ushort> ConnectAsync(string address, CancellationToken ct = default, byte peerAddressType = 0)
     {
         if (peerAddressType is not (0 or 1)) throw new ArgumentOutOfRangeException(nameof(peerAddressType));
-        var connecting = _connecting = new TaskCompletionSource<ushort>(TaskCreationOptions.RunContinuationsAsynchronously);
+        ct.ThrowIfCancellationRequested();
+        var connecting = new TaskCompletionSource<ushort>(TaskCreationOptions.RunContinuationsAsynchronously);
+        if (Interlocked.CompareExchange(ref _connecting, connecting, null) is not null)
+            throw new InvalidOperationException("An LE connection attempt is already in progress.");
         byte[] scan = [0x60, 0x00, 0x30, 0x00];   // scan: 60 ms interval, 30 ms window
         byte[] link =
         [
@@ -145,7 +148,7 @@ public sealed class LeCentral
             0xC8, 0x00,                 // supervision 2 s
             0x00, 0x00, 0x00, 0x00,     // event length: up to the controller
         ];
-        // No filter list: the device's public address; our public address: the remote (BT 4.0) reconnects poorly to a changing one.
+        // No filter list: use the observed peer address and its type, including a temporary random address.
         try
         {
             if (Extended)
@@ -153,13 +156,78 @@ public sealed class LeCentral
                     [0x00, 0x00, peerAddressType, .. BdAddr.Parse(address), 0x01 /* 1M PHY */, .. scan, .. link]);
             else
                 await _hci.CommandAsync(HciOpcode.LeCreateConnection, [.. scan, 0x00, peerAddressType, .. BdAddr.Parse(address), 0x00, .. link]);
-            using var cancel = ct.Register(() => _ = _hci.CommandAsync(HciOpcode.LeCreateConnectionCancel));
-            return await connecting.Task.WaitAsync(ct);
+            try
+            {
+                return await connecting.Task.WaitAsync(ct);
+            }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested)
+            {
+                if (connecting.Task.IsCompleted)
+                {
+                    await DisconnectIfConnectedAsync(connecting.Task);
+                    throw new OperationCanceledException(ct);
+                }
+
+                // LE Create Connection Cancel applies to both legacy and extended create.
+                // Await its Command Complete before returning so a caller's cleanup/reset
+                // cannot overtake the cancel command in HCI command serialization.
+                try { await _hci.CommandAsync(HciOpcode.LeCreateConnectionCancel); }
+                catch (HciException e) when (e.Status is 0x02 or 0x0C)
+                {
+                    // Unknown Connection Identifier / Command Disallowed can mean the
+                    // create completion won the race with cancellation. Drain that event.
+                }
+
+                try
+                {
+                    // The Controller reports the create procedure's final status after the
+                    // cancel response. A successful late completion must be disconnected.
+                    await DisconnectIfConnectedAsync(connecting.Task.WaitAsync(TimeSpan.FromSeconds(2)));
+                }
+                catch (TimeoutException)
+                {
+                    // The caller owns the controller-specific last-resort reset if the
+                    // completion event never arrives.
+                }
+                catch (HciException e) when ((e.Opcode is HciOpcode.LeCreateConnection or HciOpcode.LeExtendedCreateConnection) && e.Status == 0x02)
+                {
+                    // Unknown Connection Identifier is the expected completion after a
+                    // successful cancellation; no ACL link was created.
+                }
+
+                throw new OperationCanceledException(ct);
+            }
         }
         finally
         {
-            // Also clear the pending task if the HCI command itself timed out or failed.
-            _connecting = null;
+            Interlocked.CompareExchange(ref _connecting, null, connecting);
+        }
+    }
+
+    async Task DisconnectIfConnectedAsync(Task<ushort> connection)
+    {
+        ushort handle;
+        try { handle = await connection; }
+        catch (HciException e) when ((e.Opcode is HciOpcode.LeCreateConnection or HciOpcode.LeExtendedCreateConnection) && e.Status == 0x02)
+        {
+            return;
+        }
+
+        var disconnected = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        void OnDisconnected(ushort disconnectedHandle, byte _)
+        {
+            if (disconnectedHandle == handle) disconnected.TrySetResult();
+        }
+
+        Disconnected += OnDisconnected;
+        try
+        {
+            await DisconnectAsync(handle);
+            await disconnected.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        }
+        finally
+        {
+            Disconnected -= OnDisconnected;
         }
     }
 
@@ -293,9 +361,8 @@ public sealed class LeCentral
                     i += 24 + length;
                 }
                 break;
-            case EvtLeMeta when p.Length >= 4 && p[0] is LeConnectionComplete or LeEnhancedConnectionComplete:
-                if (p[1] != 0) _connecting?.TrySetException(new HciException(HciOpcode.LeCreateConnection, p[1]));
-                else _connecting?.TrySetResult((ushort)(p[2] | p[3] << 8));
+            case EvtLeMeta when p.Length >= 2 && (p[0] is LeConnectionComplete or LeEnhancedConnectionComplete):
+                CompleteConnection(p);
                 break;
             case EvtEncryptionChange when p.Length >= 4:
                 if (p[0] != 0) _encrypting?.TrySetException(new HciException(HciOpcode.LeEnableEncryption, p[0]));
@@ -307,5 +374,30 @@ public sealed class LeCentral
                 Disconnected?.Invoke((ushort)(p[1] | p[2] << 8), p[3]);
                 break;
         }
+    }
+
+    void CompleteConnection(byte[] p)
+    {
+        TaskCompletionSource<ushort>? connecting = Volatile.Read(ref _connecting);
+        if (connecting is null) return;
+
+        bool enhanced = p[0] == LeEnhancedConnectionComplete;
+        ushort opcode = enhanced ? HciOpcode.LeExtendedCreateConnection : HciOpcode.LeCreateConnection;
+        if (p[1] != 0)
+        {
+            connecting.TrySetException(new HciException(opcode, p[1]));
+            return;
+        }
+
+        // Subevent plus full success parameters: 19 octets for legacy and 31
+        // for Enhanced Connection Complete v1 (longer v2 events are accepted).
+        int minimumLength = enhanced ? 31 : 19;
+        if (p.Length < minimumLength)
+        {
+            connecting.TrySetException(new InvalidDataException("Truncated LE Connection Complete event."));
+            return;
+        }
+
+        connecting.TrySetResult((ushort)(p[2] | p[3] << 8));
     }
 }

@@ -186,4 +186,92 @@ public class BleTests
         Assert.Empty(aclOut);
     }
 
+    [Fact]
+    public async Task Cancelling_connection_awaits_cancel_command_and_drains_cancelled_completion()
+    {
+        var commands = new List<byte[]>();
+        var cancelSent = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var hci = new HciHost(command =>
+        {
+            commands.Add(command);
+            if ((command[0] | command[1] << 8) == HciOpcode.LeCreateConnectionCancel)
+                cancelSent.TrySetResult();
+        }, _ => { });
+        var central = new LeCentral(hci);
+        using var cts = new CancellationTokenSource();
+
+        Task<ushort> connecting = central.ConnectAsync("14:9D:99:26:BF:CC", cts.Token);
+        hci.ReceiveEventBytes([0x0F, 0x04, 0x00, 0x01, 0x0D, 0x20]);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => central.ConnectAsync("14:9D:99:26:BF:CC"));
+        cts.Cancel();
+        await cancelSent.Task.WaitAsync(TimeSpan.FromSeconds(1));
+
+        Assert.Equal(HciOpcode.LeCreateConnectionCancel, (ushort)(commands[^1][0] | commands[^1][1] << 8));
+        Assert.False(connecting.IsCompleted); // Cancel is serialized and awaited before the result is settled.
+        hci.ReceiveEventBytes([0x0E, 0x04, 0x01, 0x0E, 0x20, 0x00]); // Cancel Command Complete: success.
+        hci.ReceiveEventBytes([0x3E, 0x13, 0x01, 0x02, .. new byte[17]]); // Required failed LE Connection Complete.
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => connecting);
+        Assert.Equal(new ushort[] { HciOpcode.LeCreateConnection, HciOpcode.LeCreateConnectionCancel },
+            commands.Select(c => (ushort)(c[0] | c[1] << 8)));
+    }
+
+    [Theory]
+    [InlineData(0x02)]
+    [InlineData(0x0C)]
+    public async Task Late_success_after_cancel_race_is_disconnected_before_cancellation_returns(byte cancelStatus)
+    {
+        var commands = new List<byte[]>();
+        var cancelSent = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        HciHost? hci = null;
+        hci = new HciHost(command =>
+        {
+            commands.Add(command);
+            ushort opcode = (ushort)(command[0] | command[1] << 8);
+            if (opcode == HciOpcode.LeCreateConnectionCancel)
+                cancelSent.TrySetResult();
+            else if (opcode == HciOpcode.Disconnect)
+            {
+                hci!.ReceiveEventBytes([0x0F, 0x04, 0x00, 0x01, command[0], command[1]]);
+                hci.ReceiveEventBytes([0x05, 0x04, 0x00, 0x40, 0x00, 0x16]);
+            }
+        }, _ => { });
+        var central = new LeCentral(hci);
+        using var cts = new CancellationTokenSource();
+
+        Task<ushort> connecting = central.ConnectAsync("14:9D:99:26:BF:CC", cts.Token, peerAddressType: 1);
+        hci.ReceiveEventBytes([0x0F, 0x04, 0x00, 0x01, 0x0D, 0x20]);
+        cts.Cancel();
+        await cancelSent.Task.WaitAsync(TimeSpan.FromSeconds(1));
+
+        hci.ReceiveEventBytes([0x0E, 0x04, 0x01, 0x0E, 0x20, cancelStatus]);
+        hci.ReceiveEventBytes([0x3E, 0x13, 0x01, 0x00, 0x40, 0x00, 0x00, 0x01,
+            .. BdAddr.Parse("14:9D:99:26:BF:CC"), 0x18, 0x00, 0x00, 0x00, 0xC8, 0x00, 0x00]);
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => connecting);
+        Assert.Contains(commands, c => c.SequenceEqual((byte[])[0x06, 0x04, 0x03, 0x40, 0x00, 0x13]));
+    }
+
+    [Fact]
+    public async Task Failed_connection_event_needs_only_the_status_field()
+    {
+        Task<ushort> connecting = _central.ConnectAsync("14:9D:99:26:BF:CC");
+        CommandStatusOk(HciOpcode.LeCreateConnection);
+        _hci.ReceiveEventBytes([0x3E, 0x02, 0x01, 0x3E]); // Failed connection: status only after the subevent code.
+
+        HciException error = await Assert.ThrowsAsync<HciException>(() => connecting);
+        Assert.Equal(HciOpcode.LeCreateConnection, error.Opcode);
+        Assert.Equal((byte)0x3E, error.Status);
+    }
+
+    [Fact]
+    public async Task Truncated_success_connection_event_is_rejected()
+    {
+        Task<ushort> connecting = _central.ConnectAsync("14:9D:99:26:BF:CC");
+        CommandStatusOk(HciOpcode.LeCreateConnection);
+        _hci.ReceiveEventBytes([0x3E, 0x04, 0x01, 0x00, 0x40, 0x00]);
+
+        await Assert.ThrowsAsync<InvalidDataException>(() => connecting);
+    }
+
 }

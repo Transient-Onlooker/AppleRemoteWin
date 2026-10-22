@@ -299,6 +299,12 @@ The owner asked that the detector identify the known model more specifically. Th
 
 Next: build/test new matcher → scan while waking physical A2854 after the scan starts → confirm known fingerprints without logging identity/address → propose explicit connection-only diagnostic; **do not silently perform SMP pairing or save bond keys**.
 
+## 2026-10-22 source audit at cc129a3 (current verification)
+
+Update: the earlier verification boundary below is superseded by this local Windows audit. In a writable temporary checkout, the full Release solution build passed with 0 errors, A2854.Probe Release build passed with 0 errors, and 109/109 tests passed. NU1900 indicates NuGet vulnerability-feed access was unavailable; the full solution build emitted non-fatal app post-build external artifact download warnings. No hardware command was run in this audit.
+
+`LeCentral.ConnectAsync` now allows one pending create attempt, awaits the cancel command, drains late completion and disconnects any late-created handle before returning cancellation. Both cancel-race statuses 0x02 and 0x0C are handled. The next physical gate remains link-only: `dotnet run -c Release --project tools/A2854.Probe/A2854.Probe.csproj -- --usb 33FA:0001 --connect-only --seconds 30`. Do not infer link success from prior HCI or advertising results. No SMP, GATT or bond operation is part of this diagnostic.
+
 ## 2026-10-22 desk research / no-remote improvements before link test
 
 Local agent report at HEAD \`1375d4d\`: full Release tests **103/103 passed**, standalone Probe Release build succeeded. The owner's physical A2854 was unavailable; \`--connect-only\` timed out **at advertising scan**, so **no connection attempt or cleanup Reset took place**. Prior real Barrot scan had already measured **95 strong A2854-format advertisements** with Apple \`0x004C\`, HID \`0x1812\` and manufacturer prefix A. Physical LE link, security, GATT and native input are untested.
