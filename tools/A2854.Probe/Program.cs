@@ -26,23 +26,27 @@ internal static partial class Program
         int seconds = 30;
         UsbHci.UsbId? targetUsbId = null;
         bool hciOnly = false, scanOnly = false, connectOnly = false, smpNegotiateOnly = false;
-        bool smpPairOnly = false, confirmPairing = false;
+        bool smpPairOnly = false, confirmPairing = false, saveBond = false;
+        bool reconnectOnly = false, gattInspectOnly = false;
         bool legacyFullDriver = false, confirmPlaintextBond = false;
         for (int i = 0; i < args.Length;)
         {
-            if (args[i] is "--hci-only" or "--scan-only" or "--connect-only" or "--smp-negotiate-only" or "--smp-pair-only" or "--full-legacy-driver")
+            if (args[i] is "--hci-only" or "--scan-only" or "--connect-only" or "--smp-negotiate-only" or "--smp-pair-only" or "--reconnect-only" or "--gatt-inspect-only" or "--full-legacy-driver")
             {
                 if (args[i] == "--hci-only") hciOnly = true;
                 else if (args[i] == "--scan-only") scanOnly = true;
                 else if (args[i] == "--connect-only") connectOnly = true;
                 else if (args[i] == "--smp-negotiate-only") smpNegotiateOnly = true;
                 else if (args[i] == "--smp-pair-only") smpPairOnly = true;
+                else if (args[i] == "--reconnect-only") reconnectOnly = true;
+                else if (args[i] == "--gatt-inspect-only") gattInspectOnly = true;
                 else legacyFullDriver = true;
                 i++;
             }
-            else if (args[i] == "--confirm-pairing" || args[i] == "--confirm-plaintext-bond")
+            else if (args[i] is "--confirm-pairing" or "--confirm-plaintext-bond" or "--save-bond")
             {
                 if (args[i] == "--confirm-pairing") confirmPairing = true;
+                else if (args[i] == "--save-bond") saveBond = true;
                 else confirmPlaintextBond = true;
                 i++;
             }
@@ -61,16 +65,22 @@ internal static partial class Program
             }
             else
             {
-                Console.Error.WriteLine("Usage: A2854.Probe [--seconds 30] [--usb 33FA:0001] [--hci-only | --scan-only | --connect-only | --smp-negotiate-only | --smp-pair-only --confirm-pairing | --full-legacy-driver --confirm-plaintext-bond]");
+                Console.Error.WriteLine("Usage: A2854.Probe [--seconds 30] [--usb 33FA:0001] [--hci-only | --scan-only | --connect-only | --smp-negotiate-only | --smp-pair-only --confirm-pairing [--save-bond] | --reconnect-only | --gatt-inspect-only | --full-legacy-driver --confirm-plaintext-bond]");
                 return 2;
             }
         }
 
         if ((hciOnly ? 1 : 0) + (scanOnly ? 1 : 0) + (connectOnly ? 1 : 0) +
             (smpNegotiateOnly ? 1 : 0) + (smpPairOnly ? 1 : 0) +
+            (reconnectOnly ? 1 : 0) + (gattInspectOnly ? 1 : 0) +
             (legacyFullDriver ? 1 : 0) > 1)
         {
             Console.Error.WriteLine("Choose only one probe mode.");
+            return 2;
+        }
+        if (saveBond && !smpPairOnly)
+        {
+            Console.Error.WriteLine("--save-bond requires --smp-pair-only and --confirm-pairing.");
             return 2;
         }
         if (confirmPlaintextBond && !legacyFullDriver)
@@ -85,7 +95,8 @@ internal static partial class Program
             Console.Error.WriteLine("Prefer --smp-pair-only for the non-persisting A2854 diagnostic.");
             return 2;
         }
-        if (!hciOnly && !scanOnly && !connectOnly && !smpNegotiateOnly && !smpPairOnly && !legacyFullDriver)
+        if (!hciOnly && !scanOnly && !connectOnly && !smpNegotiateOnly &&
+            !smpPairOnly && !reconnectOnly && !gattInspectOnly && !legacyFullDriver)
         {
             Console.Error.WriteLine("Select an explicit probe mode; the historical bond-writing driver is not the default.");
             return 2;
@@ -104,10 +115,18 @@ internal static partial class Program
         }
         // The experimental link-only mode is deliberately limited to the measured,
         // independently controlled external Barrot adapter. Never select the built-in Intel adapter.
-        if ((connectOnly || smpNegotiateOnly || smpPairOnly) &&
+        if ((connectOnly || smpNegotiateOnly || smpPairOnly || reconnectOnly || gattInspectOnly) &&
             targetUsbId != new UsbHci.UsbId(0x33FA, 0x0001))
         {
             Console.Error.WriteLine("Link/SMP diagnostic modes require --usb 33FA:0001 (external WinUSB dongle).");
+            return 2;
+        }
+
+        // Do not replace an existing protected bond through an accidental repeat pairing.
+        if (saveBond && new ProtectedBondStore(ProtectedBondStore.DefaultPath).Exists)
+        {
+            Console.Error.WriteLine("A protected bond already exists; refusing to overwrite it automatically.");
+            Console.Error.WriteLine("Inspect/recover the existing bond locally before any manual replacement.");
             return 2;
         }
 
@@ -564,8 +583,10 @@ internal static partial class Program
                     };
 
                     Console.WriteLine($"LE SMP pair-only: {usb.Name}; EP0=0x{usb.CommandRequestType:X2}.");
-                    Console.WriteLine("EXPLICIT PAIRING TEST: may replace Apple TV pairing; NO bond/key persistence.");
-                    Console.WriteLine("No GATT, HID, feature unlock, bond JSON, key dumps, or retries.");
+                    Console.WriteLine(saveBond
+                        ? "EXPLICIT PAIRING TEST: may replace Apple TV pairing; saves CurrentUser DPAPI-protected bond only."
+                        : "EXPLICIT PAIRING TEST: may replace Apple TV pairing; NO bond/key persistence.");
+                    Console.WriteLine("No GATT, HID, feature unlock, plaintext bond JSON, key dumps, or retries.");
                     await central.InitializeAsync();
                     Console.WriteLine($"Controller initialized. Extended LE commands: {central.Extended}.");
 
@@ -619,7 +640,17 @@ internal static partial class Program
                     if (ephemeralKeys.Ltk.Length != 16 || ephemeralKeys.Rand.Length != 8)
                         throw new InvalidDataException("Invalid negotiated legacy bond-key lengths.");
                     Console.WriteLine($"SMP full pairing / STK link encryption / responder LTK distribution completed at {linkTimer.Elapsed.TotalMilliseconds:F0}ms.");
-                    Console.WriteLine("Ephemeral LTK acquired in memory; NEVER written to disk, printed or uploaded.");
+                    if (saveBond)
+                    {
+                        stage = "Windows CurrentUser DPAPI-protected bond save";
+                        new ProtectedBondStore(ProtectedBondStore.DefaultPath)
+                            .Save(peer.Address, peer.AddressType, ephemeralKeys);
+                        Console.WriteLine("Protected bond saved to this Windows user profile (DPAPI ciphertext only).");
+                    }
+                    else
+                    {
+                        Console.WriteLine("Ephemeral LTK acquired only in memory; no file written.");
+                    }
 
                     stage = "HCI Disconnect Command Status / Disconnection Complete";
                     Volatile.Write(ref disconnectRequestStarted, 1);
@@ -631,7 +662,9 @@ internal static partial class Program
                         $"reason=0x{ended.Reason:X2} ({HciDisconnectReason.Describe(ended.Reason)}), after_host_request={ended.AfterRequest}.");
                     if (ended.Handle != handle || !HciDisconnectReason.IsExpectedHostDisconnect(ended.Reason))
                         throw new InvalidDataException("Unexpected disconnect handle or reason following SMP.");
-                    Console.WriteLine("SMP pair-only success. In-memory keys will be erased; reconnection NOT verified.");
+                    Console.WriteLine(saveBond
+                        ? "SMP pair-only success. Protected key saved; encrypted reconnection NOT YET verified."
+                        : "SMP pair-only success. In-memory keys will be erased; reconnection NOT verified.");
                     return 0;
                 }
                 catch (OperationCanceledException)
