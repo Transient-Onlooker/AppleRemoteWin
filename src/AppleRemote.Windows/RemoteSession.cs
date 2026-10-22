@@ -172,34 +172,31 @@ public sealed class RemoteSession : IDisposable
             // Reader failures do not reliably generate an HCI Disconnection
             // Complete event. Cancel the BLE task AND release held inputs
             // immediately instead of waiting forever for the remote.
-            var transportCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            var transportFault = new A2854SessionFaultGate(ct, () =>
+            {
+                lock (_gate)
+                {
+                    _acceptA2854Input = false;
+                    FeedA2854([]); // mouse-up/key-up, serialized with input callbacks
+                }
+            });
             a2854Hci.Failed += status =>
             {
                 try { Status?.Invoke(status); }
                 catch { /* status subscribers must not break USB fault cleanup */ }
-                try
-                {
-                    lock (_gate)
-                    {
-                        _acceptA2854Input = false;
-                        FeedA2854([]); // mouse-up/key-up, serialized with input callbacks
-                    }
-                }
+                try { transportFault.Fail(); }
                 catch (Exception e)
                 {
+                    // Fault gate itself cancels the BLE task even if release
+                    // callbacks fail. Never let an error kill the USB reader.
                     try { Status?.Invoke($"A2854: input release failed ({e.GetType().Name})."); }
-                    catch { /* cancellation below must still run */ }
-                }
-                finally
-                {
-                    try { transportCts.Cancel(); }
-                    catch (ObjectDisposedException) { } // reader failed during disposal
+                    catch { }
                 }
             };
             var a2854 = new A2854RemoteBle(a2854Hci.Host, FeedA2854, status => Status?.Invoke(status));
             _driverTask = Task.Run(async () =>
             {
-                try { await a2854.RunAsync(transportCts.Token); }
+                try { await a2854.RunAsync(transportFault.Token); }
                 catch (Exception e) when (!ct.IsCancellationRequested)
                 {
                     Status?.Invoke($"A2854: transport error ({e.GetType().Name}).");
@@ -208,7 +205,7 @@ public sealed class RemoteSession : IDisposable
                 finally
                 {
                     a2854Hci.Dispose();
-                    transportCts.Dispose();
+                    transportFault.Dispose();
                 }
             });
             return; // A2854 data is decoded independently; no legacy gesture tick.
