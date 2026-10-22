@@ -219,4 +219,36 @@ public sealed class SmpPairOnlyTests
         Assert.Empty(remote.Writes); // No GATT/HID access.
     }
 
+    [Fact]
+    public async Task Completion_callback_failure_erases_received_key_distribution_payloads()
+    {
+        // A progress observer is caller-controlled and could throw. In that
+        // case no returned LTK should escape; erase both original SMP frames.
+        var (remote, central, peer, handle) = await ConnectFakeAsync(new FakeRemote());
+        var capturedKeyFrames = new List<byte[]>();
+        central.L2capData += (observedHandle, cid, pdu) =>
+        {
+            if (observedHandle == handle && cid == LeCentral.CidSmp &&
+                pdu.Length > 0 &&
+                pdu[0] is SmpOpcode.EncryptionInformation or SmpOpcode.MasterIdentification)
+                capturedKeyFrames.Add(pdu);
+        };
+
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            SmpPairing.PairAsync(central, handle, central.LocalAddress, BdAddr.Parse(peer.Address),
+                peer.AddressType, cts.Token,
+                stage =>
+                {
+                    if (stage == SmpPairingStage.Complete)
+                        throw new InvalidOperationException("Simulated diagnostics callback failure.");
+                }, requireObservedA2854Profile: true));
+
+        Assert.Contains("Simulated diagnostics", exception.Message);
+        Assert.Equal(2, capturedKeyFrames.Count);
+        foreach (byte[] frame in capturedKeyFrames)
+            Assert.All(frame, value => Assert.Equal((byte)0, value));
+        Assert.Empty(remote.Writes); // No GATT/HID.
+    }
+
 }
