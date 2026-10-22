@@ -16,6 +16,7 @@
 | [Purchased BR8652A12 dongle](BARROT_BR8652A12.md) | Actual Barrot WinUSB/HCI/advertisement milestones, signing/rollback notes |
 | [2026-10-22 protocol research](RESEARCH_2026-10-22.md) | Bluetooth SIG/Apple/BlueZ research, connection-completion fix, pairing risks and next hardware gates |
 | [2026-10-22 live LE link probe](LINK_PROBE_2026-10-22.md) | Physical A2854 LE Connection Complete success; disconnection reason 0x3E requires follow-up |
+| [2026-10-22 live SMP negotiation](SMP_NEGOTIATION_2026-10-22.md) | Physical A2854 SMP Pairing Response verified: Legacy Just Works accepted |
 | [Consolidation record](CONSOLIDATION.md) | Source commit, copied-file SHA checks, licenses and Git history |
 
 ## Latest verified status
@@ -29,7 +30,7 @@
 | Windows C# A2854 decoder and diagnostic program | **Implemented**; most recent reported agent run at `1375d4d`: **103/103 Release tests passed**, Probe Release build succeeded |
 | Current privacy-address implementation | **Previously built and scanned on real Barrot WinUSB hardware**; new connection-mask and strong-pairing-match fixes await fresh local build |
 | ThinkPad T490s built-in Bluetooth | Owner confirmed **Intel Wireless-AC 9560**; A2854 test **not conducted** |
-| **Purchased Axxen USB dongle** | **WinUSB `oem86.inf` Started; physical HCI Reset/Read Local Version OK (`0x21`).** Scanning produced 95 strong A2854-format packets and a subsequent real A2854 **LE Connection Complete OK**. Real A2854 **LE Connection Complete OK** verified with 1500ms link stability and clean local host disconnect (**0x16**). **SMP/GATT/native inputs next.** |
+| **Purchased Axxen USB dongle** | **WinUSB `oem86.inf` Started; physical HCI Reset/Read Local Version OK (`0x21`).** Physical A2854 **LE Connection Complete OK** and **SMP Pairing Response OK** verified. Remote confirms **Legacy Just Works (SC=0, MITM=0, EncKey=1)**. Clean local disconnect (**0x16**). **SMP STK/LTK key exchange & GATT HID next.** |
 | Working Windows mouse / media remote | **Not yet delivered** |
 
 ## Latest validation checkpoint (2026-10-22)

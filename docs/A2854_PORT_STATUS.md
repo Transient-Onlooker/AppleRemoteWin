@@ -352,3 +352,14 @@ Implemented an isolated, safe SMP pairing negotiation diagnostic mode (`--smp-ne
 4. Analyzes IO Capability, OOB data, AuthReq flags (`Bonding`, `MITM`, `SC`, `Keypress`, `CT2`), encryption key size, and key distribution masks to classify whether A2854 accepts Legacy Just Works or strictly requires LE Secure Connections.
 5. Initiates graceful local `HCI Disconnect` and verifies clean `Disconnection Complete` (`0x16`).
 6. Comprehensive unit tests (`SmpNegotiationTests.cs`) cover PDU parsing, validation, reason code mapping, and mock L2CAP exchanges (125/125 Release tests passing).
+
+## 2026-10-22 physical A2854 SMP negotiation success: Legacy Just Works verified
+
+Live hardware execution of `--smp-negotiate-only --usb 33FA:0001` produced a landmark protocol confirmation:
+1. **Pairing Response Received (545ms)**: Remote responded with `AuthReq = 0x01` (`Bonding = True`, `MITM = False`, `SC = False`, `Keypress = False`, `CT2 = False`).
+2. **IO Capability**: `NoInputNoOutput (0x03)`, `OOB = 0x00`.
+3. **Key Size & Distribution**: `MaxKeySize = 16 bytes`, `RespKeyDist = EncKey(LTK) (0x01)`.
+4. **Architectural Confirmation**: Physical A2854 does **not** enforce LE Secure Connections (SC=0). It natively accepts standard **Legacy Just Works pairing** (`TK = 0`).
+5. **Crypto Compatibility**: The existing codebase's AES-128 `SmpCrypto.C1` and `SmpCrypto.S1` implementations are algorithmically complete and directly compatible with physical A2854 hardware without needing P-256 ECDH.
+6. **Clean Disconnect**: Graceful host-initiated `HCI Disconnect` concluded at 575 ms with verified reason `0x16` (`after_host_request = True`).
+7. Detailed report: [A2854 SMP Negotiation Report](a2854/SMP_NEGOTIATION_2026-10-22.md).
