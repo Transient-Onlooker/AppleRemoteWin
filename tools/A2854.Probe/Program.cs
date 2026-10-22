@@ -745,6 +745,7 @@ internal static partial class Program
                 ushort? connectedHandle = null;
                 GattClient? gatt = null;
                 int? hidButtonFrames = null, hidTouchFrames = null;
+                bool hidCccdCleanupVerified = false;
                 (string Address, byte AddressType, BondKeys Keys)? stored = null;
                 var disconnected = new TaskCompletionSource<(ushort Handle, byte Reason)>(
                     TaskCreationOptions.RunContinuationsAsynchronously);
@@ -907,7 +908,8 @@ internal static partial class Program
                                     try
                                     {
                                         await A2854HidCapture.DisableAsync(gatt, map, cleanup.Token);
-                                        Console.WriteLine("CCCD notification subscriptions disabled.");
+                                        hidCccdCleanupVerified = true;
+                                        Console.WriteLine("CCCD notification subscriptions disabled (both ATT Write Responses received).");
                                     }
                                     catch (Exception e)
                                     {
@@ -1000,8 +1002,10 @@ internal static partial class Program
                     {
                         var outcome = A2854HidCaptureAssessment.Evaluate(
                             hidButtonFrames ?? 0, hidTouchFrames ?? 0, remoteDisconnectReason: null);
-                        Console.WriteLine($"HID capture outcome={outcome}; CCCD cleanup and local host 0x16 observed.");
-                        return outcome == A2854HidCaptureOutcome.BothReportsCaptured ? 0 : 1;
+                        Console.WriteLine($"HID capture outcome={outcome}; local host disconnect 0x16 verified; " +
+                            $"both CCCD disable writes verified={hidCccdCleanupVerified}.");
+                        return outcome == A2854HidCaptureOutcome.BothReportsCaptured &&
+                            hidCccdCleanupVerified ? 0 : 1;
                     }
                     return 0;
                 }
