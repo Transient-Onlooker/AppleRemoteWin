@@ -35,6 +35,17 @@ public sealed class UsbHci : IDisposable
     /// <summary>USB read error (adapter removed, driver changed…). Raised from a reader thread.</summary>
     public event Action<string>? Failed;
 
+    // The two reader threads start in the constructor, before RemoteSession
+    // can attach to Failed. Preserve their earliest error for the A2854 path.
+    readonly A2854UsbFailureRelay _earlyFailure = new();
+
+    /// <summary>
+    /// Subscribe to the first reader failure, replaying one that happened
+    /// during USB adapter construction. Unlike Failed, cannot lose the initial
+    /// error. Used only by the dedicated A2854 connection path.
+    /// </summary>
+    public void WatchFailure(Action<string> handler) => _earlyFailure.Subscribe(handler);
+
     UsbHci(SafeFileHandle file, IntPtr usb, string instanceId)
     {
         InstanceId = instanceId;
@@ -206,7 +217,13 @@ public sealed class UsbHci : IDisposable
                 }
                 else if (!_disposed)
                 {
-                    Failed?.Invoke($"Lecture USB ({name}) interrompue : {new Win32Exception(Marshal.GetLastWin32Error()).Message}");
+                    string reason = $"Lecture USB ({name}) interrompue : {new Win32Exception(Marshal.GetLastWin32Error()).Message}";
+                    // Record before invoking legacy handlers; a failure can
+                    // predate RemoteSession's subscription or throw in a UI.
+                    try { _earlyFailure.Fail(reason); }
+                    catch { /* an input/status handler must not crash the reader thread */ }
+                    try { Failed?.Invoke(reason); }
+                    catch { /* preserve existing event without corrupting reader shutdown */ }
                     return;
                 }
             }
