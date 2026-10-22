@@ -171,6 +171,10 @@ internal static partial class Program
                 };
                 Console.CancelKeyPress += onCancel;
                 bool connectionAttempted = false, linkEnded = false;
+                ushort? connectedHandle = null;
+                int disconnectRequestStarted = 0;
+                var disconnected = new TaskCompletionSource<(ushort Handle, byte Reason, bool AfterRequest)>(
+                    TaskCreationOptions.RunContinuationsAsynchronously);
                 string stage = "controller initialization";
                 try
                 {
@@ -180,9 +184,6 @@ internal static partial class Program
                     // Preserve event timing relative to our explicit HCI Disconnect request.
                     // 0x3E means a link-layer establishment/synchronization failure, NOT
                     // a clean locally initiated disconnect. Never report it as OK.
-                    int disconnectRequestStarted = 0;
-                    var disconnected = new TaskCompletionSource<(ushort Handle, byte Reason, bool AfterRequest)>(
-                        TaskCreationOptions.RunContinuationsAsynchronously);
                     central.Disconnected += (observedHandle, reason) =>
                         disconnected.TrySetResult((observedHandle, reason,
                             Volatile.Read(ref disconnectRequestStarted) != 0));
@@ -210,6 +211,7 @@ internal static partial class Program
                     // initiation is cleaned up with an external-controller HCI Reset.
                     connectionAttempted = true;
                     ushort handle = await central.ConnectAsync(peer.Address, connectionWindow.Token, peer.AddressType);
+                    connectedHandle = handle;
                     Console.WriteLine("LE Connection Complete OK (peer address redacted).");
                     var linkTimer = Stopwatch.StartNew();
 
@@ -276,11 +278,11 @@ internal static partial class Program
                     // If a matching Disconnection Complete arrived while an earlier
                     // HCI command failed, the link is already gone: avoid an unnecessary
                     // controller reset. The event does NOT imply a clean local termination.
-                    if (!linkEnded && connectionAttempted && disconnected.Task.IsCompleted)
+                    if (!linkEnded && connectedHandle is ushort establishedHandle && disconnected.Task.IsCompleted &&
+                        disconnected.Task.Result.Handle == establishedHandle)
                     {
-                        // The completion event already carries an exact connection handle;
-                        // this branch uses it only to skip a last-resort Reset when the
-                        // external controller has reported that link terminated.
+                        // A command may throw even though Disconnection Complete arrived
+                        // for this exact handle. Do not reset an already-ended external link.
                         linkEnded = true;
                     }
                     if (connectionAttempted && !linkEnded)
