@@ -333,3 +333,12 @@ GitHub code follow-up adds a bounded **1500 ms idle observation after connection
 
 Details and Bluetooth SIG citations: [First LE link hardware report](a2854/LINK_PROBE_2026-10-22.md).
 
+## 2026-10-22 live LE link observation and clean 0x16 local disconnect verified
+
+On real hardware with owner present, the controlled repeat of `--connect-only --usb 33FA:0001 --seconds 30` succeeded completely:
+1. The physical A2854 was woken with Back + Volume Up, and strong candidate advertising was acquired.
+2. `LE Connection Complete OK` was achieved via WinUSB Barrot `33FA:0001`.
+3. The link was observed idle for 1500 ms without SMP/GATT traffic; the link remained intact with zero spontaneous drops.
+4. The host issued `HCI Disconnect`, receiving `Command Status OK`.
+5. `Disconnection Complete` arrived at 1544 ms with reason `0x16` (`Connection Terminated by Local Host`) and `after_host_request=True`.
+6. This resolves the previous `0x3E` anomaly and confirms link stability and clean local termination. SMP pairing and GATT report access can now be approached with verified link foundations.

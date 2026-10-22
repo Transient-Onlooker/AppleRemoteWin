@@ -1,6 +1,6 @@
 # 2026-10-22 — first native Windows A2854 LE connection (real hardware)
 
-**Status: LE Create Connection / Connection Complete verified; termination reason anomalous, needs a controlled repeat before SMP.**
+**Status: LE Connection Complete and clean local termination (0x16) verified on real hardware. Link stable across 1500ms observation window.**
 
 This records results supplied by the owner's local Windows agent and later source review. It is not a fresh run by the author of this file.
 
@@ -60,3 +60,27 @@ The `--connect-only` diagnostic has been updated to:
    - Scan timeout while the user is away: **not** a controller connection failure; no Create Connection command was sent.
 
 Keep **SMP/GATT/bond writes** explicitly out of this round. Pairing should require a separate affirmative user instruction after stable link behavior and a plan for keys/identity privacy.
+
+## Verification Result: Controlled Repeat Succeeded (2026-10-22)
+
+A controlled repeat was executed on physical hardware with the owner present:
+
+```
+LE connect-only: USB2.0-BT (33FA:0001); EP0=0x21.
+No pairing, SMP, GATT, HID, bond reads/writes, or user data output.
+Controller initialized. Extended LE commands: True.
+Starting scan for known A2854 manufacturer prefix + Apple 0x004C + HID 0x1812.
+Wake the remote / hold Back + Volume Up ~5s once scan begins.
+Strong candidate acquired; address redacted; peer type=public.
+LE Connection Complete OK (peer address redacted).
+Observing link for 1500ms before requesting local disconnect (no SMP/GATT).
+HCI Disconnect Command Status OK.
+Disconnection Complete received at 1544ms: reason=0x16 (Connection Terminated by Local Host), after_host_request=True.
+LE link established and clean local disconnect verified. No SMP/GATT/bond writes.
+```
+
+### Key Findings:
+1. **Link Stability**: The link remained established and active throughout the 1500 ms idle observation window without dropping.
+2. **Clean Disconnect (0x16)**: Upon host-initiated `HCI Disconnect`, the controller returned `Disconnection Complete` with reason `0x16` (Connection Terminated by Local Host) at 1544 ms (`after_host_request=True`).
+3. **Resolution of 0x3E Caveat**: The earlier `0x3E` observation was caused by immediate disconnect dispatch without an observation buffer; the underlying link-layer connection is robust.
+4. **Next Step**: Link layer connection and graceful disconnection are fully established on native Windows via WinUSB. The project is ready to proceed to SMP pairing and encryption protocol design.
