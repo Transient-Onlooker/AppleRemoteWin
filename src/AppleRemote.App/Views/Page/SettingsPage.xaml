@@ -173,7 +173,7 @@
                            FontSize="12" TextWrapping="Wrap" Margin="0,5,0,6"
                            Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                 <TextBlock Text="Pointer sensitivity" FontSize="12" />
-                <Slider Minimum="0.05" Maximum="0.6" TickFrequency="0.05"
+                <Slider Minimum="0.02" Maximum="3.0" TickFrequency="0.05"
                         IsSnapToTickEnabled="False"
                         Value="{Binding A2854PointerSensitivity, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
             </StackPanel>
