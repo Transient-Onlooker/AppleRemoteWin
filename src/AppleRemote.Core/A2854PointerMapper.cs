@@ -9,7 +9,8 @@ namespace AppleRemote;
 public interface IRelativePointerSink
 {
     void Move(int dx, int dy);
-    void LeftButton(bool down);
+    /// <summary>True only when the OS accepted the button transition.</summary>
+    bool LeftButton(bool down);
 }
 
 /// <summary>
@@ -26,6 +27,9 @@ public sealed class A2854PointerMapper(IRelativePointerSink sink, double sensiti
     bool _tracking, _held;
     int _previousX, _previousY;
     double _remainderX, _remainderY;
+
+    /// <summary>Whether a successful mouse-down still needs a confirmed mouse-up.</summary>
+    public bool HasHeldClick => _held;
 
     public double Sensitivity
     {
@@ -46,15 +50,9 @@ public sealed class A2854PointerMapper(IRelativePointerSink sink, double sensiti
         if (ev is ButtonsEvent buttons)
         {
             if (buttons.Pressed.Contains("click") && !_held)
-            {
-                _held = true;
-                _sink.LeftButton(true);
-            }
+                _held = _sink.LeftButton(true);
             if (buttons.Released.Contains("click") && _held)
-            {
-                _held = false;
-                _sink.LeftButton(false);
-            }
+                _held = !_sink.LeftButton(false); // failed up must remain retryable
         }
         else if (ev is TouchEvent touch)
         {
@@ -101,14 +99,16 @@ public sealed class A2854PointerMapper(IRelativePointerSink sink, double sensiti
         _remainderX = _remainderY = 0;
     }
 
-    /// <summary>Releases a held click and forgets touch on disconnect, stop or opt-out.</summary>
-    public void Reset()
+    /// <summary>
+    /// Forget touch, and retry mouse-up if it was not accepted by SendInput.
+    /// Never forget a held button on failed mouse-up. False means the caller
+    /// must warn the user and arrange another cleanup attempt.
+    /// </summary>
+    public bool Reset()
     {
         ResetTracking();
-        if (_held)
-        {
-            _held = false;
-            _sink.LeftButton(false);
-        }
+        for (int attempt = 0; _held && attempt < 3; attempt++)
+            _held = !_sink.LeftButton(false);
+        return !_held;
     }
 }
