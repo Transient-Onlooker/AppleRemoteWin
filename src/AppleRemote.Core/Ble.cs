@@ -271,14 +271,15 @@ public sealed class LeCentral
     }
 
     /// <summary>Encrypts the link with the pairing LTK; fails if the remote no longer recognises it.</summary>
-    public async Task EncryptAsync(ushort handle, BondKeys keys)
+    public async Task EncryptAsync(ushort handle, BondKeys keys, CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         var encrypting = _encrypting = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         try
         {
             await _hci.CommandAsync(HciOpcode.LeEnableEncryption,
                 [(byte)handle, (byte)(handle >> 8), .. keys.Rand, (byte)keys.Ediv, (byte)(keys.Ediv >> 8), .. keys.Ltk]);
-            await encrypting.Task.WaitAsync(TimeSpan.FromSeconds(10));
+            await encrypting.Task.WaitAsync(TimeSpan.FromSeconds(10), cancellationToken);
         }
         finally
         {
