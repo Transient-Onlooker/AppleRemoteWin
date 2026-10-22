@@ -52,9 +52,16 @@ public sealed class GattClient
         {
             byte[]? r = await RequestOrNotFoundAsync([0x10, .. U16(start), 0xFF, 0xFF, .. U16(PrimaryService)]);   // Read By Group Type
             if (r is null) return services;
+            if (r.Length < 8 || r[1] is not (6 or 20) || (r.Length - 2) % r[1] != 0)
+                throw new InvalidDataException("Malformed GATT Read By Group Type response.");
             int size = r[1];
-            for (int i = 2; i + size <= r.Length; i += size)
-                services.Add(new GattService(U16(r, i), U16(r, i + 2), r[(i + 4)..(i + size)]));
+            for (int i = 2; i < r.Length; i += size)
+            {
+                ushort first = U16(r, i), last = U16(r, i + 2);
+                if (first < start || last < first || (services.Count > 0 && first <= services[^1].End))
+                    throw new InvalidDataException("Non-monotonic GATT primary-service handle range.");
+                services.Add(new GattService(first, last, r[(i + 4)..(i + size)]));
+            }
             if (services[^1].End == 0xFFFF) return services;
             start = (ushort)(services[^1].End + 1);
         }
@@ -67,9 +74,19 @@ public sealed class GattClient
         {
             byte[]? r = await RequestOrNotFoundAsync([0x08, .. U16(start), .. U16(service.End), .. U16(CharacteristicDeclaration)]);
             if (r is null) break;
+            if (r.Length < 9 || r[1] is not (7 or 21) || (r.Length - 2) % r[1] != 0)
+                throw new InvalidDataException("Malformed GATT Read By Type response.");
             int size = r[1];
-            for (int i = 2; i + size <= r.Length; i += size)
-                characteristics.Add(new GattCharacteristic(U16(r, i), r[i + 2], U16(r, i + 3), r[(i + 5)..(i + size)]));
+            for (int i = 2; i < r.Length; i += size)
+            {
+                ushort declaration = U16(r, i), value = U16(r, i + 3);
+                if (declaration < start || declaration > service.End || value <= declaration ||
+                    (characteristics.Count > 0 && declaration <= characteristics[^1].Declaration))
+                    throw new InvalidDataException("Invalid GATT characteristic declaration/value handle.");
+                characteristics.Add(new GattCharacteristic(declaration, r[i + 2], value, r[(i + 5)..(i + size)]));
+            }
+            if (characteristics[^1].Declaration == 0xFFFF)
+                return characteristics;
             start = (ushort)(characteristics[^1].Declaration + 1);
         }
         return characteristics;
@@ -83,9 +100,19 @@ public sealed class GattClient
         {
             byte[]? r = await RequestOrNotFoundAsync([0x04, .. U16(start), .. U16(end)]);   // Find Information
             if (r is null) break;
-            int size = r[1] == 1 ? 4 : 18;   // 16- or 128-bit UUID
-            for (int i = 2; i + size <= r.Length; i += size)
-                descriptors.Add((U16(r, i), r[(i + 2)..(i + size)]));
+            if (r.Length < 6 || r[1] is not (1 or 2))
+                throw new InvalidDataException("Malformed GATT Find Information response.");
+            int size = r[1] == 1 ? 4 : 18; // 16- or 128-bit UUID
+            if ((r.Length - 2) % size != 0)
+                throw new InvalidDataException("Misaligned GATT descriptor entries.");
+            for (int i = 2; i < r.Length; i += size)
+            {
+                ushort handle = U16(r, i);
+                if (handle < start || handle > end ||
+                    (descriptors.Count > 0 && handle <= descriptors[^1].Handle))
+                    throw new InvalidDataException("Non-monotonic GATT descriptor handle.");
+                descriptors.Add((handle, r[(i + 2)..(i + size)]));
+            }
             if (descriptors[^1].Item1 == 0xFFFF) break;
             start = (ushort)(descriptors[^1].Item1 + 1);
         }
