@@ -378,3 +378,18 @@ The previous implicit full-driver default was disabled. The historical driver re
 
 See [SMP pairing implementation details](a2854/SMP_PAIR_ONLY_IMPLEMENTATION_2026-10-22.md), [staged safety plan](a2854/SMP_PAIRING_PLAN_2026-10-22.md) and [physical SMP negotiation evidence](a2854/SMP_NEGOTIATION_2026-10-22.md).
 
+## 2026-10-22 — real full Legacy SMP succeeded; guarded Windows bond/reconnect/GATT code prepared
+
+**Physical verification, reported by owner/local agent:** on Windows 11, with the external Barrot `33FA:0001` bound to WinUSB on a USB 3.0 hub, A2854 successfully completed **SMP Just Works Pairing Confirm/Random, peer Confirm verification, STK Link Encryption, LTK + EDIV + RAND distribution, and local HCI Disconnect (reason 0x16)**. The reported pairing timestamp was 932ms and normal link release at 963ms. The local agent previously reported **148/148** Release tests passing at `6cd4bbb` and a clean Probe Release build. The successful physical diagnostic **erased the bond keys on exit**, so **no encrypted reconnection / protected key persistence / GATT HID has been verified**. It is incorrect to report future reconnection from that key material.
+
+**New source changes after that verified checkpoint (not yet compiled or physically executed):**
+- A Windows **CurrentUser DPAPI** protected local bond store (`src/AppleRemote.Core/ProtectedBondStore.cs`) that serializes only one exact Legacy bond into encrypted bytes under LocalApplicationData; does not use or output plaintext JSON. An existing protected bond is protected against implicit overwrite even under concurrent runs. Best-effort transient secret scrubbing.
+- `--smp-pair-only --confirm-pairing --save-bond --usb 33FA:0001` optionally retains new bond material only after complete legacy pairing; without `--save-bond` the existing ephemeral-only behavior remains. Both new full pairing and saving require operator approval because existing Apple TV pairing might be disrupted. No automatic retries or driver operations.
+- `--reconnect-only --usb 33FA:0001`: **uses a previously DPAPI-stored public BLE address/LTK**, establishes a new LE link, starts encrypted session and checks Encryption Change; never SMP-re-pairs or changes keys. Explicitly refuses random stored peer address due to absent IRK resolution.
+- `--gatt-inspect-only --usb 33FA:0001`: after encrypted reconnect, performs **ATT read-only** primary service and Report Reference `0x2908` discovery for HID service `0x1812`, reports local handles of `0xFB`, `0xFC`, `0xF0` if present. Does not subscribe or unlock 0xF0, capture HID data or microphone, or write any attribute.
+- Hardened GATT discovery to reject zero-size, malformed and nonmonotonic entries, and added DPAPI Windows tests plus fake encrypted-GATT integration/negative parsing tests. Latest new-source test count **unknown** until Windows builds run.
+
+**Next gate:** Local Codex agent must first fetch, **build and run fresh full Release tests**, especially DPAPI Win32 P/Invoke on actual Windows, GATT parser and all old tests, then fix/test/commit any failures. Do not interpret 148/148 as belonging to this new source. **Stop before new physical pairing** and obtain fresh user authorization to issue another pairing with `--save-bond`; the earlier keys were erased. Only after safe bonded storage may `--reconnect-only` and then read-only `--gatt-inspect-only` be tested. Never silently recover by deleting existing keys, re-pairing or overwriting them; preserve Intel BTHUSB and Barrot WinUSB driver bindings.
+
+Full plan and official protocol references: [Protected bond/reconnect/read-only GATT gates](a2854/PROTECTED_BOND_AND_GATT_2026-10-22.md).
+
