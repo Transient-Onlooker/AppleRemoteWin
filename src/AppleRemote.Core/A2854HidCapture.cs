@@ -6,6 +6,39 @@
 namespace AppleRemote;
 
 /// <summary>
+/// Diagnostic capture quality, independent of which side closed the LE link.
+/// </summary>
+public enum A2854HidCaptureOutcome
+{
+    BothReportsCaptured,
+    PartialReportsCaptured,
+    NoReportsCaptured,
+    UnexpectedLinkTermination,
+}
+
+public static class A2854HidCaptureAssessment
+{
+    /// <summary>
+    /// Null reason: observation timer completed while linked. 0x13: peer/user
+    /// terminated the link. All other reasons are unexpected. Receiving a valid
+    /// 0x13 is NOT equivalent to a verified host-initiated 0x16 disconnect.
+    /// </summary>
+    public static A2854HidCaptureOutcome Evaluate(
+        int buttonFrames, int touchFrames, byte? remoteDisconnectReason)
+    {
+        if (buttonFrames < 0 || touchFrames < 0)
+            throw new ArgumentOutOfRangeException(nameof(buttonFrames), "Frame counters must be nonnegative.");
+        if (remoteDisconnectReason is not null and not 0x13)
+            return A2854HidCaptureOutcome.UnexpectedLinkTermination;
+        if (buttonFrames > 0 && touchFrames > 0)
+            return A2854HidCaptureOutcome.BothReportsCaptured;
+        if (buttonFrames > 0 || touchFrames > 0)
+            return A2854HidCaptureOutcome.PartialReportsCaptured;
+        return A2854HidCaptureOutcome.NoReportsCaptured;
+    }
+}
+
+/// <summary>
 /// Verified HID report layout and dynamically discovered CCCDs. Attribute handles are
 /// per-firmware-instance values and must NEVER be inferred from neighboring handles.
 /// </summary>
