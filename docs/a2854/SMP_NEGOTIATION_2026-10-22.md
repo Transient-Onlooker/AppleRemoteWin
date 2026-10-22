@@ -89,3 +89,12 @@ LE SMP negotiation diagnostic completed successfully and link cleanly disconnect
    - Issue the proprietary Apple unlock sequence to enable touch/button reporting.
 4. **Live Button & Touch Streaming**:
    - Stream native input events through `A2854Decoder` to Windows cursor and media keys!
+
+
+## 5. Verification boundary before full SMP pairing (independent engineering review)
+
+The successful *feature exchange* at 545 ms establishes that the real A2854 **returned** Legacy Just Works-compatible parameters in response to our Legacy-only Pairing Request. It **does not yet establish** successful Pairing Confirm/Random, STK-based link encryption, responder LTK + EDIV/RAND delivery, a retained bond, or encrypted reconnection. Our SC flag was 0 in the *request*; a response with SC=0 therefore does not prove the device has no Secure Connections capability. The responder EncKey bit announces intended distribution only, not a successful transfer.
+
+The official SMP specification warns that LE legacy Just Works is unauthenticated and does not resist an active man-in-the-middle during pairing. The existing `SmpPairing.PairAsync` implements the legacy algorithm and the repository tests have independent Bluetooth SIG c1/s1 vectors, but compatibility of the **complete physical A2854 pairing exchange remains unverified**. In addition, the existing `BondStore` implementation writes secret LTK bytes to plaintext JSON, unsuitable as the default storage path for new experimental pairing.
+
+Next stage: [staged SMP full-pairing plan and safety gates](SMP_PAIRING_PLAN_2026-10-22.md). Implement and test a separate bounded `--smp-pair-only` path, first with in-memory keys and **no automatic persistence or live test**, then request an explicit operator authorization before contacting the physical remote. Existing Apple TV pairing may be affected.
