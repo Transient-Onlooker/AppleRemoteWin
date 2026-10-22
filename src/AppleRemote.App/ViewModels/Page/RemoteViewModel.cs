@@ -193,7 +193,9 @@ public sealed partial class RemoteViewModel : ObservableObject, IDisposable
             case ButtonsEvent b:
                 ShowButtons(b.Mask);
                 foreach (var name in b.Pressed)
-                    if (!(_session.A2854Mode && _session.A2854PointerEnabled && name == "click"))
+                    if (!(_session.A2854Mode &&
+                        (name is "tv" or "siri" or "power" ||
+                        (_session.A2854PointerEnabled && name == "click"))))
                         _runBound(name);
                 if (b.Pressed.Count > 0) _log("▼ " + string.Join(" + ", b.Pressed));
                 if (b.Released.Count > 0) _log("▲ " + string.Join(" + ", b.Released));
