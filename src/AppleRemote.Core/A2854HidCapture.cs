@@ -26,8 +26,10 @@ public static class A2854HidCaptureAssessment
     public static A2854HidCaptureOutcome Evaluate(
         int buttonFrames, int touchFrames, byte? remoteDisconnectReason)
     {
-        if (buttonFrames < 0 || touchFrames < 0)
-            throw new ArgumentOutOfRangeException(nameof(buttonFrames), "Frame counters must be nonnegative.");
+        if (buttonFrames < 0)
+            throw new ArgumentOutOfRangeException(nameof(buttonFrames), "Frame count must be nonnegative.");
+        if (touchFrames < 0)
+            throw new ArgumentOutOfRangeException(nameof(touchFrames), "Frame count must be nonnegative.");
         if (remoteDisconnectReason is not null and not 0x13)
             return A2854HidCaptureOutcome.UnexpectedLinkTermination;
         if (buttonFrames > 0 && touchFrames > 0)
