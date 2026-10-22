@@ -192,12 +192,12 @@ public static class SmpPairing
             Stage(SmpPairingStage.ReceiveMasterIdentification);
             master = await Expect(MasterIdentification, 11);
 
-            // Return fresh in-memory key arrays: no BondStore, files, JSON or logging.
-            byte[] ltk = ltkMessage[1..17];
-            byte[] rand = master[3..11];
+            // Report completion before making the returned secret copies:
+            // a diagnostic callback can throw. Original inbound SMP key buffers
+            // are erased in finally even when the callback fails.
             ushort ediv = (ushort)(master[1] | master[2] << 8);
             Stage(SmpPairingStage.Complete);
-            return new BondKeys(ltk, ediv, rand);
+            return new BondKeys(ltkMessage[1..17], ediv, master[3..11]);
         }
         finally
         {
