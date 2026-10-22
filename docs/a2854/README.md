@@ -21,6 +21,7 @@
 | [Full SMP pair-only implementation](SMP_PAIR_ONLY_IMPLEMENTATION_2026-10-22.md) | Physical Confirm/Random, STK encryption and LTK receipt now confirmed |
 | [Protected bond, encrypted reconnect and read-only GATT](PROTECTED_BOND_AND_GATT_2026-10-22.md) | Validated Windows software; physical protected save, encrypted reconnect and read-only GATT verified |
 | [Protected-bond hardware logs](PROTECTED_BOND_HARDWARE_2026-10-22.md) | A/B/C success, report value handles and earlier failures; retained bond and next input gate |
+| [HID input probe — implementation/safety gates](HID_INPUT_DIAGNOSTIC_2026-10-22.md) | New opt-in CCCD/feature activation and button/touch capture code; not yet built or physically tested |
 | [Consolidation record](CONSOLIDATION.md) | Source commit, copied-file SHA checks, licenses and Git history |
 
 ## Latest verified status
@@ -43,11 +44,16 @@
 
 Validated source `4c86fae`: **167/167 Release tests passed**, full solution and Probe Release builds at **zero warnings/errors**. Following an initial C connection timeout, an explicitly approved `--gatt-inspect-only` retry with a normal-button wake succeeded: encrypted reconnect, HID service `0x1812`, eight Report References and exact `0xFB`/`0xFC`/`0xF0` value handles. It made no ATT writes or notification subscriptions and disconnected with `0x16`. The protected bond remains present; see [sanitized per-stage logs](PROTECTED_BOND_HARDWARE_2026-10-22.md). Actual Windows input reports remain unverified.
 
-## What to do next
+## Next gate — live button/touch inputs
 
-1. Preserve the existing CurrentUser DPAPI bond. Bonded reconnect needs an ordinary-button wake, not a new pairing or Back + Volume Up.
-2. Separately implement a bounded input probe that rediscovers report mappings and each input CCCD (`0x2902`); do not guess descriptor handles from the observed value handles.
-3. After explicit authorization, subscribe only to `0xFB`/`0xFC` and activate the confirmed `0xF0` feature with `0xAF`. Exclude microphone `0xFA`. These writes and notifications were not performed by the successful read-only C probe.
-4. Verify actual button/touch reports before connecting the decoder to Windows input injection. Preserve Barrot WinUSB, Intel BTHUSB, drivers and trust state.
+The previous 167/167 local Release tests apply to the successful DPAPI/reconnect/read-only GATT source at `4c86fae`, **not to the new HID-input code**.
+
+1. **Prepared but not locally built:** `--hid-input-only --confirm-hid-writes --usb 33FA:0001` uses the **existing DPAPI bond** and known-public-address encrypted reconnect; it will NOT SMP pair, delete or overwrite the bond.
+2. It rediscovers report reference `0x2908` and exact CCCDs `0x2902`, verifies the real observed `0xFB=0x0039`, `0xFC=0x003D` and `0xF0=0x004D` **value handles before writing**, and permits only two CCCD notification enables plus one `0xF0 <- 0xAF` unlock. No microphone `0xFA` subscription/reads, Windows input synthesis or raw payload/key logging.
+3. Local agent must first perform fresh full Release solution/Probe builds and tests including `A2854HidCaptureTests`, legacy regression suites and DPAPI/GATT tests, repairing errors before any physical use.
+4. After **new explicit human approval**, perform one bounded hardware trial using ordinary button wake (**not Back+VolumeUp**), observe decoded `0xFB` buttons and `0xFC` touch, attempt CCCD cleanup, and normally HCI disconnect. A lack of reports is not evidence of incorrect SMP keys if encrypted link and ATT writes succeed.
+5. Only after authentic Windows-native 0xFB/0xFC events are captured, design optional mouse/media-key injection as a separate opt-in task. Keep the external Barrot WinUSB / internal Intel BTHUSB separation intact.
+
+See [full probe implementation and hardware gate](HID_INPUT_DIAGNOSTIC_2026-10-22.md).
 
 Past reports: [Oct 21 handoff](../HANDOFF_2026-10-21_A2854.md), [chronological engineering status](../A2854_PORT_STATUS.md), [Oct 18 historical handoff](../HANDOFF_2026-10-18_A2854.md).
