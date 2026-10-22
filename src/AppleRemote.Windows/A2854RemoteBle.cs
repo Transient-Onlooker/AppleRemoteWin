@@ -53,8 +53,13 @@ public sealed class A2854RemoteBle(
                 // Invalidate input before completing the disconnect task. Any
                 // in-flight notification is ordered before the final release;
                 // a resumed callback after this point cannot re-press a button.
-                inputGate.Close();
-                disconnected.TrySetResult((h, reason));
+                try { inputGate.Close(); }
+                catch (Exception e)
+                {
+                    try { onStatus($"A2854: input release callback failed ({e.GetType().Name})."); }
+                    catch { /* do not hide the terminal HCI event */ }
+                }
+                finally { disconnected.TrySetResult((h, reason)); }
             };
             onStatus(Loc.T("Status.WaitBonded"));
             onStatus("A2854: initializing dedicated external Barrot WinUSB controller.");
@@ -149,7 +154,12 @@ public sealed class A2854RemoteBle(
         {
             // Seal the input stream *before* any potentially slow ATT cleanup.
             // The release marker is synchronized with every notification.
-            inputGate.Close();
+            try { inputGate.Close(); }
+            catch (Exception e)
+            {
+                try { onStatus($"A2854: final input release callback failed ({e.GetType().Name})."); }
+                catch { }
+            }
             try
             {
                 if (gatt is not null && map is not null && subscribed &&
