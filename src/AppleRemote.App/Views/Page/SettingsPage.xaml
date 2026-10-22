@@ -163,7 +163,7 @@
                            Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
             </StackPanel>
         </ui:CardControl>
-        <ui:CardControl Icon="{ui:SymbolIcon Cursor24}">
+        <ui:CardControl Icon="{ui:SymbolIcon Map24}">
             <ui:CardControl.Header>
                 <TextBlock Text="A2854 touchpad to Windows mouse (opt-in)" TextWrapping="Wrap" />
             </ui:CardControl.Header>
