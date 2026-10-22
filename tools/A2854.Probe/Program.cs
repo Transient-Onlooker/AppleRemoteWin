@@ -536,7 +536,9 @@ internal static partial class Program
                         {
                             disconnected.TrySetResult((observedHandle, reason,
                                 Volatile.Read(ref disconnectRequestStarted) != 0));
-                            pairingWindow?.Cancel();
+                            // Disconnect can race with session disposal on the USB read thread.
+                            try { pairingWindow?.Cancel(); }
+                            catch (ObjectDisposedException) { /* pairing task has already ended */ }
                         }
                     };
 
@@ -592,7 +594,7 @@ internal static partial class Program
                         progress => {
                             stage = $"SMP {progress}";
                             Console.WriteLine($"Pairing stage: {progress}.");
-                        });
+                        }, requireObservedA2854Profile: true);
                     if (ephemeralKeys.Ltk.Length != 16 || ephemeralKeys.Rand.Length != 8)
                         throw new InvalidDataException("Invalid negotiated legacy bond-key lengths.");
                     Console.WriteLine($"SMP full pairing / STK link encryption / responder LTK distribution completed at {linkTimer.Elapsed.TotalMilliseconds:F0}ms.");
