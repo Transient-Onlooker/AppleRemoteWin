@@ -2,6 +2,10 @@
 
 > **Experimental / Windows-native button/touch capture and normal teardown verified.** The separately approved eight-second trial at `a40c25c` received **33 FB / 360 FC frames**, zero malformed, both CCCD disable responses and normal host disconnect **0x16**, exit 0. Long-term stability and Windows mouse/media input synthesis remain unverified. This index supersedes historical instructions suggesting another internal-HID restart.
 
+## Latest WPF integration safety fixes — new build gate (2026-10-23)
+
+The local Windows verifier reported **229/229 tests passed**, `A2854PointerMapperTests` **11/11**, and zero warnings/errors on WPF, Probe and full solution builds at `bd1e288`. Those results predate the **main-author fixes** to USB reader-failure input release/cancellation, terminal GATT-notification ordering, mouse-up SendInput failure retention/retry, and UI/model sensitivity range. Additional same-process Start/Stop serialization and portable race/fault tests are included. **These newest commits have not been rebuilt or executed on Windows.** Codex is assigned **verification only**, with no live A2854/GATT/SendInput runs or changes to DPAPI bond, drivers or certificates. See [integration report](APP_INTEGRATION_2026-10-23.md).
+
 ## Project layout
 
 | Location | Purpose |
