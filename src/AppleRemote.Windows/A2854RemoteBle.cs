@@ -24,6 +24,7 @@ public sealed class A2854RemoteBle(
         (string Address, byte AddressType, BondKeys Keys)? saved = null;
         GattClient? gatt = null;
         A2854HidInputMap? map = null;
+        LeCentral? central = null;
         ushort? handle = null;
         bool subscribed = false;
         bool alreadyDisconnected = false;
@@ -44,7 +45,7 @@ public sealed class A2854RemoteBle(
                 return;
             }
 
-            var central = new LeCentral(host);
+            central = new LeCentral(host);
             central.Disconnected += (h, reason) =>
             {
                 if (handle == h)
@@ -76,11 +77,12 @@ public sealed class A2854RemoteBle(
                 metadataWindow.CancelAfter(TimeSpan.FromSeconds(30));
                 // The first application integration is tied to measured physical
                 // handles. Firmware layout changes must stop before any write.
-                map = await A2854HidCapture.DiscoverAsync(
-                    gatt, metadataWindow.Token, requireObservedValueHandles: true);
+                // DiscoverAsync already enforces all three observed value handles.
+                map = await A2854HidCapture.DiscoverAsync(gatt, metadataWindow.Token);
             }
             cancellationToken.ThrowIfCancellationRequested();
 
+            A2854HidInputMap inputMap = map;
             var localDecoder = new A2854Decoder();
             object reportLock = new();
             gatt.Notification += (valueHandle, value) =>
@@ -88,7 +90,7 @@ public sealed class A2854RemoteBle(
                 lock (reportLock)
                 {
                     if (!A2854HidCapture.TryDecode(
-                        localDecoder, map, valueHandle, value, out _, out byte id))
+                        localDecoder, inputMap, valueHandle, value, out _, out byte id))
                         return; // drop microphone/unknown/malformed without printing raw payloads
                     onReport([id, .. value]);
                 }
@@ -155,15 +157,17 @@ public sealed class A2854RemoteBle(
 
             // A valid BLE connection is the only resource we may close here.
             // This never changes a Windows adapter driver or the protected bond.
-            if (!alreadyDisconnected && handle is { } connectedHandle &&
-                !disconnected.Task.IsCompleted)
+            if (!alreadyDisconnected && central is not null &&
+                handle is { } connectedHandle && !disconnected.Task.IsCompleted)
             {
                 try
                 {
-                    // Avoid attempting a disconnect if a peer closure races us.
-                    // LeCentral is in scope here only if initialization succeeded;
-                    // defer host cleanup to a separate method below.
-                    await DisconnectHostAsync(host, connectedHandle, disconnected.Task);
+                    var result = await A2854HidCapture.DisconnectAsync(
+                        central, connectedHandle, disconnected.Task,
+                        eventTimeout: TimeSpan.FromSeconds(5));
+                    onStatus(result.LocalHostVerified
+                        ? "A2854: host disconnect completed with normal local reason 0x16."
+                        : $"A2854: disconnect ended with HCI reason 0x{result.Reason:X2} (host cleanup unverified).");
                 }
                 catch (Exception)
                 {
@@ -180,15 +184,4 @@ public sealed class A2854RemoteBle(
         }
     }
 
-    /// <summary>
-    /// This method creates no new session: a direct HCI disconnect request
-    /// on the already established handle, with a bounded terminal event wait.
-    /// </summary>
-    private static async Task DisconnectHostAsync(
-        HciHost host, ushort handle, Task<(ushort Handle, byte Reason)> disconnected)
-    {
-        await host.CommandAsync(HciOpcode.Disconnect,
-            (byte)handle, (byte)(handle >> 8), 0x13);
-        await disconnected.WaitAsync(TimeSpan.FromSeconds(5));
-    }
 }
