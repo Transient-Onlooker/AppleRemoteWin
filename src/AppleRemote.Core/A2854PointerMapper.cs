@@ -31,6 +31,9 @@ public sealed class A2854PointerMapper(IRelativePointerSink sink, double sensiti
     /// <summary>Whether a successful mouse-down still needs a confirmed mouse-up.</summary>
     public bool HasHeldClick => _held;
 
+    /// <summary>Last requested mouse button transition was accepted by its sink.</summary>
+    public bool LastButtonTransitionSucceeded { get; private set; } = true;
+
     public double Sensitivity
     {
         get => _sensitivity;
@@ -50,9 +53,15 @@ public sealed class A2854PointerMapper(IRelativePointerSink sink, double sensiti
         if (ev is ButtonsEvent buttons)
         {
             if (buttons.Pressed.Contains("click") && !_held)
-                _held = _sink.LeftButton(true);
+            {
+                LastButtonTransitionSucceeded = _sink.LeftButton(true);
+                _held = LastButtonTransitionSucceeded;
+            }
             if (buttons.Released.Contains("click") && _held)
-                _held = !_sink.LeftButton(false); // failed up must remain retryable
+            {
+                LastButtonTransitionSucceeded = _sink.LeftButton(false);
+                _held = !LastButtonTransitionSucceeded; // failed up must remain retryable
+            }
         }
         else if (ev is TouchEvent touch)
         {
@@ -108,7 +117,10 @@ public sealed class A2854PointerMapper(IRelativePointerSink sink, double sensiti
     {
         ResetTracking();
         for (int attempt = 0; _held && attempt < 3; attempt++)
-            _held = !_sink.LeftButton(false);
+        {
+            LastButtonTransitionSucceeded = _sink.LeftButton(false);
+            _held = !LastButtonTransitionSucceeded;
+        }
         return !_held;
     }
 }
