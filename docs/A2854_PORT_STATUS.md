@@ -319,3 +319,17 @@ See [the linked standards-backed research report](a2854/RESEARCH_2026-10-22.md) 
 
 **Verification boundary:** these *newest* source edits have been pushed but **not yet compiled or tested on the owner's Windows system**; 103/103 belongs to \`1375d4d\`. The available assistant container has no .NET SDK; static code inspection alone is not a replacement for local build/tests. Do not make device-driver, certificate, pairing or bond changes until the owner can participate.
 
+## 2026-10-22 first live Windows-native A2854 LE link and 0x3E disconnect follow-up
+
+The owner's Windows local agent reported the first successful **A2854 LE Connection Complete** through the external WinUSB Barrot `33FA:0001` Bluetooth dongle (`oem86.inf`, EP0 `0x21`). The physical A2854 entered advertising mode when the user pressed Back + Volume Up. The high-confidence Apple company `0x004C` / HID `0x1812` / known A2854 manufacturer header was found, the peer type was public, and the controller's extended LE path produced `LE Connection Complete OK` with a connection handle. This is the first *actual link-layer connection-completion result*, not just an advertisement finding. No SMP, encryption, GATT, HID or bond operation was attempted.
+
+The probe then printed `Disconnection Complete OK (reason=0x3E)`. **This does not prove a clean local HCI Disconnect.** The Bluetooth SIG assigns `0x3E` to Connection Failed to be Established / Synchronization Timeout. A typical locally initiated disconnect reports reason **`0x16`** in the local Disconnection Complete event. The old CLI treated any completed disconnection event as an unconditional success. The actual order of HCI Disconnect Command Status and early link termination was not recorded; do not infer which component caused it. The link-completion event succeeded, but stability/normal termination has yet to be tested.
+
+The local agent had already verified **109/109** tests plus a successful Release solution and Probe build **before these newest GitHub changes**. An attempted local Markdown/Program patch could not be applied because of an approval-layer limit; its uncommitted diff remains only in a user-local backup and was **not** inspected or automatically applied by ChatGPT. Preserve it when syncing.
+
+GitHub code follow-up adds a bounded **1500 ms idle observation after connection**, explicit host-Disconnect Command Status logging, matching handle/Disconnection Complete status validation, reason name and elapsed timing, and an anomalous-result exit for reason `0x3E`. A reason classification helper and parameterized tests distinguish `0x16` clean local disconnect versus `0x3E` and other reasons. The source changes were **not** built or run on the owner's hardware during this assistant turn.
+
+**Next validation gate:** safely reconcile any local diff with the GitHub branch, build/test fresh, then repeat **only** `dotnet run -c Release --project tools/A2854.Probe/A2854.Probe.csproj -- --usb 33FA:0001 --connect-only --seconds 30`. Start scan before activating remote pairing advertisements; classify link state **before host Disconnect** separately from events **after** the command. Do not perform SMP/GATT/bond operations until link stability and termination behavior are understood.
+
+Details and Bluetooth SIG citations: [First LE link hardware report](a2854/LINK_PROBE_2026-10-22.md).
+
