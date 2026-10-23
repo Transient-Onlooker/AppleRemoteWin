@@ -211,6 +211,11 @@ public sealed partial class RemoteViewModel : ObservableObject, IDisposable
     {
         ClearNearby();
         _session.Start();
+        // If startup was deliberately passive because Barrot was present,
+        // an explicit legacy Start still enables the old Windows BLE scanner.
+        // Native A2854 never depends on Windows' nearby-device scanning.
+        if (!_session.A2854Mode && _scanTimer.IsEnabled)
+            _scanner.Start();
         RefreshButtons();
     }
 
