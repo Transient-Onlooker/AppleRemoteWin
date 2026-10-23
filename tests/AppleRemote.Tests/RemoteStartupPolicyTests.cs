@@ -11,12 +11,15 @@ namespace AppleRemote.Tests;
 public sealed class RemoteStartupPolicyTests
 {
     [Theory]
-    [InlineData(true, false)]
-    [InlineData(false, true)]
-    public void A2854_requires_manual_Start_legacy_session_autostarts(
-        bool a2854Mode, bool expected)
+    [InlineData(true, true, false)]
+    [InlineData(true, false, false)]
+    [InlineData(false, true, false)] // legacy mode must not implicitly choose Barrot
+    [InlineData(false, false, true)] // previous gen-1 auto-start is unchanged otherwise
+    public void A2854_and_dedicated_Barrot_require_manual_Start(
+        bool a2854Mode, bool dedicatedBarrotPresent, bool expected)
     {
-        Assert.Equal(expected, RemoteStartupPolicy.AutoStartSession(a2854Mode));
+        Assert.Equal(expected,
+            RemoteStartupPolicy.AutoStartSession(a2854Mode, dedicatedBarrotPresent));
     }
 
     [Theory]
