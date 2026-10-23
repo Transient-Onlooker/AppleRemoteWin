@@ -22,8 +22,21 @@ public sealed class A2854InputGate(Action<byte[]?> receiver, Action? finalReleas
         lock (_gate)
         {
             if (_closed) return false;
-            _receiver(report);
-            return true;
+            try
+            {
+                _receiver(report);
+                return true;
+            }
+            catch
+            {
+                // Defensive second layer: a future consumer might not contain
+                // exceptions like RemoteSession does. Force terminal release
+                // before allowing the USB reader's transport-fault handler to
+                // observe the exception. Preserve the original callback error.
+                try { Close(); }
+                catch { /* finalRelease was attempted; keep original error */ }
+                throw;
+            }
         }
     }
 
