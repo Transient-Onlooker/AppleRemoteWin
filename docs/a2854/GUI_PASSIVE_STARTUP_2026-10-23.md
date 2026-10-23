@@ -8,12 +8,14 @@ The pre-change existing WPF application did `MainWindow.Window_Loaded() -> MainV
 
 ## Source correction (not yet built on local Windows)
 
-- `RemoteStartupPolicy.AutoStartSession(true) == false`: only **A2854** skips startup transport initialization; original first-generation / ESP32 auto-start remains unchanged.
-- `RemoteViewModel.Start()` still starts existing WPF UI timers, but with A2854 selected it **does not StartSession and does not Start the Windows BLE scanner**.
+- `RemoteStartupPolicy.AutoStartSession(true) == false`: persisted A2854 skips startup transport initialization. **Even when A2854 mode is OFF**, if a dedicated Barrot `33FA:0001` is detected through read-only PnP interface enumeration, initial auto-start is also skipped to prevent the legacy driver from taking the dedicated adapter. First-gen auto-start remains unchanged **when no dedicated Barrot is present**.
+- `RemoteViewModel.Start()` still starts existing WPF UI timers, but when A2854 is selected **or Barrot is detected**, it does not StartSession or start the Windows BLE scanner. If device-interface enumeration fails, it fails closed (requires manual Start) rather than guessing.
+- `UsbHci.OpenForLegacyRemote` is used by the existing first-generation `RemoteSession` path and excludes dedicated `33FA:0001` from explicit selection and WinUSB auto-fallback, including when a previously saved adapter was removed. Other legacy controllers remain eligible. Dedicated A2854 mode still uses only `UsbHci.OpenForUsbId(33FA:0001)`.
+- Manually starting a legacy session after passive launch is still supported and can resume the ordinary Windows BLE scanner when an appropriate legacy adapter is present.
 - `SettingsViewModel.OnA2854ModeChanged()` now stops WinRT BLE scanner on switching to A2854; switching back to 1st gen resumes scanner without starting a new session.
 - `RemoteStartupPolicy.AllowBackgroundRestart(true) == false`: automatic ESP32 takeover, PnP adapter-change restarts and the Debug pairing callback cannot implicitly start/restart an A2854 link. Existing 1st-gen behavior remains unchanged when the flag is false.
 - `RemoteViewModel.PairDevice()` rejects Windows Bluetooth pairing while A2854 is selected, even when no WinUSB adapter has yet been opened.
-- New `RemoteStartupPolicyTests` verify the pure policy values and persisted-state semantics.
+- New `RemoteStartupPolicyTests` verify persisted A2854/manual-Start behavior, legacy-with-Barrot safeguards, and unchanged legacy auto-start without Barrot. `UsbHciTransportQuirksTests` validates dedicated-Barrot PnP classifier with Intel/gen-1/other-Barrot negative cases.
 
 The app still **requires a separate deliberate Start button click** for an A2854 session; that action may use an already stored CurrentUser DPAPI LTK and send ATT writes. It must not be part of a GUI-only smoke test. A2854 mouse/keyboard injection also stays separately opt-in. Existing USB/Bluetooth drivers, bond files, internal Intel AX200 and authentication certificates are unchanged.
 
