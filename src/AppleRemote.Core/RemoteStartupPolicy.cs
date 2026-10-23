@@ -9,7 +9,15 @@ namespace AppleRemote;
 /// </summary>
 public static class RemoteStartupPolicy
 {
-    public static bool AutoStartSession(bool a2854Mode) => !a2854Mode;
+    /// <summary>
+    /// In the legacy model, a plugged-in dedicated A2854 Barrot may be picked
+    /// by the old generic WinUSB auto-selection even when A2854Mode is false.
+    /// Treat its presence as a reason to require an explicit GUI Start click,
+    /// too, rather than accidentally starting the gen-1 SMP driver on it.
+    /// </summary>
+    public static bool AutoStartSession(
+        bool a2854Mode, bool dedicatedA2854AdapterPresent = false) =>
+        !a2854Mode && !dedicatedA2854AdapterPresent;
 
     /// <summary>
     /// Device arrival/ESP-dongle takeover must not silently restart an
