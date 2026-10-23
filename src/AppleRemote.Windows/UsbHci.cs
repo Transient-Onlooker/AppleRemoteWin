@@ -192,9 +192,10 @@ public sealed class UsbHci : IDisposable, IAsyncDisposable
             present = true;
             // Reserve this instance before native open. A partial Thread.Start
             // failure may return an exception while its first reader is alive.
-            var lease = AdapterOpenGate.TryAcquire(candidate)
-                ?? throw new InvalidOperationException(
-                    "USB controller already open, still cleaning up, or cleanup failed in this process.");
+            var lease = AdapterOpenGate.AcquireForSelection(candidate, instanceId is not null);
+            // Automatic discovery must try other candidates if this one is
+            // reserved. Explicit instance selection must never fall back.
+            if (lease is null) continue;
             SafeFileHandle? handle = null;
             IntPtr usb = IntPtr.Zero;
             bool ownershipTransferred = false;

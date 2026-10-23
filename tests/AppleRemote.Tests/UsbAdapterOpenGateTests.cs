@@ -50,10 +50,54 @@ public sealed class UsbAdapterOpenGateTests
         var gate = new UsbAdapterOpenGate();
         var attempts = new UsbAdapterOpenGate.Lease?[32];
         Parallel.For(0, attempts.Length, i => attempts[i] = gate.TryAcquire(Barrot));
-        var winner = Assert.Single(attempts.Where(x => x is not null));
+        var winner = Assert.Single(attempts, x => x is not null);
         Assert.Null(gate.TryAcquire(Barrot));
         winner!.Release();
         Assert.NotNull(gate.TryAcquire(Barrot));
+    }
+
+    [Fact]
+    public void Automatic_selection_skips_busy_candidate_and_uses_second_adapter()
+    {
+        var gate = new UsbAdapterOpenGate();
+        var first = Assert.IsType<UsbAdapterOpenGate.Lease>(
+            gate.AcquireForSelection(Barrot, explicitlySelected: false));
+        Assert.Null(gate.AcquireForSelection(Barrot, explicitlySelected: false));
+        var second = Assert.IsType<UsbAdapterOpenGate.Lease>(
+            gate.AcquireForSelection(Legacy, explicitlySelected: false));
+        Assert.Null(gate.AcquireForSelection(Legacy, explicitlySelected: false));
+        second.Release();
+        first.Release();
+    }
+
+    [Fact]
+    public void Explicit_selection_rejects_busy_adapter_even_if_another_is_available()
+    {
+        var gate = new UsbAdapterOpenGate();
+        var held = Assert.IsType<UsbAdapterOpenGate.Lease>(
+            gate.AcquireForSelection(Barrot, explicitlySelected: true));
+        var ex = Assert.Throws<InvalidOperationException>(() =>
+            gate.AcquireForSelection(Barrot.ToLowerInvariant(), explicitlySelected: true));
+        Assert.Contains("still cleaning up", ex.Message);
+        // No attempt to acquire another adapter is made by explicit selection.
+        var separate = Assert.IsType<UsbAdapterOpenGate.Lease>(
+            gate.AcquireForSelection(Legacy, explicitlySelected: false));
+        separate.Release();
+        held.Release();
+        Assert.NotNull(gate.AcquireForSelection(Barrot, explicitlySelected: true));
+    }
+
+    [Fact]
+    public void Automatic_selection_skips_every_busy_adapter_without_releasing_it()
+    {
+        var gate = new UsbAdapterOpenGate();
+        var first = Assert.IsType<UsbAdapterOpenGate.Lease>(gate.TryAcquire(Barrot));
+        var second = Assert.IsType<UsbAdapterOpenGate.Lease>(gate.TryAcquire(Legacy));
+        Assert.Null(gate.AcquireForSelection(Barrot, explicitlySelected: false));
+        Assert.Null(gate.AcquireForSelection(Legacy, explicitlySelected: false));
+        first.Release();
+        second.Release();
+        Assert.NotNull(gate.AcquireForSelection(Barrot, explicitlySelected: false));
     }
 
     [Fact]

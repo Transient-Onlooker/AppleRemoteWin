@@ -22,6 +22,20 @@ public sealed class UsbAdapterOpenGate
         }
     }
 
+    /// <summary>
+    /// Reserve a candidate for an automatically selected or explicitly named
+    /// adapter. A busy automatic candidate is skipped; an explicitly selected
+    /// instance must fail closed, never fall back to another device.
+    /// </summary>
+    public Lease? AcquireForSelection(string instanceId, bool explicitlySelected)
+    {
+        Lease? lease = TryAcquire(instanceId);
+        if (lease is null && explicitlySelected)
+            throw new InvalidOperationException(
+                "USB controller already open, still cleaning up, or cleanup failed in this process.");
+        return lease;
+    }
+
     public sealed class Lease
     {
         readonly UsbAdapterOpenGate _owner;

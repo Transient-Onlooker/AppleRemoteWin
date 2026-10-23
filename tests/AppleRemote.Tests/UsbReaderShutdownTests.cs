@@ -18,11 +18,19 @@ public sealed class UsbReaderShutdownTests
             () => Interlocked.Increment(ref released));
 
         Task completion = shutdown.Begin();
-        await abortSeen.Task.WaitAsync(TimeSpan.FromSeconds(3));
-        Assert.Equal(0, Volatile.Read(ref released));
-        Assert.False(completion.IsCompleted);
-        Volatile.Write(ref alive, 0);
-        await completion.WaitAsync(TimeSpan.FromSeconds(3));
+        try
+        {
+            await abortSeen.Task.WaitAsync(TimeSpan.FromSeconds(3));
+            Assert.Equal(0, Volatile.Read(ref released));
+            Assert.False(completion.IsCompleted);
+        }
+        finally
+        {
+            // Even if an assertion/timeout fails, do not strand the mock
+            // background cleanup worker and interfere with later tests.
+            Volatile.Write(ref alive, 0);
+            await completion.WaitAsync(TimeSpan.FromSeconds(3));
+        }
         Assert.Equal(1, released);
     }
 
@@ -47,10 +55,16 @@ public sealed class UsbReaderShutdownTests
             () => Interlocked.Increment(ref released));
 
         Task completion = shutdown.Begin();
-        await attempted.Task.WaitAsync(TimeSpan.FromSeconds(3));
-        Assert.Equal(0, Volatile.Read(ref released));
-        Volatile.Write(ref alive, 0);
-        await completion.WaitAsync(TimeSpan.FromSeconds(3));
+        try
+        {
+            await attempted.Task.WaitAsync(TimeSpan.FromSeconds(3));
+            Assert.Equal(0, Volatile.Read(ref released));
+        }
+        finally
+        {
+            Volatile.Write(ref alive, 0);
+            await completion.WaitAsync(TimeSpan.FromSeconds(3));
+        }
         Assert.Equal(1, released);
         Assert.True(Volatile.Read(ref aborts) >= 1);
         Assert.True(Volatile.Read(ref waits) >= 1);
