@@ -91,6 +91,7 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
         _session.A2854Mode = value; // explicitly selected; no automatic pairing
         _settings.A2854Mode = value;
         _settings.Save();
+        Remote.OnRemoteModeChanged(value); // stop internal Windows BLE scanning in A2854 mode
         Remote.RefreshTexts();
     }
 
