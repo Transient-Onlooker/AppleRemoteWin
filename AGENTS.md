@@ -21,6 +21,8 @@ Repository: `Transient-Onlooker/AppleRemoteWin`. Working branch: `feat/a2854-sup
 
 ### Current validated baseline and next gate
 
+- **New touch-calibration durability source (unverified):** stable dwell/single-current-finger validation, backup of last complete five-point profile before overwrite, atomic JSON save, corrupt-profile protection, UI mode indicator and copy-only measured coordinate export. Existing physical touch measurement is preserved; no BLE changes.
+
 - **2026-10-24 independent QA on `9d40074`:** Release 0 warnings/errors, **313/313 passed**, captured five real A2854 touch landmarks and verified much better physical-to-screen alignment, protected bond intact. Developer follow-up automatically applies valid saved landmarks to **display only** and attaches the existing ATT responder at LE LinkEstablished (before LTK encryption) to address a plausible unhandled early ATT transaction. **Both changes await independent Windows QA and a new bounded real-device trial; 30s 0x13 is not yet fixed.** Do not reset the user's physical calibration file as if it were temporary test data.
 
 - **2026-10-24 user QA on `f70d04d`:** 306/306 tests, 78 FB + 1,553 FC frames, last input 0.1s before 30.1s remote-initiated 0x13 disconnect; initial 30ms/latency0/supervision2s; parameter update not observed (LL 0x06 event masked). Root cause unknown.

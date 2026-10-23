@@ -95,6 +95,31 @@ public sealed class A2854TouchSampleWindow
 
     public void Clear() => _points.Clear();
 
+    /// <summary>
+    /// A deliberate capture must cover more than a single report burst and
+    /// remain steady. Median absolute deviation ignores a small number of
+    /// dropped/jittery reports but rejects continuous swipes across the pad.
+    /// The UI must additionally confirm the finger is STILL touching.
+    /// </summary>
+    public bool TryReadStable(long nowMilliseconds, out A2854TouchReference point)
+    {
+        point = default;
+        if (!TryRead(nowMilliseconds, out var median)) return false;
+        var recent = _points.Where(p =>
+            nowMilliseconds >= p.Milliseconds &&
+            nowMilliseconds - p.Milliseconds <= 1200).ToArray();
+        if (recent.Length < 8 ||
+            recent[^1].Milliseconds - recent[0].Milliseconds < 75)
+            return false;
+        int[] deviationX = recent.Select(p => Math.Abs(p.X - median.X)).Order().ToArray();
+        int[] deviationY = recent.Select(p => Math.Abs(p.Y - median.Y)).Order().ToArray();
+        if (deviationX[deviationX.Length / 2] > 40 ||
+            deviationY[deviationY.Length / 2] > 40)
+            return false;
+        point = median;
+        return true;
+    }
+
     public bool TryRead(long nowMilliseconds, out A2854TouchReference point)
     {
         point = default;

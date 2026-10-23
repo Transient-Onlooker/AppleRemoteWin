@@ -78,6 +78,80 @@ public sealed class A2854TouchCalibrationTests
     }
 
     [Fact]
+    public void Stable_capture_requires_a_short_dwell_and_rejects_a_swipe()
+    {
+        var steady = new A2854TouchSampleWindow();
+        for (int i = 0; i < 8; i++)
+            steady.Add(-720 + i % 3, -410 + i % 3, 1000 + i * 20);
+        Assert.True(steady.TryReadStable(1150, out var measured));
+        Assert.InRange(measured.X, -720, -718);
+        Assert.InRange(measured.Y, -410, -408);
+
+        var moving = new A2854TouchSampleWindow();
+        for (int i = 0; i < 10; i++)
+            moving.Add(-900 + 70 * i, -700 + 60 * i, 1000 + i * 20);
+        Assert.False(moving.TryReadStable(1190, out _));
+    }
+
+    [Fact]
+    public void Stable_capture_tolerates_a_single_outlier_but_not_stale_frames()
+    {
+        var samples = new A2854TouchSampleWindow();
+        for (int i = 0; i < 9; i++)
+            samples.Add(-650 + i % 2, 450 - i % 2, 2000 + i * 20);
+        samples.Add(2047, -2048, 2200);
+        Assert.True(samples.TryReadStable(2210, out var measured));
+        Assert.InRange(measured.X, -650, -649);
+        Assert.InRange(measured.Y, 449, 450);
+        Assert.False(samples.TryReadStable(3500, out _));
+    }
+
+    [Fact]
+    public void Saving_calibration_preserves_last_complete_profile_as_backup()
+    {
+        string dir = Path.Combine(Path.GetTempPath(), "a2854-touch-store-" + Guid.NewGuid().ToString("N"));
+        string file = Path.Combine(dir, "A2854-touch-calibration.json");
+        try
+        {
+            A2854TouchCalibrationStore.Save(file, Samples);
+            var first = A2854TouchCalibrationStore.Load(file);
+            Assert.Equal(Samples["center"], first["center"]);
+            Assert.False(File.Exists(file + ".bak"));
+
+            var newPoints = Samples.ToDictionary(pair => pair.Key, pair => pair.Value);
+            newPoints["center"] = new(-700, -390);
+            A2854TouchCalibrationStore.Save(file, newPoints);
+            Assert.Equal(new A2854TouchReference(-700, -390),
+                A2854TouchCalibrationStore.Load(file)["center"]);
+            Assert.Equal(Samples["center"],
+                A2854TouchCalibrationStore.Load(file + ".bak")["center"]);
+            Assert.Empty(Directory.GetFiles(dir, "*.tmp"));
+        }
+        finally
+        {
+            if (Directory.Exists(dir)) Directory.Delete(dir, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void Corrupt_existing_calibration_is_not_overwritten()
+    {
+        string dir = Path.Combine(Path.GetTempPath(), "a2854-touch-corrupt-" + Guid.NewGuid().ToString("N"));
+        string file = Path.Combine(dir, "touch.json");
+        Directory.CreateDirectory(dir);
+        try
+        {
+            File.WriteAllText(file, "{not valid json");
+            Assert.ThrowsAny<Exception>(() => A2854TouchCalibrationStore.Save(file, Samples));
+            Assert.Equal("{not valid json", File.ReadAllText(file));
+        }
+        finally
+        {
+            Directory.Delete(dir, recursive: true);
+        }
+    }
+
+    [Fact]
     public void A_calibration_window_requires_five_recent_active_samples()
     {
         var window = new A2854TouchSampleWindow();

@@ -232,7 +232,7 @@
             <StackPanel DataContext="{Binding Remote}">
                 <TextBlock Text="A2854 touchpad calibration" FontSize="13"
                            FontWeight="SemiBold" />
-                <TextBlock Text="Mark the physical contact centers: center, left, right, top, bottom. Hold a finger steady on each point and capture it. You can resume after reconnecting."
+                <TextBlock Text="Mark the physical center and four reachable edge centers. Hold one finger still before Capture; each save preserves a backup of the last complete profile. Continue across reconnects."
                            TextWrapping="Wrap" FontSize="12" Margin="0,5,0,10"
                            Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                 <TextBlock Text="{Binding LiveTouchCoordinates}" FontFamily="Consolas" FontSize="12"
@@ -243,9 +243,14 @@
                 <StackPanel Orientation="Horizontal">
                     <ui:Button Content="Capture point" Command="{Binding CaptureCalibrationPointCommand}"
                                Margin="0,0,8,8" />
-                    <ui:Button Content="Toggle preview" Command="{Binding ToggleTouchCalibrationPreviewCommand}"
+                    <ui:Button Content="{Binding TouchPreviewActionText}" Command="{Binding ToggleTouchCalibrationPreviewCommand}"
+                               Margin="0,0,8,8" />
+                    <ui:Button Content="Copy points" Command="{Binding CopyTouchCalibrationPointsCommand}"
                                Margin="0,0,0,8" />
                 </StackPanel>
+                <TextBlock Text="{Binding TouchDisplayModeText}" FontWeight="SemiBold"
+                           FontSize="12" TextWrapping="Wrap" Margin="0,0,0,6"
+                           Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
                 <TextBlock Text="{Binding TouchCalibrationSummary}" TextWrapping="Wrap"
                            FontSize="12"
                            Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
