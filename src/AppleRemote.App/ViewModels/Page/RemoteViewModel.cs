@@ -41,6 +41,9 @@ public sealed partial class RemoteViewModel : ObservableObject, IDisposable
     readonly DispatcherTimer _trailTimer = new() { Interval = TimeSpan.FromMilliseconds(30) };
     readonly DispatcherTimer _gestureTimer = new() { Interval = TimeSpan.FromMilliseconds(TrailLifeMs) };
     bool _wasDown;
+    // A queued Dispatcher callback must never display data from a previous
+    // connection or remote model after Start/Stop/model switching.
+    long _visualEpoch;
 
     /// <summary>BLE devices seen advertising with Apple manufacturer data + HID service ("Apple HID").</summary>
     [ObservableProperty] IReadOnlyList<NearbyRow> _nearbyDevices = [];
@@ -114,10 +117,42 @@ public sealed partial class RemoteViewModel : ObservableObject, IDisposable
         _dialogs = dialogs;
         _log = log;
         _runBound = runBound;
-        _session.Event += ev => _ui.InvokeAsync(() => OnEvent(ev), DispatcherPriority.Render);
-        _session.Gesture += g => _ui.InvokeAsync(() => OnGesture(g), DispatcherPriority.Render);
-        _session.Status += s => _ui.InvokeAsync(() => OnStatus(s));
-        _session.Battery += level => _ui.InvokeAsync(() => BatteryLevel = level);
+        _session.Event += ev =>
+        {
+            long epoch = Interlocked.Read(ref _visualEpoch);
+            _ = _ui.InvokeAsync(() =>
+            {
+                if (epoch == Interlocked.Read(ref _visualEpoch) && _session.IsRunning)
+                    OnEvent(ev);
+            }, DispatcherPriority.Render);
+        };
+        _session.Gesture += g =>
+        {
+            long epoch = Interlocked.Read(ref _visualEpoch);
+            _ = _ui.InvokeAsync(() =>
+            {
+                if (epoch == Interlocked.Read(ref _visualEpoch) && _session.IsRunning)
+                    OnGesture(g);
+            }, DispatcherPriority.Render);
+        };
+        _session.Status += status =>
+        {
+            long epoch = Interlocked.Read(ref _visualEpoch);
+            _ = _ui.InvokeAsync(() =>
+            {
+                if (epoch == Interlocked.Read(ref _visualEpoch))
+                    OnStatus(status);
+            });
+        };
+        _session.Battery += level =>
+        {
+            long epoch = Interlocked.Read(ref _visualEpoch);
+            _ = _ui.InvokeAsync(() =>
+            {
+                if (epoch == Interlocked.Read(ref _visualEpoch) && _session.IsRunning)
+                    BatteryLevel = level;
+            });
+        };
 
         _trailTimer.Tick += (_, _) => FadeTrail();
         _gestureTimer.Tick += (_, _) => ResetGesture();
@@ -197,18 +232,23 @@ public sealed partial class RemoteViewModel : ObservableObject, IDisposable
     /// </summary>
     public void OnRemoteModeChanged(bool a2854Mode)
     {
+        Interlocked.Increment(ref _visualEpoch);
         if (a2854Mode) _scanner.Stop();
         else if (_scanTimer.IsEnabled) _scanner.Start();
         ClearNearby();
         // The Remote page switches its physical illustration at runtime.
         // A preceding model's button/touch highlights must not leak through.
         OnPropertyChanged(nameof(IsA2854Mode));
+        BatteryLevel = null;
+        StatusText = Loc.T("Status.Stopped");
+        StatusLevel = StatusLevel.Idle;
         ShowButtons(0);
         foreach (var finger in Fingers) finger.IsVisible = false;
         _trail.Clear();
         TrailPoints = new PointCollection();
         _trailTimer.Stop();
         _wasDown = false;
+        ResetGesture();
     }
 
     public void Dispose()
@@ -229,6 +269,7 @@ public sealed partial class RemoteViewModel : ObservableObject, IDisposable
 
     public void StartSession()
     {
+        Interlocked.Increment(ref _visualEpoch);
         ClearNearby();
         _session.Start();
         // If startup was deliberately passive because Barrot was present,
@@ -241,7 +282,15 @@ public sealed partial class RemoteViewModel : ObservableObject, IDisposable
 
     public void StopSession()
     {
+        // Invalidate callbacks that were queued before stopping the session.
+        Interlocked.Increment(ref _visualEpoch);
         _session.Stop();
+        ShowButtons(0);
+        foreach (var finger in Fingers) finger.IsVisible = false;
+        _trail.Clear();
+        TrailPoints = new PointCollection();
+        _trailTimer.Stop();
+        _wasDown = false;
         RefreshButtons();
     }
 

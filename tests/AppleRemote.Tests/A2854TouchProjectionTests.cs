@@ -15,6 +15,13 @@ public sealed class A2854TouchProjectionTests
     }
 
     [Fact]
+    public void Contact_center_radius_accounts_for_the_visible_dot()
+    {
+        Assert.Equal(150, A2854TouchProjection.ContactCenterRadius);
+        Assert.Equal(165, A2854TouchProjection.VisualClipRadius);
+    }
+
+    [Fact]
     public void Physical_contact_fixture_uses_new_signed_domain()
     {
         // Observed A2854 physical 0xFC contact: x=-922, y=-675.
@@ -48,8 +55,12 @@ public sealed class A2854TouchProjectionTests
         var p = A2854TouchProjection.Map(x, y);
         double dx = p.X - A2854TouchProjection.PadSize / 2;
         double dy = p.Y - A2854TouchProjection.PadSize / 2;
-        double radius = A2854TouchProjection.PadSize / 2 - A2854TouchProjection.DotSize / 2;
+        double radius = A2854TouchProjection.ContactCenterRadius;
         Assert.True(dx * dx + dy * dy <= radius * radius + 1e-6);
+        // The entire drawn 30px contact disk must stay inside the WPF clip.
+        Assert.True(Math.Sqrt(dx * dx + dy * dy) +
+                    A2854TouchProjection.DotSize / 2 <=
+                    A2854TouchProjection.VisualClipRadius + 1e-6);
         Assert.InRange(p.X, 0, A2854TouchProjection.PadSize);
         Assert.InRange(p.Y, 0, A2854TouchProjection.PadSize);
     }
