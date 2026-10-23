@@ -48,6 +48,55 @@ public sealed class GattValidationTests
         }
     }
 
+    [Fact]
+    public async Task Preconnected_GATT_answers_early_ATT_MTU_before_encryption_or_awaited_handle()
+    {
+        var commands = new List<byte[]>();
+        var acl = new List<byte[]>();
+        var host = new HciHost(commands.Add, acl.Add);
+        var central = new LeCentral(host);
+        var gatt = new GattClient(central); // armed before ConnectAsync
+        var earlyRequests = new List<byte>();
+        gatt.PeerRequest += earlyRequests.Add;
+        try
+        {
+            // A frame for an unrelated/unknown connection cannot be answered.
+            host.ReceiveAclBytes([0x41, 0x00, 0x07, 0x00, 0x03, 0x00, 0x04, 0x00, 0x02, 0xF7, 0x00]);
+            Assert.Empty(acl);
+
+            var connecting = central.ConnectAsync("14:9D:99:26:BF:CC");
+            host.ReceiveEventBytes([0x0F, 0x04, 0x00, 0x01, 0x0D, 0x20]); // Create Connection command accepted
+            host.ReceiveEventBytes([
+                0x3E, 0x13, 0x01, 0x00, 0x40, 0x00, 0x00, 0x00,
+                0xCC, 0xBF, 0x26, 0x99, 0x9D, 0x14,
+                0x18, 0x00, 0x00, 0x00, 0xC8, 0x00, 0x00
+            ]);
+
+            // Peer Exchange MTU arrives immediately after LinkEstablished,
+            // BEFORE the caller resumes and BEFORE any EncryptAsync call.
+            host.ReceiveAclBytes([0x40, 0x00, 0x07, 0x00, 0x03, 0x00, 0x04, 0x00, 0x02, 0xF7, 0x00]);
+            Assert.Equal((ushort)0x0040, await connecting);
+            Assert.Equal(new byte[] { 0x02 }, earlyRequests);
+            Assert.Equal(new byte[]
+            {
+                0x40, 0x00, 0x07, 0x00, 0x03, 0x00, 0x04, 0x00, 0x03, 0x17, 0x00
+            }, Assert.Single(acl));
+
+            // The same early receiver handles unsupported peer-initiated
+            // ATT requests with the existing Error Response semantics.
+            host.ReceiveAclBytes([0x40, 0x00, 0x07, 0x00, 0x03, 0x00, 0x04, 0x00, 0x0A, 0x01, 0x00]);
+            Assert.Equal(2, acl.Count);
+            Assert.Equal(new byte[] { 0x01, 0x0A, 0x01, 0x00, 0x06 }, acl[1][8..]);
+            Assert.Equal(new byte[] { 0x02, 0x0A }, earlyRequests);
+        }
+        finally
+        {
+            gatt.Detach();
+        }
+        host.ReceiveAclBytes([0x40, 0x00, 0x07, 0x00, 0x03, 0x00, 0x04, 0x00, 0x02, 0xF7, 0x00]);
+        Assert.Equal(2, acl.Count);
+    }
+
     [Theory]
     [InlineData(0x11, 0)] // Read By Group Type with illegal zero entry size.
     [InlineData(0x11, 2)] // Read By Group Type with truncated entry.

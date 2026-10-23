@@ -32,6 +32,7 @@ public sealed class A2854RemoteBle(
         string phase = "load-bond";
         long connectedAt = 0, lastInputAt = 0;
         int buttonFrames = 0, touchFrames = 0;
+        int encryptionCompleted = 0, earlyAttRequests = 0;
         var disconnected = new TaskCompletionSource<(ushort Handle, byte Reason)>(
             TaskCreationOptions.RunContinuationsAsynchronously);
         var inputGate = new A2854InputGate(onReport, onTerminalCleanup);
@@ -51,6 +52,20 @@ public sealed class A2854RemoteBle(
             }
 
             central = new LeCentral(host);
+            // Register the ATT receiver BEFORE initiating LE connection.
+            // The remote can send its MTU/attribute request immediately after
+            // LinkEstablished, before EncryptAsync resumes. Previously no GATT
+            // listener existed until after encryption, so a peer request could
+            // time out after ~30 seconds despite continuous HID notifications.
+            gatt = new GattClient(central);
+            gatt.PeerRequest += opcode =>
+            {
+                if (Volatile.Read(ref encryptionCompleted) != 0) return;
+                int count = Interlocked.Increment(ref earlyAttRequests);
+                if (count <= 8)
+                    onStatus($"A2854: received early ATT request opcode=0x{opcode:X2} " +
+                        "before encryption completed (handled by GATT).");
+            };
             central.ConnectionUpdateTrace += trace =>
             {
                 // HCI events can arrive on the USB reader thread *before* the
@@ -111,9 +126,10 @@ public sealed class A2854RemoteBle(
                 await central.EncryptAsync(handle.Value, saved.Value.Keys, encryptWindow.Token);
             }
             cancellationToken.ThrowIfCancellationRequested();
+            Volatile.Write(ref encryptionCompleted, 1);
             onStatus("A2854: encrypted LTK connection established.");
+            onStatus($"A2854: early ATT request count={Volatile.Read(ref earlyAttRequests)}.");
 
-            gatt = new GattClient(central, handle.Value);
             using (var metadataWindow = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken))
             {
                 metadataWindow.CancelAfter(TimeSpan.FromSeconds(30));

@@ -253,7 +253,7 @@
                           IsHitTestVisible="False" Focusable="False"
                           Content="Calibrated visualization preview active"
                           Margin="0,8,0,2" />
-                <TextBlock Text="Calibration changes the drawn touch marker only, not SendInput. A complete valid five-point profile is required before preview."
+                <TextBlock Text="A complete valid five-point profile is applied automatically to the drawn marker on startup. Toggle preview to compare with the uncalibrated view. Windows mouse input (SendInput) is unchanged."
                            TextWrapping="Wrap" FontSize="11"
                            Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
             </StackPanel>

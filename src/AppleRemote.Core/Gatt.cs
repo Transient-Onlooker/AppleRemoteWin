@@ -24,7 +24,7 @@ public sealed class GattClient
     const byte ErrorResponse = 0x01, AttributeNotFound = 0x0A, RequestNotSupported = 0x06;
 
     readonly LeCentral _central;
-    readonly ushort _connection;
+    ushort _connection;
     readonly SemaphoreSlim _gate = new(1, 1);
     readonly object _stateLock = new();
     (byte Request, TaskCompletionSource<byte[]> Done)? _pending;
@@ -38,16 +38,43 @@ public sealed class GattClient
         central.Disconnected += OnDisconnected;
     }
 
+    /// <summary>
+    /// Attach before LE connection starts, so ATT server requests sent as soon
+    /// as LinkEstablished (possibly before LTK encryption) are not lost. This
+    /// is used only by A2854; legacy callers keep the fixed-handle constructor.
+    /// LinkEstablished is raised synchronously from the HCI event reader before
+    /// ConnectAsync completes, so the GATT listener is ready for early ATT.
+    /// </summary>
+    public GattClient(LeCentral central) : this(central, ushort.MaxValue)
+        => central.ConnectionUpdateTrace += OnLinkEstablished;
+
+    void OnLinkEstablished(LeConnectionUpdateTrace trace)
+    {
+        if (trace.Phase != LeConnectionUpdatePhase.LinkEstablished) return;
+        lock (_stateLock)
+        {
+            if (_closedException is null && _connection == ushort.MaxValue)
+                _connection = trace.Handle;
+        }
+    }
+
     public TimeSpan RequestTimeout { get; init; } = TimeSpan.FromSeconds(10);
 
     /// <summary>Notification or indication: (value handle, value). Raised from the transport thread.</summary>
     public event Action<ushort, byte[]>? Notification;
+
+    /// <summary>
+    /// Received ATT server request opcode (no payload/handles). Best-effort
+    /// diagnostics only. Never log a raw ATT PDU or peer address.
+    /// </summary>
+    public event Action<byte>? PeerRequest;
 
     /// <summary>Call when the connection ends: stops listening to the channel.</summary>
     public void Detach()
     {
         _central.L2capData -= OnL2cap;
         _central.Disconnected -= OnDisconnected;
+        _central.ConnectionUpdateTrace -= OnLinkEstablished;
         lock (_stateLock)
         {
             _closedException ??= new InvalidOperationException("GATT client detached.");
@@ -159,6 +186,8 @@ public sealed class GattClient
             lock (_stateLock)
             {
                 if (_closedException is not null) throw _closedException;
+                if (_connection == ushort.MaxValue)
+                    throw new InvalidOperationException("GATT connection not established.");
                 _pending = (pdu[0], done);
                 _central.SendL2cap(_connection, LeCentral.CidAtt, pdu);
             }
@@ -181,9 +210,9 @@ public sealed class GattClient
 
     void OnDisconnected(ushort connection, byte reason)
     {
-        if (connection != _connection) return;
         lock (_stateLock)
         {
+            if (connection != _connection) return;
             _closedException ??= new IOException($"GATT connection disconnected (reason 0x{reason:X2}).");
             _pending?.Done.TrySetException(_closedException);
         }
@@ -191,14 +220,20 @@ public sealed class GattClient
 
     void OnL2cap(ushort connection, ushort cid, byte[] pdu)
     {
-        if (connection != _connection || cid != LeCentral.CidAtt || pdu.Length == 0) return;
+        if (cid != LeCentral.CidAtt || pdu.Length == 0) return;
         (byte Request, TaskCompletionSource<byte[]> Done)? pending;
         lock (_stateLock)
         {
-            if (_closedException is not null) return;
+            if (_closedException is not null || connection != _connection) return;
             pending = _pending;
         }
         byte opcode = pdu[0];
+        if (opcode is 0x02 or 0x04 or 0x06 or 0x08 or 0x0A or 0x0C or
+            0x0E or 0x10 or 0x12 or 0x16 or 0x18 or 0x20)
+        {
+            try { PeerRequest?.Invoke(opcode); }
+            catch { /* Diagnostics must never interrupt ATT responses. */ }
+        }
         switch (opcode)
         {
             case ErrorResponse when pdu.Length >= 5 && pending is { } p && p.Request == pdu[1]:

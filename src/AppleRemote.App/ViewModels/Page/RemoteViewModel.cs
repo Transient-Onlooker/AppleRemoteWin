@@ -265,7 +265,9 @@ public sealed partial class RemoteViewModel : ObservableObject, IDisposable
         _wasDown = false;
         _calibrationWindow.Clear();
         LiveTouchCoordinates = "No active touch";
-        TouchCalibrationPreviewEnabled = false;
+        // Valid saved physical landmarks auto-apply when returning to A2854.
+        // Switching to first generation never inherits the A2854 projection.
+        TouchCalibrationPreviewEnabled = a2854Mode && _calibratedProjection is not null;
         ResetGesture();
     }
 
@@ -490,7 +492,8 @@ public sealed partial class RemoteViewModel : ObservableObject, IDisposable
 
     /// <summary>
     /// Raw 0xFC geometry is stored apart from settings and the protected bond.
-    /// A captured sample is NEVER applied automatically, including on restart.
+    /// Only a complete validated five-point profile auto-applies to the
+    /// on-screen A2854 marker, never to the actual Windows mouse.
     /// </summary>
     void LoadTouchCalibrationPoints()
     {
@@ -521,7 +524,10 @@ public sealed partial class RemoteViewModel : ObservableObject, IDisposable
                     ? $"{name} ({point.X}, {point.Y})" : $"{name} (—)")) +
             (_calibratedProjection is null ? " — preview unavailable until valid." :
                 " — ready for optional visual preview.");
-        if (_calibratedProjection is null) TouchCalibrationPreviewEnabled = false;
+        // A complete valid user-measured profile is the display default.
+        // The Toggle preview control still allows a temporary comparison with
+        // the original raw signed-12-bit fallback, but never affects SendInput.
+        TouchCalibrationPreviewEnabled = _session.A2854Mode && _calibratedProjection is not null;
     }
 
     [RelayCommand]
