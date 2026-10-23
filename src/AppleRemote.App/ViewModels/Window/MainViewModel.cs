@@ -27,7 +27,8 @@ public sealed class MainViewModel : IDisposable
         {
             // The driver waits for the remote and unlocks it by itself as soon as Windows exposes its HID collection:
             // the session just has to be running.
-            if (!_session!.IsRunning) Remote!.StartSession(); // both set before any pairing
+            if (!_session!.IsRunning && RemoteStartupPolicy.AllowBackgroundRestart(_session.A2854Mode))
+                Remote!.StartSession(); // A2854 always requires an explicit user Start click
         });
 
         KeyMap map = KeyMap.Default();
