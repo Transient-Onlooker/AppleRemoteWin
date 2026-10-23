@@ -20,9 +20,24 @@
             <ColumnDefinition Width="Auto" />
         </Grid.ColumnDefinitions>
 
-        <!-- Left column: the remote, drawn to scale (380 × 1200), fitted to the window height -->
+        <!-- Keep the original first-generation remote completely unchanged.
+             A2854 uses its own physical drawing and contact projection. -->
         <Viewbox Grid.Column="0" Margin="0,0,24,0" Stretch="Uniform" VerticalAlignment="Top">
+            <Viewbox.Style>
+                <Style TargetType="Viewbox">
+                    <Setter Property="Visibility" Value="Visible" />
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding IsA2854Mode}" Value="True">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </Viewbox.Style>
             <local:RemoteDrawing />
+        </Viewbox>
+        <Viewbox Grid.Column="0" Margin="0,0,24,0" Stretch="Uniform" VerticalAlignment="Top"
+                 Visibility="{Binding IsA2854Mode, Converter={StaticResource BoolToVisibility}}">
+            <local:A2854RemoteDrawing />
         </Viewbox>
 
         <!-- Right column: status, start/stop, gesture -->

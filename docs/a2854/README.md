@@ -1,5 +1,8 @@
 # Siri Remote A2854 — project home
 
+> **2026-10-23 new milestone:** WPF GUI using saved DPAPI LTK completed encrypted reconnect and enabled 0xFB/0xFC GATT notifications; mute press/release was observed. The remote terminated first with 0x13, so this GUI test did not verify CCCD disable or local 0x16. After restoring settings and confirming the bond unchanged, the main agent separated A2854/first-gen live drawings and touch display mapping. New UI code still needs an independent Windows build and GUI check; do not confuse it with the verified previous source.
+
+
 > **Next ChatGPT main agent: [READ THE FULL 2026-10-23 HANDOFF FIRST](../HANDOFF_2026-10-23_A2854.md).** It supersedes the older 10/18 and 10/21 handoffs and stale root README claims. Source at `be776ecd` introduced passive GUI startup and legacy-Barrot exclusion **after** the last independent Windows validation at `302fdb1` (256/256 × 3); the newest source is **not yet Windows tested**. Coding/commits belong to ChatGPT; local Codex performs independent Windows tests and owner-approved hardware checks.
 
 > **Experimental / Windows-native button/touch capture and normal teardown verified.** The separately approved eight-second trial at `a40c25c` received **33 FB / 360 FC frames**, zero malformed, both CCCD disable responses and normal host disconnect **0x16**, exit 0. Long-term stability and Windows mouse/media input synthesis remain unverified. This index supersedes historical instructions suggesting another internal-HID restart.

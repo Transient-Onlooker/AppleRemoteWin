@@ -78,6 +78,17 @@ public sealed partial class RemoteViewModel : ObservableObject, IDisposable
     [ObservableProperty] bool _volDownPressed;
     [ObservableProperty] bool _touchPressed;
 
+    // A2854 has physical mute, power, and a four-way clickpad ring.
+    // Legacy mode keeps the old drawing and button state unchanged.
+    [ObservableProperty] bool _mutePressed;
+    [ObservableProperty] bool _powerPressed;
+    [ObservableProperty] bool _upPressed;
+    [ObservableProperty] bool _downPressed;
+    [ObservableProperty] bool _leftPressed;
+    [ObservableProperty] bool _rightPressed;
+
+    public bool IsA2854Mode => _session.A2854Mode;
+
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(BatteryText))]
     [NotifyPropertyChangedFor(nameof(BatteryPercent))]
@@ -189,6 +200,15 @@ public sealed partial class RemoteViewModel : ObservableObject, IDisposable
         if (a2854Mode) _scanner.Stop();
         else if (_scanTimer.IsEnabled) _scanner.Start();
         ClearNearby();
+        // The Remote page switches its physical illustration at runtime.
+        // A preceding model's button/touch highlights must not leak through.
+        OnPropertyChanged(nameof(IsA2854Mode));
+        ShowButtons(0);
+        foreach (var finger in Fingers) finger.IsVisible = false;
+        _trail.Clear();
+        TrailPoints = new PointCollection();
+        _trailTimer.Stop();
+        _wasDown = false;
     }
 
     public void Dispose()
@@ -249,19 +269,26 @@ public sealed partial class RemoteViewModel : ObservableObject, IDisposable
         }
     }
 
-    // Masks of byte 2 of the 0xFC report; the touch-surface click only tints it.
+    // 1st-generation 0xFC and A2854 0xFB have unrelated button masks.
+    // Keep both models' visuals separate, including A2854-only keys.
     void ShowButtons(int mask)
     {
         if (_session.A2854Mode)
         {
-            // A2854 physical 0xFB bitfield is NOT the first-gen 0xFC bitfield.
-            MenuPressed = (mask & 0x0040) != 0;
-            TvPressed = (mask & 0x0001) != 0;
-            SiriPressed = (mask & 0x0020) != 0;
-            PlayPressed = (mask & 0x0100) != 0;
-            VolUpPressed = (mask & 0x0002) != 0;
-            VolDownPressed = (mask & 0x0004) != 0;
-            TouchPressed = (mask & 0x0008) != 0;
+            var buttons = A2854ButtonVisualState.FromMask(mask);
+            MenuPressed = buttons.Back;
+            TvPressed = buttons.Tv;
+            SiriPressed = buttons.Siri;
+            PlayPressed = buttons.PlayPause;
+            VolUpPressed = buttons.VolumeUp;
+            VolDownPressed = buttons.VolumeDown;
+            TouchPressed = buttons.CenterClick;
+            MutePressed = buttons.Mute;
+            PowerPressed = buttons.Power;
+            UpPressed = buttons.Up;
+            RightPressed = buttons.Right;
+            DownPressed = buttons.Down;
+            LeftPressed = buttons.Left;
             return;
         }
         MenuPressed = (mask & 0x20) != 0;
@@ -271,6 +298,7 @@ public sealed partial class RemoteViewModel : ObservableObject, IDisposable
         VolUpPressed = (mask & 0x02) != 0;
         VolDownPressed = (mask & 0x04) != 0;
         TouchPressed = (mask & 0x80) != 0;
+        MutePressed = PowerPressed = UpPressed = RightPressed = DownPressed = LeftPressed = false;
     }
 
     void ShowTouch(TouchEvent t)
@@ -283,14 +311,16 @@ public sealed partial class RemoteViewModel : ObservableObject, IDisposable
             if (!visible) continue;
             anyDown = true;
             var f = t.Fingers[i];
-            Fingers[i].Left = PadX(f.X) - DotSize / 2;
-            Fingers[i].Top = PadY(f.Y) - DotSize / 2;
+            var position = ProjectTouch(f.X, f.Y);
+            Fingers[i].Left = position.X - DotSize / 2;
+            Fingers[i].Top = position.Y - DotSize / 2;
         }
 
         if (anyDown)
         {
             if (!_wasDown) _trail.Clear();
-            _trail.Add((new Point(PadX(t.X), PadY(t.Y)), Environment.TickCount64));
+            var primary = ProjectTouch(t.X, t.Y);
+            _trail.Add((new Point(primary.X, primary.Y), Environment.TickCount64));
             TrailPoints = new PointCollection(_trail.Select(p => p.Point));
             _trailTimer.Start();
         }
@@ -308,6 +338,12 @@ public sealed partial class RemoteViewModel : ObservableObject, IDisposable
         TrailPoints = new PointCollection(_trail.Select(p => p.Point));
         if (_trail.Count == 0) _trailTimer.Stop();
     }
+
+    // The existing first-gen range is retained only for first-gen input.
+    // A2854 gets an independent signed-12-bit, round-pad display projection.
+    (double X, double Y) ProjectTouch(int x, int y) => _session.A2854Mode
+        ? A2854TouchProjection.Map(x, y)
+        : (PadX(x), PadY(y));
 
     static double PadX(int x) => Math.Clamp((x - XMin) / Span, 0, 1) * PadSize;
 
