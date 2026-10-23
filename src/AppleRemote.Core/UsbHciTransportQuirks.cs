@@ -15,6 +15,14 @@ public static class UsbHciTransportQuirks
     /// Evidence: https://github.com/zhuzhuzihan/brtusb/blob/main/linux/brtusb.c
     /// Hardware validation on the owner's BR8652A12 unit is still pending.
     /// </summary>
+    /// <summary>
+    /// Windows device instance ID/interface path belongs to the dedicated
+    /// Barrot A2854 transport. The old gen-1 pairing driver must never pick
+    /// this adapter through implicit WinUSB fallback.
+    /// </summary>
+    public static bool IsDedicatedA2854Path(string? path) =>
+        path?.Contains("VID_33FA&PID_0001", StringComparison.OrdinalIgnoreCase) == true;
+
     public static byte CommandRequestType(ushort vendorId, ushort productId) =>
         vendorId == 0x33FA && (productId is 0x0001 or 0x0010)
             ? (byte)0x21
