@@ -161,8 +161,7 @@ public sealed class UsbHci : IDisposable
     public static UsbHci OpenForLegacyRemote(string? instanceId = null)
     {
         var dedicated = new UsbId(0x33FA, 0x0001);
-        if (instanceId?.Contains($"VID_{dedicated.Vid:X4}&PID_{dedicated.Pid:X4}",
-                StringComparison.OrdinalIgnoreCase) == true)
+        if (UsbHciTransportQuirks.IsDedicatedA2854Path(instanceId))
             throw new InvalidOperationException(
                 "Dedicated Barrot 33FA:0001 cannot use the first-generation pairing driver. Select A2854 mode.");
 
