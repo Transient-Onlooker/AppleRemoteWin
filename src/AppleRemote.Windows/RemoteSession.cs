@@ -233,7 +233,9 @@ public sealed class RemoteSession : IDisposable
             }
 
             UsbHci? hci = null;
-            try { hci = UsbHci.Open(AdapterId); }
+            // Dedicated A2854 Barrot must never be selected by the
+            // first-generation SMP/BondStore fallback, even if its mode is off.
+            try { hci = UsbHci.OpenForLegacyRemote(AdapterId); }
             catch (Exception e) { Status?.Invoke(Loc.T("Status.BtUnavailable", e.Message)); }
 
             UsesBluetoothDirect = hci is not null;
