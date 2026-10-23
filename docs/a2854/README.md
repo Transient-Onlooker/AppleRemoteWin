@@ -2,6 +2,12 @@
 
 > **Experimental / Windows-native button/touch capture and normal teardown verified.** The separately approved eight-second trial at `a40c25c` received **33 FB / 360 FC frames**, zero malformed, both CCCD disable responses and normal host disconnect **0x16**, exit 0. Long-term stability and Windows mouse/media input synthesis remain unverified. This index supersedes historical instructions suggesting another internal-HID restart.
 
+## Latest local validation and passive GUI launch fix (2026-10-23)
+
+**Windows verifier at `302fdb1`:** full Release tests **256/256 passed in three consecutive runs** (focused input/USB/teardown/first-gen subset **99/99**), full solution/WPF/Probe Release builds **zero errors and warnings**, xUnit1031 absent. The older gen-1 random-address test finished in ~250ms / 48ms / 102ms in those runs; intermittent failure **not proven cured**. No actual WPF app was launched and no hardware/input injection was performed.
+
+**New main-author code after this validation (not yet Windows built):** we discovered persisted A2854 mode was unintentionally auto-started by the WPF window's launch path. `RemoteStartupPolicy` now preserves first-gen auto-start but makes A2854 **explicit-Start-only**. While A2854 is selected, opening the GUI no longer opens Barrot WinUSB or starts WinRT Bluetooth scanner; dongle takeover and PnP changes do not auto-restart A2854, and Windows's nearby-device pairing action is blocked. The new `RemoteStartupPolicyTests` checks these invariants. See [passive GUI test gate](GUI_PASSIVE_STARTUP_2026-10-23.md). **Do not use the earlier 256/256 run as proof that this latest safety change passes.**
+
 ## Latest WPF integration safety fixes — new build gate (2026-10-23)
 
 The local Windows verifier reported **229/229 tests passed**, `A2854PointerMapperTests` **11/11**, and zero warnings/errors on WPF, Probe and full solution builds at `bd1e288`. Those results predate the **main-author fixes** to USB reader-failure input release/cancellation, terminal GATT-notification ordering, mouse-up SendInput failure retention/retry, and UI/model sensitivity range. Additional same-process Start/Stop serialization and portable race/fault tests are included. **These newest commits have not been rebuilt or executed on Windows.** Codex is assigned **verification only**, with no live A2854/GATT/SendInput runs or changes to DPAPI bond, drivers or certificates. See [integration report](APP_INTEGRATION_2026-10-23.md).
