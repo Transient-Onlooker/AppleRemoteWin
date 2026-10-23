@@ -213,7 +213,23 @@ public sealed class UsbHci : IDisposable
             {
                 if (WinUsb_ReadPipe(_usb, pipe, buffer, (uint)size, out uint read, IntPtr.Zero))
                 {
-                    if (read > 0) receive(buffer.AsSpan(0, (int)read));
+                    if (read > 0)
+                    {
+                        try { receive(buffer.AsSpan(0, (int)read)); }
+                        catch (Exception e)
+                        {
+                            // HID subscribers, including third-party WPF callbacks,
+                            // must never terminate this background thread with an
+                            // unhandled exception. Surface the transport failure
+                            // through the same A2854 cancellation/release path.
+                            string reason = $"USB HCI ({name}) packet callback failed: {e.GetType().Name}";
+                            try { _earlyFailure.Fail(reason); }
+                            catch { /* owner cleanup must not escape a USB reader */ }
+                            try { Failed?.Invoke(reason); }
+                            catch { /* protect reader shutdown */ }
+                            return;
+                        }
+                    }
                 }
                 else if (!_disposed)
                 {
