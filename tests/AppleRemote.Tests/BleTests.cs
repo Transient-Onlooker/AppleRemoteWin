@@ -161,6 +161,69 @@ public class BleTests
         _hci.ReceiveEventBytes([0x08, 0x04, 0x00, 0x41, 0x00, 0x01]);
         await next;
     }
+    [Theory]
+    [InlineData(0x00, LeConnectionUpdatePhase.CommandAccepted)]
+    [InlineData(0x0C, LeConnectionUpdatePhase.CommandRejected)]
+    public async Task Connection_update_request_reports_HCI_command_outcome_without_unobserved_failure(
+        byte hciStatus, LeConnectionUpdatePhase expected)
+    {
+        var commands = new List<byte[]>();
+        var aclOut = new List<byte[]>();
+        var hci = new HciHost(commands.Add, aclOut.Add);
+        var central = new LeCentral(hci);
+        var observed = new List<LeConnectionUpdateTrace>();
+        var outcome = new TaskCompletionSource<LeConnectionUpdateTrace>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        central.ConnectionUpdateTrace += trace =>
+        {
+            lock (observed) observed.Add(trace);
+            if (trace.Phase is LeConnectionUpdatePhase.CommandAccepted or
+                LeConnectionUpdatePhase.CommandRejected)
+                outcome.TrySetResult(trace);
+        };
+
+        // L2CAP CID 0x0005, peer Connection Parameter Update Request,
+        // no peer identity, encryption key or private GATT data.
+        hci.ReceiveAclBytes([
+            0x40, 0x00, 0x10, 0x00, 0x0C, 0x00, 0x05, 0x00,
+            0x12, 0x07, 0x08, 0x00,
+            0x0C, 0x00, 0x18, 0x00, 0x00, 0x00, 0xC8, 0x00
+        ]);
+        Assert.Single(aclOut); // old L2CAP acceptance is unchanged
+        Assert.Equal(new byte[] { 0x13, 0x20 }, commands.Single()[..2]);
+        hci.ReceiveEventBytes([0x0F, 0x04, hciStatus, 0x01, 0x13, 0x20]);
+
+        var result = await outcome.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        Assert.Equal(expected, result.Phase);
+        Assert.Equal((ushort)0x0040, result.Handle);
+        Assert.Equal((byte)7, result.Identifier);
+        Assert.Equal((ushort)0x000C, result.MinInterval);
+        Assert.Equal((ushort)0x0018, result.MaxInterval);
+        Assert.Equal((ushort)0x00C8, result.SupervisionTimeout);
+        Assert.Equal(hciStatus == 0 ? null : (byte?)hciStatus, result.Status);
+        lock (observed) Assert.Equal(LeConnectionUpdatePhase.RequestReceived, observed[0].Phase);
+    }
+
+    [Fact]
+    public void LE_connection_update_complete_reports_actual_controller_status_and_parameters()
+    {
+        var traces = new List<LeConnectionUpdateTrace>();
+        _central.ConnectionUpdateTrace += traces.Add;
+        // HCI LE Meta Event 0x3E / subevent 0x03:
+        // status, handle, interval, latency, supervision timeout.
+        _hci.ReceiveEventBytes([
+            0x3E, 0x0A, 0x03, 0x3B, 0x40, 0x00, 0x18, 0x00,
+            0x01, 0x00, 0xC8, 0x00
+        ]);
+        var result = Assert.Single(traces);
+        Assert.Equal(LeConnectionUpdatePhase.Completed, result.Phase);
+        Assert.Equal((byte)0x3B, result.Status);
+        Assert.Equal((ushort)0x0040, result.Handle);
+        Assert.Equal((ushort)0x0018, result.MinInterval);
+        Assert.Equal((ushort)1, result.Latency);
+        Assert.Equal((ushort)0x00C8, result.SupervisionTimeout);
+    }
+
     [Fact]
     public void Link_only_central_does_not_respond_to_unsolicited_L2CAP_signaling()
     {

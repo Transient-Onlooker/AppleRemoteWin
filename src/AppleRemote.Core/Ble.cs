@@ -59,6 +59,18 @@ public sealed class BondStore(string path)
 /// <summary>Peer address and HCI address type (0 = public, 1 = random).</summary>
 public readonly record struct LePeer(string Address, byte AddressType);
 
+/// <summary>Stages of the BLE connection-parameter update negotiation (no peer identity or key data).</summary>
+public enum LeConnectionUpdatePhase { RequestReceived, CommandAccepted, CommandRejected, CommandFailed, Completed }
+
+/// <summary>
+/// Non-sensitive BLE timing/parameter-update diagnostic. A completed HCI event
+/// has no L2CAP request identifier (Identifier = 0).
+/// </summary>
+public readonly record struct LeConnectionUpdateTrace(
+    ushort Handle, byte Identifier, LeConnectionUpdatePhase Phase,
+    ushort MinInterval, ushort MaxInterval, ushort Latency,
+    ushort SupervisionTimeout, byte? Status = null);
+
 /// <summary>
 /// LE "central" role on top of <see cref="HciHost"/>: controller initialisation, connection to a public address,
 /// encryption with known keys, disconnection tracking, L2CAP frames. One connection at a time.
@@ -97,6 +109,12 @@ public sealed class LeCentral
 
     /// <summary>Disconnection: (handle, HCI reason). Raised from the transport thread.</summary>
     public event Action<ushort, byte>? Disconnected;
+
+    /// <summary>
+    /// LE L2CAP update request, HCI Command Status, and HCI LE Update Complete.
+    /// Best-effort diagnostics only: listeners must never affect the radio link.
+    /// </summary>
+    public event Action<LeConnectionUpdateTrace>? ConnectionUpdateTrace;
 
     /// <summary>Advertising report received while scanning: (address, 6 little-endian bytes; RSSI in dBm; AD data). Transport thread.</summary>
     public event Action<byte[], sbyte, byte[]>? Advertisement;
@@ -321,14 +339,51 @@ public sealed class LeCentral
         byte code = p[0], id = p[1];
         if (code == 0x12 && p.Length >= 12)   // Connection Parameter Update Request
         {
-            SendL2cap(handle, CidSignaling, [0x13, id, 0x02, 0x00, 0x00, 0x00]);   // accepted
-            _ = _hci.CommandAsync(HciOpcode.LeConnectionUpdate,
-                [(byte)handle, (byte)(handle >> 8), .. p[4..12], 0x00, 0x00, 0x00, 0x00]);
+            var trace = new LeConnectionUpdateTrace(
+                handle, id, LeConnectionUpdatePhase.RequestReceived,
+                (ushort)(p[4] | p[5] << 8), (ushort)(p[6] | p[7] << 8),
+                (ushort)(p[8] | p[9] << 8), (ushort)(p[10] | p[11] << 8));
+            ReportConnectionUpdate(trace);
+            // Preserve existing behavior. Acceptance at L2CAP does not mean
+            // the controller also accepted/applied the connection update.
+            SendL2cap(handle, CidSignaling, [0x13, id, 0x02, 0x00, 0x00, 0x00]);
+            _ = ApplyConnectionUpdateAsync(trace, p[4..12]);
         }
         else if (code is not (0x01 or 0x13))   // neither a reject nor a response: a request we don't handle
         {
             SendL2cap(handle, CidSignaling, [0x01, id, 0x02, 0x00, 0x00, 0x00]);
         }
+    }
+
+    async Task ApplyConnectionUpdateAsync(LeConnectionUpdateTrace request, byte[] parameters)
+    {
+        try
+        {
+            await _hci.CommandAsync(HciOpcode.LeConnectionUpdate,
+                [(byte)request.Handle, (byte)(request.Handle >> 8), .. parameters,
+                 0x00, 0x00, 0x00, 0x00]);
+            ReportConnectionUpdate(request with { Phase = LeConnectionUpdatePhase.CommandAccepted });
+        }
+        catch (HciException e)
+        {
+            // Previously this fire-and-forget exception was unobserved.
+            ReportConnectionUpdate(request with
+            {
+                Phase = LeConnectionUpdatePhase.CommandRejected, Status = e.Status
+            });
+        }
+        catch (Exception)
+        {
+            // Includes command timeout or transport failure; never expose raw
+            // HCI payload, peer address, bond data, or exception message.
+            ReportConnectionUpdate(request with { Phase = LeConnectionUpdatePhase.CommandFailed });
+        }
+    }
+
+    void ReportConnectionUpdate(LeConnectionUpdateTrace value)
+    {
+        try { ConnectionUpdateTrace?.Invoke(value); }
+        catch { /* best-effort telemetry must not disturb HCI transport */ }
     }
 
     void OnAdvertisement((Func<byte[], bool> Match, TaskCompletionSource<LePeer> Found, bool AllowRandom) scan, byte addressType, byte[] address,
@@ -365,6 +420,14 @@ public sealed class LeCentral
                 break;
             case EvtLeMeta when p.Length >= 2 && (p[0] is LeConnectionComplete or LeEnhancedConnectionComplete):
                 CompleteConnection(p);
+                break;
+            case EvtLeMeta when p.Length >= 10 && p[0] == 0x03: // LE Connection Update Complete
+                ushort updatedHandle = (ushort)(p[2] | p[3] << 8);
+                ushort interval = (ushort)(p[4] | p[5] << 8);
+                ReportConnectionUpdate(new LeConnectionUpdateTrace(
+                    updatedHandle, 0, LeConnectionUpdatePhase.Completed,
+                    interval, interval, (ushort)(p[6] | p[7] << 8),
+                    (ushort)(p[8] | p[9] << 8), p[1]));
                 break;
             case EvtEncryptionChange when p.Length >= 4 && _encrypting is { } encryption &&
                 encryption.Handle == (ushort)(p[1] | p[2] << 8):

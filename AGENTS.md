@@ -21,6 +21,8 @@ Repository: `Transient-Onlooker/AppleRemoteWin`. Working branch: `feat/a2854-sup
 
 ### Current validated baseline and next gate
 
+- **Owner-reported QA on source `7317cc8`:** 301/301 tests, 25/25 dispatcher checks, two encrypted GUI HID connections succeeded; both terminated at 28–29s with HCI 0x13 despite use; one intermediate connect error/0x3E. New diagnostic source records connection phase and HCI opcode/status, link/input age and LE parameter-update negotiation outcomes; awaiting Windows build/hardware validation. This replaces speculation that 0x13 is necessarily idle sleep.
+
 - **2026-10-24 UI polish after screenshot:** A2854 safety caption moved below drawing, mode/pointer settings moved to top of right settings column and presented in conventional cards, window title/title bar/tray tooltip now reflect A2854 vs gen-1 with localized text, footer link changed to this repository. Await independent Windows GUI rendering QA. Latest developer commit is not yet run on Windows.
 
 - **Latest owner-reported independent WPF QA at `05c60b6`:** full solution/WPF/Probe builds 0 warnings/errors; 297/297 tests completed on each of 3 runs; actual saved-DPAPI encrypted GUI reconnection and GATT enable succeeded; remote disconnected first with 0x13 after about 28s; host CCCD disable/0x16 not verified. Temporary settings restored and protected bond unchanged. Owner saw correct model-specific drawing but inaccurate actual touch location. Static findings: battery persistence on mode change, queued old UI callbacks, contact dot clipped at outer edge.

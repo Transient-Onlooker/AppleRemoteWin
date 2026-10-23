@@ -4,6 +4,7 @@
 // Explicitly selected external Barrot WinUSB + already protected Windows-user bond.
 // No automatic pairing, bond mutations, microphone subscription or Windows injection.
 
+using System.Diagnostics;
 using System.Security.Cryptography;
 
 namespace AppleRemote.Windows;
@@ -28,6 +29,9 @@ public sealed class A2854RemoteBle(
         ushort? handle = null;
         bool subscribed = false;
         bool alreadyDisconnected = false;
+        string phase = "load-bond";
+        long connectedAt = 0, lastInputAt = 0;
+        int buttonFrames = 0, touchFrames = 0;
         var disconnected = new TaskCompletionSource<(ushort Handle, byte Reason)>(
             TaskCreationOptions.RunContinuationsAsynchronously);
         var inputGate = new A2854InputGate(onReport, onTerminalCleanup);
@@ -47,6 +51,18 @@ public sealed class A2854RemoteBle(
             }
 
             central = new LeCentral(host);
+            central.ConnectionUpdateTrace += trace =>
+            {
+                if (handle != trace.Handle) return;
+                // Timing parameters are not a peer identifier. Record both the
+                // L2CAP request and HCI command/completion outcome; these can
+                // distinguish rejected updates from a peer-initiated 0x13.
+                string status = trace.Status is byte code ? $"0x{code:X2}" : "n/a";
+                onStatus($"A2854: LE connection parameters {trace.Phase}; " +
+                    $"min={trace.MinInterval} max={trace.MaxInterval} " +
+                    $"latency={trace.Latency} timeout={trace.SupervisionTimeout} " +
+                    $"status={status}.");
+            };
             central.Disconnected += (h, reason) =>
             {
                 if (handle != h) return;
@@ -63,6 +79,7 @@ public sealed class A2854RemoteBle(
             };
             onStatus(Loc.T("Status.WaitBonded"));
             onStatus("A2854: initializing dedicated external Barrot WinUSB controller.");
+            phase = "initialize-controller";
             await central.InitializeAsync();
             cancellationToken.ThrowIfCancellationRequested();
 
@@ -70,13 +87,16 @@ public sealed class A2854RemoteBle(
             {
                 connectWindow.CancelAfter(TimeSpan.FromSeconds(15));
                 onStatus("A2854: connecting to bonded remote; wake it with a normal button press.");
+                phase = "connect";
                 handle = await central.ConnectAsync(saved.Value.Address,
                     connectWindow.Token, saved.Value.AddressType);
+                connectedAt = Stopwatch.GetTimestamp();
             }
 
             using (var encryptWindow = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken))
             {
                 encryptWindow.CancelAfter(TimeSpan.FromSeconds(12));
+                phase = "encrypt";
                 await central.EncryptAsync(handle.Value, saved.Value.Keys, encryptWindow.Token);
             }
             cancellationToken.ThrowIfCancellationRequested();
@@ -86,6 +106,7 @@ public sealed class A2854RemoteBle(
             using (var metadataWindow = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken))
             {
                 metadataWindow.CancelAfter(TimeSpan.FromSeconds(30));
+                phase = "discover-hid";
                 // The first application integration is tied to measured physical
                 // handles. Firmware layout changes must stop before any write.
                 // DiscoverAsync already enforces all three observed value handles.
@@ -105,6 +126,9 @@ public sealed class A2854RemoteBle(
                     if (!A2854HidCapture.TryDecode(
                         localDecoder, inputMap, valueHandle, value, out _, out byte id))
                         return; // drop microphone/unknown/malformed without printing raw payloads
+                    Interlocked.Exchange(ref lastInputAt, Stopwatch.GetTimestamp());
+                    if (id == A2854Decoder.ButtonsReportId) Interlocked.Increment(ref buttonFrames);
+                    else if (id == A2854Decoder.TouchReportId) Interlocked.Increment(ref touchFrames);
                     inputGate.TryForward([id, .. value]);
                 }
             };
@@ -113,10 +137,12 @@ public sealed class A2854RemoteBle(
             using (var writeWindow = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken))
             {
                 writeWindow.CancelAfter(TimeSpan.FromSeconds(12));
+                phase = "enable-hid";
                 await A2854HidCapture.EnableAsync(gatt, map, writeWindow.Token);
             }
             cancellationToken.ThrowIfCancellationRequested();
             onStatus(Loc.T("Status.ConnectedDirect"));
+            phase = "observe";
 
             // No auto-repair/re-pairing and no fixed polling duration. The existing
             // app's Stop button cancels, or the peer can voluntarily sleep (0x13).
@@ -125,7 +151,15 @@ public sealed class A2854RemoteBle(
                 var ended = await disconnected.Task.WaitAsync(cancellationToken);
                 alreadyDisconnected = true;
                 onStatus(Loc.T("Status.DisconnectedReason", ended.Reason));
-                onStatus($"A2854: remote disconnected (HCI 0x{ended.Reason:X2}); use Stop/Start to reconnect.");
+                double durationSeconds = connectedAt == 0 ? 0 : Stopwatch.GetElapsedTime(connectedAt).TotalSeconds;
+                long lastReportTimestamp = Interlocked.Read(ref lastInputAt);
+                string lastReportAge = lastReportTimestamp == 0
+                    ? "none" : $"{Stopwatch.GetElapsedTime(lastReportTimestamp).TotalSeconds:F1}s ago";
+                onStatus($"A2854: peer disconnection 0x{ended.Reason:X2} " +
+                    $"({HciDisconnectReason.Describe(ended.Reason)}); " +
+                    $"connected={durationSeconds:F1}s FB={Volatile.Read(ref buttonFrames)} " +
+                    $"FC={Volatile.Read(ref touchFrames)} last-input={lastReportAge}; " +
+                    "host Stop/CCCD disable not yet verified.");
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
@@ -143,12 +177,20 @@ public sealed class A2854RemoteBle(
             onStatus(Loc.T("Status.Unreachable"));
             onStatus("A2854: connection or operation timed out. Existing bond was preserved.");
         }
+        catch (HciException e)
+        {
+            // HCI opcode and status are diagnostic, unlike peer addresses/keys.
+            // Preserve them so 0x3E connect failures and LE parameter update
+            // controller rejections are no longer collapsed into "HciException".
+            onStatus(Loc.T("Status.Unreachable"));
+            onStatus($"A2854: HCI error phase={phase} opcode=0x{e.Opcode:X4} " +
+                $"status=0x{e.Status:X2}; bond unchanged.");
+        }
         catch (Exception e)
         {
-            // Exception messages must not contain raw key material or peer addresses.
-            // Emit exception type and stage-neutral status only.
+            // No raw exception message: it may contain a peer address.
             onStatus(Loc.T("Status.Unreachable"));
-            onStatus($"A2854: session ended ({e.GetType().Name}); bond unchanged.");
+            onStatus($"A2854: session error phase={phase} type={e.GetType().Name}; bond unchanged.");
         }
         finally
         {
