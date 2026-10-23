@@ -119,7 +119,8 @@ public sealed partial class RemoteViewModel : ObservableObject, IDisposable
             });
             // The dongle is only picked when the session starts: one plugged in later (the app runs at logon, the dongle
             // reboots after a cable flash) takes over the running session.
-            if (_session.IsRunning && !_session.UsesDongle && all.Any(EspDongle.IsDongle))
+            if (RemoteStartupPolicy.AllowBackgroundRestart(_session.A2854Mode) &&
+                _session.IsRunning && !_session.UsesDongle && all.Any(EspDongle.IsDongle))
             {
                 _log(Loc.T("Log.DongleDetected"));
                 StopSession();
@@ -147,7 +148,11 @@ public sealed partial class RemoteViewModel : ObservableObject, IDisposable
 
     public void Start()
     {
-        StartSession();
+        // The existing app starts first-generation remotes automatically.
+        // A2854 can write 0xFB/0xFC CCCDs and feature 0xF0 immediately after
+        // connecting, so saved A2854 mode requires an explicit Start click.
+        if (RemoteStartupPolicy.AutoStartSession(_session.A2854Mode))
+            StartSession();
         _scanner.Start();
         _scanTimer.Start();
     }
@@ -349,7 +354,7 @@ public sealed partial class RemoteViewModel : ObservableObject, IDisposable
         if (IsPairing || SelectedNearby is not { Connected: false } row) return;
         // Adapter under WinUSB: the list comes from Windows' adapter, pairing through Windows would bond the remote to
         // the wrong one; the session pairs it itself (Pair button). Double-click does nothing.
-        if (_session.UsesBluetoothDirect || Preferences?.WinUsbOn == true) return;
+        if (_session.A2854Mode || _session.UsesBluetoothDirect || Preferences?.WinUsbOn == true) return;
         IsPairing = true;
         // Scanning while connecting upsets some adapters: the scan is suspended.
         _scanner.Stop();
