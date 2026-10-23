@@ -149,6 +149,18 @@ public sealed class UsbHci : IDisposable
     }
 
     /// <summary>
+    /// Read-only device-interface enumeration; never opens a USB handle or sends
+    /// HCI traffic. Used to prevent the legacy GUI auto-start path from treating
+    /// a dedicated A2854 Barrot as the first available generic WinUSB adapter.
+    /// </summary>
+    public static bool IsWinUsbDevicePresent(UsbId id)
+    {
+        string token = $"VID_{id.Vid:X4}&PID_{id.Pid:X4}";
+        return EnumerateUsbPaths().Any(path =>
+            path.Contains(token, StringComparison.OrdinalIgnoreCase));
+    }
+
+    /// <summary>
     /// Opens only a dedicated WinUSB adapter matching the requested USB VID/PID.
     /// Useful for avoiding inadvertent selection of unrelated adapters during experiments.
     /// </summary>
