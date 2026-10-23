@@ -136,11 +136,17 @@
                     <Grid Margin="0,0,0,6">
                         <TextBlock Text="Siri Remote A2854" Style="{StaticResource Section}"
                                    VerticalAlignment="Center" />
-                        <ui:Button Content="Copy result" Command="{Binding CopyA2854LastLinkCommand}"
-                                   HorizontalAlignment="Right" Padding="8,4" />
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                            <ui:Button Content="Copy result" Command="{Binding CopyA2854LastLinkCommand}"
+                                       Margin="0,0,6,0" Padding="8,4" />
+                            <ui:Button Content="Copy timeline" Command="{Binding CopyA2854SessionTimelineCommand}"
+                                       Padding="8,4" />
+                        </StackPanel>
                     </Grid>
                     <TextBlock Text="External Barrot USB · existing protected bond"
                                FontSize="12" TextWrapping="Wrap"
+                               Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                    <TextBlock Text="{Binding A2854TimelineCount}" Margin="0,6,0,1" FontSize="11"
                                Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                     <TextBlock Text="{Binding A2854LastLinkSummary}"
                                FontSize="12" TextWrapping="Wrap" Margin="0,8,0,5"

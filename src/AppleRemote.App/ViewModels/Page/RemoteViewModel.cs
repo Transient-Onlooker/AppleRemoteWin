@@ -92,6 +92,8 @@ public sealed partial class RemoteViewModel : ObservableObject, IDisposable
     // Generated only from our own status strings; never store peer addresses,
     // raw HCI/ATT frames, cryptographic keys or the protected bond in the UI.
     [ObservableProperty] string _a2854LastLinkSummary = "No A2854 session result yet.";
+    readonly A2854SessionTimeline _sessionTimeline = new();
+    [ObservableProperty] string _a2854TimelineCount = "0 diagnostic events";
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(StatusTitle))]
     StatusLevel _statusLevel;
@@ -317,7 +319,11 @@ public sealed partial class RemoteViewModel : ObservableObject, IDisposable
         _calibrationFingerDown = false;
         LiveTouchCoordinates = "No active touch";
         if (_session.A2854Mode)
+        {
             A2854LastLinkSummary = "Connecting to remote with existing protected bond…";
+            _sessionTimeline.Reset();
+            A2854TimelineCount = "0 diagnostic events";
+        }
         ClearNearby();
         _session.Start();
         // If startup was deliberately passive because Barrot was present,
@@ -514,6 +520,8 @@ public sealed partial class RemoteViewModel : ObservableObject, IDisposable
         // Battery is optional: its failure is logged but must not hide the connection status.
         if (Loc.StartsWith(message, "Status.BatteryUnreadable")) { _log(message); return; }
         StatusText = message;
+        if (_session.A2854Mode && _sessionTimeline.Record(message))
+            A2854TimelineCount = $"{_sessionTimeline.Snapshot().Count} diagnostic events (max 48)";
         if (_session.A2854Mode &&
             (message.StartsWith("A2854: peer disconnection ", StringComparison.Ordinal) ||
              message.StartsWith("A2854: HCI error phase=", StringComparison.Ordinal) ||
@@ -604,6 +612,18 @@ public sealed partial class RemoteViewModel : ObservableObject, IDisposable
         catch (Exception e)
         {
             TouchCalibrationSummary = $"Could not save reference ({e.GetType().Name}); previous points preserved.";
+        }
+    }
+
+    /// <summary>Copy a bounded, strictly whitelisted A2854 event timeline.</summary>
+    [RelayCommand]
+    void CopyA2854SessionTimeline()
+    {
+        if (!_session.A2854Mode) return;
+        try { Clipboard.SetText(_sessionTimeline.Export()); }
+        catch (Exception e)
+        {
+            _log($"A2854: unable to copy diagnostic timeline ({e.GetType().Name}).");
         }
     }
 

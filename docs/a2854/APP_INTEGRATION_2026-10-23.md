@@ -146,3 +146,14 @@ A2854 uses the explicit external Barrot WinUSB controller and already protected 
 - The card explains that after remote termination, **manual Reconnect** only becomes available when native USB cleanup succeeded; no automatic hardware open, retry or re-pairing occurs.
 
 Main author verified new XAML tag pairing and GitHub ref only; actual WPF runtime and post-disconnect card/Copy behavior remain to be tested on Windows. The source is additive to `7bdcf61` and `29d7db0`, both pending external QA. Keep legacy compatibility and preserve physical touch profile.
+
+
+## 2026-10-24 — bounded, redacted session timeline for 30s link diagnosis (developer source; pending Windows QA)
+
+For a bonded A2854 link, the Remote page now includes **Copy timeline** and shows how many redacted diagnostic events have been collected. A new portable `A2854SessionTimeline` holds at most 48 events with elapsed seconds relative to a user's explicit Start, not wall-clock time. It resets on a new GUI Start and never initiates pairing, retry, driver operations, BLE writes, or OS injection.
+
+Privacy is **allowlist-based**, not raw-log-based: only known application-authored A2854 controller/timing/ATT/HCI status types are recognized; numeric controller details are parsed into a new sanitized string. Unknown messages are dropped and appended addresses, arbitrary exception details, SDP/ATT payloads or LTK/blob data are not included. Copy result (last recognized state) remains separate. The new UI is hidden in first-generation mode.
+
+Four offline tests cover successful 30.1s/0x13 redacted export, rejection of injected/private content even under known prefixes, bounded memory and reset, and initial link interval/latency/timeout interpretation. These are development source changes, **not yet independently built or run on Windows**. Next local QA should examine if the session timeline captures ATT/parameter progression without sensitive data and if Clipboard Copy result is correct; don't treat this as a fix for the 30-second 0x13 disconnect.
+
+Complete pending Windows validation bundle comprises `b575771` (early ATT + auto visual calibration), `7bdcf61` (touch profile backup/stable capture), `29d7db0` (safe manual reconnect), `c7615b9` (mode-specific Remote card), and this new timeline commit. Run **one full Release suite** + focused runtime GUI/real bonded A2854 tests, report test count for the *final exact SHA* and keep all previous independent test reports associated with their own older SHA.
