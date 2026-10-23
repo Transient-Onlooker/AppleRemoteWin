@@ -134,7 +134,9 @@ public sealed partial class RemoteViewModel : ObservableObject, IDisposable
     /// <summary>Last known level (direct Bluetooth); "—" until a remote has reported one.</summary>
     public string BatteryText => BatteryLevel is { } level ? Loc.T("Remote.Battery", level) : Loc.T("Remote.BatteryUnknown");
 
-    public string StartStopText => Loc.T(_session.IsRunning ? "Remote.Stop" : "Remote.Start");
+    public string StartStopText => Loc.T(
+        _session.CanRestartEndedA2854 ? "Remote.Reconnect" :
+        _session.IsRunning ? "Remote.Stop" : "Remote.Start");
 
     /// <param name="runBound">Runs what is assigned to a remote input (key, software, combo, macro).</param>
     public RemoteViewModel(RemoteSession session, IDialogs dialogs, Action<string> log, Action<string> runBound)
@@ -185,6 +187,9 @@ public sealed partial class RemoteViewModel : ObservableObject, IDisposable
         _gestureTimer.Tick += (_, _) => ResetGesture();
         _scanTimer.Tick += async (_, _) =>
         {
+            // Native A2854 finishes USB cleanup asynchronously after the peer
+            // disconnects. Refresh its manual Reconnect action when ready.
+            OnPropertyChanged(nameof(StartStopText));
             var all = await Task.Run(() =>
             {
                 try { return HidEnumerator.ListAll(); }
@@ -625,7 +630,15 @@ public sealed partial class RemoteViewModel : ObservableObject, IDisposable
     [RelayCommand]
     void StartStop()
     {
-        if (_session.IsRunning) StopSession();
+        if (_session.CanRestartEndedA2854)
+        {
+            // The previously stopped peer has already completed native USB
+            // cleanup. End the old logical session first, then explicitly
+            // reopen under the normal Start safety gate. No background retry.
+            StopSession();
+            StartSession();
+        }
+        else if (_session.IsRunning) StopSession();
         else StartSession();
     }
 

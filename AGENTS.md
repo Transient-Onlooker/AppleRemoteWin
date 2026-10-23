@@ -21,6 +21,8 @@ Repository: `Transient-Onlooker/AppleRemoteWin`. Working branch: `feat/a2854-sup
 
 ### Current validated baseline and next gate
 
+- **New manual one-click reconnect feature (not yet verified):** after a peer-ended A2854 run AND verified completion of the previous driver and successful native USB cleanup, the GUI button switches to Reconnect; explicit click invokes the existing Stop then Start gates. No automatic radio reconnection and no bypass if cleanup is pending/failed. Prior `7bdcf61` safe calibration edit also awaits Windows QA.
+
 - **New touch-calibration durability source (unverified):** stable dwell/single-current-finger validation, backup of last complete five-point profile before overwrite, atomic JSON save, corrupt-profile protection, UI mode indicator and copy-only measured coordinate export. Existing physical touch measurement is preserved; no BLE changes.
 
 - **2026-10-24 independent QA on `9d40074`:** Release 0 warnings/errors, **313/313 passed**, captured five real A2854 touch landmarks and verified much better physical-to-screen alignment, protected bond intact. Developer follow-up automatically applies valid saved landmarks to **display only** and attaches the existing ATT responder at LE LinkEstablished (before LTK encryption) to address a plausible unhandled early ATT transaction. **Both changes await independent Windows QA and a new bounded real-device trial; 30s 0x13 is not yet fixed.** Do not reset the user's physical calibration file as if it were temporary test data.

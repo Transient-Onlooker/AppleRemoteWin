@@ -30,4 +30,13 @@ public static class RemoteStartupPolicy
     /// A2854 connection, which uses an independently protected bond.
     /// </summary>
     public static bool AllowLegacyPairingCommands(bool a2854Mode) => !a2854Mode;
+
+    /// <summary>
+    /// A manual one-click reconnect may replace a finished A2854 session only
+    /// AFTER its driver has returned and the previous native USB cleanup has
+    /// completed successfully. Never initiate automatic reconnect/pairing.
+    /// </summary>
+    public static bool CanOfferManualReconnect(
+        bool a2854Mode, bool sessionActive, bool driverCompleted, bool usbCleanupSucceeded) =>
+        a2854Mode && sessionActive && driverCompleted && usbCleanupSucceeded;
 }

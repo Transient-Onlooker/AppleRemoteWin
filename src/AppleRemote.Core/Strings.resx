@@ -27,6 +27,7 @@
   <data name="Remote.BatteryUnknown" xml:space="preserve"><value>Batterie : —</value></data>
   <data name="Remote.Start" xml:space="preserve"><value>Démarrer</value></data>
   <data name="Remote.Stop" xml:space="preserve"><value>Arrêter</value></data>
+  <data name="Remote.Reconnect" xml:space="preserve"><value>Reconnecter</value></data>
   <data name="Settings.RemoteKeys" xml:space="preserve"><value>TOUCHES DE LA TÉLÉCOMMANDE</value></data>
   <data name="Settings.General" xml:space="preserve"><value>GÉNÉRAL</value></data>
   <data name="Settings.RunAtStartup" xml:space="preserve"><value>Lancer au démarrage</value></data>

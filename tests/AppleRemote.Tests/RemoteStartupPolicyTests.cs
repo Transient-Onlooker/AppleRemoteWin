@@ -46,6 +46,19 @@ public sealed class RemoteStartupPolicyTests
         Assert.True(RemoteStartupPolicy.AllowBackgroundRestart(a2854Mode: false));
     }
 
+    [Theory]
+    [InlineData(true, true, true, true, true)]
+    [InlineData(true, true, false, true, false)]
+    [InlineData(true, true, true, false, false)]
+    [InlineData(true, false, true, true, false)]
+    [InlineData(false, true, true, true, false)]
+    public void Manual_reconnect_requires_finished_driver_and_successful_native_cleanup(
+        bool a2854Mode, bool hasSession, bool driverDone, bool usbClean, bool expected)
+    {
+        Assert.Equal(expected, RemoteStartupPolicy.CanOfferManualReconnect(
+            a2854Mode, hasSession, driverDone, usbClean));
+    }
+
     [Fact]
     public void Saved_A2854_mode_is_not_an_authorization_to_open_USB_or_write_GATT()
     {

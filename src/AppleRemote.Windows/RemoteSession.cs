@@ -113,6 +113,23 @@ public sealed class RemoteSession : IDisposable
 
     public bool IsRunning => _cts is not null;
 
+    /// <summary>
+    /// Peer disconnect leaves an explicit running token until Stop is called.
+    /// Surface a safe manual retry only after the old transport has finished
+    /// AND the native USB cleanup has succeeded. Never reopen a live reader.
+    /// </summary>
+    public bool CanRestartEndedA2854
+    {
+        get
+        {
+            lock (_lifecycleGate)
+                return RemoteStartupPolicy.CanOfferManualReconnect(
+                    _a2854Mode, _cts is not null,
+                    _driverTask?.IsCompleted == true,
+                    _a2854CleanupTask?.IsCompletedSuccessfully == true);
+        }
+    }
+
     /// <summary>Pairing keys for direct Bluetooth.</summary>
     public string BondsPath { get; set; } = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "AppleRemote", "bonds.json");
