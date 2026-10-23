@@ -26,6 +26,10 @@ The app still **requires a separate deliberate Start button click** for an A2854
 3. Only after the owner separately authorizes a **passive GUI smoke test**, launch the existing WPF app with a known, current settings state. Verify opening and visiting Settings/Remote pages, toggles and sensitivity slider, and no accidental auto-connect, key injection, DPAPI file change, pairing or write. **Do not press Start**, driver reinstall, pairing, keyboard toggle or pointer toggle. Do not delete an existing settings file; verify persisted A2854 selection safely, ideally with a controlled settings backup and explicit owner consent.
 4. A later, separately authorized **A2854 live GUI** test may enable A2854 mode, press Start and observe connection/UI with pointer and keyboard injection **OFF**. Only following that successful session should a further user-approved supervised live mouse test enable pointer injection, with a low sensitivity and immediate Stop access.
 
+## Additional static safety audit
+
+The main-author audit found three ways to bypass the deliberate A2854 Start gate: restarting after a successful driver operation, reusing first-generation Pair/Forget commands, and completing an in-flight Windows pairing after switching modes. `RemoteStartupPolicy` now blocks the legacy commands and the implicit restart in A2854 mode, and the async pairing callback rechecks the current mode before restarting anything. The Windows BLE scanner stays stopped if mode changes during pairing. First-generation commands retain their existing behavior. Fresh Windows Release tests and runtime verification remain pending; no A2854 hardware or OS input was exercised by this source edit.
+
 ### Remaining unverified
 
 WPF runtime data bindings, passive GUI launch, physical GUI encrypted reconnection, Windows SendInput mouse input, long-duration BLE stability, and cross-process Barrot USB exclusive access. The original real 8-second `A2854.Probe` observation (33 0xFB + 360 0xFC frames; successful CCCD disable and host 0x16) remains the physical HID baseline, not a test of GUI auto-start.

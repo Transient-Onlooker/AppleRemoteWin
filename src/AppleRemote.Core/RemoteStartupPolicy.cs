@@ -24,4 +24,10 @@ public static class RemoteStartupPolicy
     /// explicitly started A2854 USB session.
     /// </summary>
     public static bool AllowBackgroundRestart(bool a2854Mode) => !a2854Mode;
+
+    /// <summary>
+    /// Legacy Pair/Forget commands must not reset bond state or restart an
+    /// A2854 connection, which uses an independently protected bond.
+    /// </summary>
+    public static bool AllowLegacyPairingCommands(bool a2854Mode) => !a2854Mode;
 }

@@ -487,7 +487,9 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
                     _settings.FilterVersion = verb == "filter-install" ? FilterAvailable : null;
                     _settings.Save();
                 }
-                if (code == DriverCommand.Ok) Remote.StartSession(); // WinUSB -> direct Bluetooth, otherwise Windows' HID
+                // A driver action does not authorize starting an A2854 BLE session.
+                if (code == DriverCommand.Ok && RemoteStartupPolicy.AllowBackgroundRestart(_session.A2854Mode))
+                    Remote.StartSession(); // preserve first-generation post-driver behavior
             }
             else await _dialogs.Warn(Loc.T("Driver.DialogTitle"), error ?? Loc.T("Driver.Failed", code));
         }

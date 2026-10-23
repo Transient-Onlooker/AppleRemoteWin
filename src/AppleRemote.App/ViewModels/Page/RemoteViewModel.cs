@@ -393,19 +393,21 @@ public sealed partial class RemoteViewModel : ObservableObject, IDisposable
         if (IsPairing || SelectedNearby is not { Connected: false } row) return;
         // Adapter under WinUSB: the list comes from Windows' adapter, pairing through Windows would bond the remote to
         // the wrong one; the session pairs it itself (Pair button). Double-click does nothing.
-        if (_session.A2854Mode || _session.UsesBluetoothDirect || Preferences?.WinUsbOn == true) return;
+        if (!RemoteStartupPolicy.AllowLegacyPairingCommands(_session.A2854Mode) ||
+            _session.UsesBluetoothDirect || Preferences?.WinUsbOn == true) return;
         IsPairing = true;
         // Scanning while connecting upsets some adapters: the scan is suspended.
         _scanner.Stop();
         try
         {
             if (await BleScanViewModel.PairAsync(row.Key, row.Name, row.Address, _dialogs, text => { PairText = text; _log(text); })
-                && !_session.IsRunning)
-                StartSession();   // the driver unlocks the remote as soon as Windows exposes its HID collection
+                && !_session.IsRunning && RemoteStartupPolicy.AllowLegacyPairingCommands(_session.A2854Mode))
+                StartSession();   // an in-flight Windows pairing must never launch A2854
         }
         finally
         {
-            _scanner.Start();
+            if (RemoteStartupPolicy.AllowLegacyPairingCommands(_session.A2854Mode))
+                _scanner.Start();
             IsPairing = false;
         }
         // The result stays readable a moment, unless another pairing has started since.
@@ -417,6 +419,11 @@ public sealed partial class RemoteViewModel : ObservableObject, IDisposable
     [RelayCommand]
     void Pair()
     {
+        if (!RemoteStartupPolicy.AllowLegacyPairingCommands(_session.A2854Mode))
+        {
+            _log("A2854: legacy pairing is disabled; the protected bond is preserved.");
+            return;
+        }
         if (_session.UsesDongle)
         {
             // ESP32-S3 dongle: it forgets its bond and scans for a remote in pairing mode by itself.
@@ -443,6 +450,11 @@ public sealed partial class RemoteViewModel : ObservableObject, IDisposable
     [RelayCommand]
     void Forget()
     {
+        if (!RemoteStartupPolicy.AllowLegacyPairingCommands(_session.A2854Mode))
+        {
+            _log("A2854: legacy forget is disabled; the protected bond is preserved.");
+            return;
+        }
         if (_session.UsesDongle) _session.SendDongleCommand(EspDongle.CommandForget);
         else if (_session.UsesBluetoothDirect)
         {

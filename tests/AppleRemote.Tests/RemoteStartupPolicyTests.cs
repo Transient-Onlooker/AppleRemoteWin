@@ -31,6 +31,21 @@ public sealed class RemoteStartupPolicyTests
         Assert.Equal(expected, RemoteStartupPolicy.AllowBackgroundRestart(a2854Mode));
     }
 
+    [Theory]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    public void Legacy_pair_and_forget_commands_are_disabled_in_A2854_mode(bool a2854Mode, bool expected)
+    {
+        Assert.Equal(expected, RemoteStartupPolicy.AllowLegacyPairingCommands(a2854Mode));
+    }
+
+    [Fact]
+    public void Driver_change_completion_is_not_A2854_Start_authorization()
+    {
+        Assert.False(RemoteStartupPolicy.AllowBackgroundRestart(a2854Mode: true));
+        Assert.True(RemoteStartupPolicy.AllowBackgroundRestart(a2854Mode: false));
+    }
+
     [Fact]
     public void Saved_A2854_mode_is_not_an_authorization_to_open_USB_or_write_GATT()
     {
