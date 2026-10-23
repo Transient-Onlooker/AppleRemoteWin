@@ -40,6 +40,12 @@
                 <Setter Property="StrokeThickness" Value="1.5" />
                 <Setter Property="StrokeEndLineCap" Value="Round" />
             </Style>
+            <Style x:Key="A2854MappingCaption" TargetType="TextBlock">
+                <Setter Property="FontSize" Value="12" />
+                <Setter Property="FontWeight" Value="SemiBold" />
+                <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
+                <Setter Property="Margin" Value="1,0,0,4" />
+            </Style>
         </ResourceDictionary>
     </Page.Resources>
 
@@ -55,8 +61,18 @@
         </Grid.ColumnDefinitions>
         <StackPanel Grid.Column="0" Margin="0,0,32,0">
         <TextBlock Text="{l:T Settings.RemoteKeys}" Style="{StaticResource Section}" />
-        <!-- Remote at 0.5 scale (190 × 600); comboboxes and lines are hand-aligned on its buttons. -->
+        <!-- Gen-1 mapping diagram stays identical, shown only for gen-1. -->
         <Grid Width="690" Height="500" HorizontalAlignment="Center" Margin="0,0,0,14">
+            <Grid.Style>
+                <Style TargetType="Grid">
+                    <Setter Property="Visibility" Value="Visible" />
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding A2854Mode}" Value="True">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </Grid.Style>
             <!-- Nothing under Play/Volume: the remote is cut off there -->
             <Grid Width="190" Height="440" Margin="250,50,250,0" VerticalAlignment="Top" ClipToBounds="True">
                 <Viewbox Width="190" Height="600" VerticalAlignment="Top" Stretch="Uniform">
@@ -81,6 +97,76 @@
             <c:KeyPicker Canvas.Left="448" Canvas.Top="336" Width="150" Choices="{Binding KeyChoices}" Software="{Binding SoftwareChoices}" Macros="{Binding MacroChoices}" Key="{Binding Bindings[volup].Key}" />
             <Line X1="448" Y1="423" X2="418" Y2="423" Style="{StaticResource Pointer}" />
             <c:KeyPicker Canvas.Left="448" Canvas.Top="407" Width="150" Choices="{Binding KeyChoices}" Software="{Binding SoftwareChoices}" Macros="{Binding MacroChoices}" Key="{Binding Bindings[voldown].Key}" />
+            </Canvas>
+        </Grid>
+
+        <!-- Dedicated USB-C A2854 layout with physical button positions and
+             an editable mute action. Only safely dispatchable inputs get
+             pickers: TV, Siri and Power are intentionally blocked in
+             RemoteSession even when keyboard bindings are enabled. -->
+        <Grid Width="690" Height="585" HorizontalAlignment="Center" Margin="0,0,0,14"
+              Visibility="{Binding A2854Mode, Converter={StaticResource BoolToVisibility}}">
+            <Grid Width="158" Height="565" Margin="0,0,0,0" VerticalAlignment="Top"
+                  HorizontalAlignment="Center">
+                <Viewbox Width="154" Height="565" Stretch="Uniform" VerticalAlignment="Top">
+                    <local:A2854RemoteDrawing DataContext="{Binding Remote}" IsEnabled="False" />
+                </Viewbox>
+            </Grid>
+            <Canvas>
+                <StackPanel Canvas.Left="15" Canvas.Top="14" Width="188">
+                    <TextBlock Text="Up" Style="{StaticResource A2854MappingCaption}" />
+                    <c:KeyPicker Width="180" Choices="{Binding KeyChoices}" Software="{Binding SoftwareChoices}"
+                                 Macros="{Binding MacroChoices}" Key="{Binding Bindings[up].Key}" />
+                </StackPanel>
+                <StackPanel Canvas.Left="15" Canvas.Top="111" Width="188">
+                    <TextBlock Text="Left" Style="{StaticResource A2854MappingCaption}" />
+                    <c:KeyPicker Width="180" Choices="{Binding KeyChoices}" Software="{Binding SoftwareChoices}"
+                                 Macros="{Binding MacroChoices}" Key="{Binding Bindings[left].Key}" />
+                </StackPanel>
+                <StackPanel Canvas.Left="15" Canvas.Top="208" Width="188">
+                    <TextBlock Text="Back" Style="{StaticResource A2854MappingCaption}" />
+                    <c:KeyPicker Width="180" Choices="{Binding KeyChoices}" Software="{Binding SoftwareChoices}"
+                                 Macros="{Binding MacroChoices}" Key="{Binding Bindings[menu].Key}" />
+                </StackPanel>
+                <StackPanel Canvas.Left="15" Canvas.Top="305" Width="188">
+                    <TextBlock Text="Play / Pause" Style="{StaticResource A2854MappingCaption}" />
+                    <c:KeyPicker Width="180" Choices="{Binding KeyChoices}" Software="{Binding SoftwareChoices}"
+                                 Macros="{Binding MacroChoices}" Key="{Binding Bindings[playpause].Key}" />
+                </StackPanel>
+                <StackPanel Canvas.Left="15" Canvas.Top="402" Width="188">
+                    <TextBlock Text="Mute" Style="{StaticResource A2854MappingCaption}" />
+                    <c:KeyPicker Width="180" Choices="{Binding KeyChoices}" Software="{Binding SoftwareChoices}"
+                                 Macros="{Binding MacroChoices}" Key="{Binding Bindings[mute].Key}" />
+                </StackPanel>
+                <StackPanel Canvas.Left="488" Canvas.Top="14" Width="188">
+                    <TextBlock Text="Right" Style="{StaticResource A2854MappingCaption}" />
+                    <c:KeyPicker Width="180" Choices="{Binding KeyChoices}" Software="{Binding SoftwareChoices}"
+                                 Macros="{Binding MacroChoices}" Key="{Binding Bindings[right].Key}" />
+                </StackPanel>
+                <StackPanel Canvas.Left="488" Canvas.Top="111" Width="188">
+                    <TextBlock Text="Clickpad center" Style="{StaticResource A2854MappingCaption}" />
+                    <c:KeyPicker Width="180" Choices="{Binding KeyChoices}" Software="{Binding SoftwareChoices}"
+                                 Macros="{Binding MacroChoices}" Key="{Binding Bindings[click].Key}" />
+                </StackPanel>
+                <StackPanel Canvas.Left="488" Canvas.Top="208" Width="188">
+                    <TextBlock Text="Down" Style="{StaticResource A2854MappingCaption}" />
+                    <c:KeyPicker Width="180" Choices="{Binding KeyChoices}" Software="{Binding SoftwareChoices}"
+                                 Macros="{Binding MacroChoices}" Key="{Binding Bindings[down].Key}" />
+                </StackPanel>
+                <StackPanel Canvas.Left="488" Canvas.Top="305" Width="188">
+                    <TextBlock Text="Volume +" Style="{StaticResource A2854MappingCaption}" />
+                    <c:KeyPicker Width="180" Choices="{Binding KeyChoices}" Software="{Binding SoftwareChoices}"
+                                 Macros="{Binding MacroChoices}" Key="{Binding Bindings[volup].Key}" />
+                </StackPanel>
+                <StackPanel Canvas.Left="488" Canvas.Top="402" Width="188">
+                    <TextBlock Text="Volume −" Style="{StaticResource A2854MappingCaption}" />
+                    <c:KeyPicker Width="180" Choices="{Binding KeyChoices}" Software="{Binding SoftwareChoices}"
+                                 Macros="{Binding MacroChoices}" Key="{Binding Bindings[voldown].Key}" />
+                </StackPanel>
+                <TextBlock Canvas.Left="200" Canvas.Top="530" Width="290" TextAlignment="Center"
+                           Text="TV, Siri and Power remain display-only."
+                           FontSize="11" TextWrapping="Wrap"
+                           Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
             </Canvas>
         </Grid>
         </StackPanel>

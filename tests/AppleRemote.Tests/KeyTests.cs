@@ -39,6 +39,7 @@ public class KeyTests
         Assert.True(m.TryGet("menu", out var menu) && menu == Keys.Names["Escape"]);
         Assert.True(m.TryGet("tv", out var tv) && tv == Keys.Names["BrowserHome"]);
         Assert.False(m.TryGet("siri", out _));                      // Siri: nothing by default
+        Assert.True(m.TryGet("mute", out var mute) && mute == Keys.Names["VolumeMute"]);
     }
 
     [Fact]
@@ -74,6 +75,39 @@ public class KeyTests
     [InlineData("""["click"]""")]
     public void Invalid_json_is_rejected(string json) =>
         Assert.Throws<ArgumentException>(() => KeyMap.FromJson(json));
+
+    [Fact]
+    public void A2854_mute_is_configurable_and_json_round_trips()
+    {
+        var map = KeyMap.Default();
+        Assert.Contains("mute", KeyMap.Inputs);
+        Assert.Equal(Keys.Names["VolumeMute"], map.Entries["mute"]);
+        map.Set("mute", Keys.Names["M"]);
+        var reloaded = KeyMap.FromJson(map.ToJson());
+        Assert.Equal(Keys.Names["M"], reloaded.Entries["mute"]);
+        reloaded.Set("mute", null);
+        Assert.False(KeyMap.FromJson(reloaded.ToJson()).TryGet("mute", out _));
+    }
+
+    [Fact]
+    public void A2854_mute_press_and_release_injects_once_when_key_sink_enabled()
+    {
+        var sink = new FakeSink();
+        var binder = new KeyBinder(KeyMap.Default(), sink);
+        var mute = Keys.Names["VolumeMute"];
+        binder.OnEvent(Buttons(0x0080, ["mute"], []));
+        binder.OnEvent(Buttons(0x0080, [], [])); // duplicate state must not repeat
+        binder.OnEvent(Buttons(0, [], ["mute"]));
+        Assert.Equal(new[] { (mute, true), (mute, false) }, sink.Log);
+    }
+
+    [Fact]
+    public void Existing_json_without_mute_gets_default_mute_mapping()
+    {
+        var map = KeyMap.FromJson("""{"click":"Space","menu":"Escape"}""");
+        Assert.Equal(Keys.Names["VolumeMute"], map.Entries["mute"]);
+        Assert.Equal(Keys.Names["Space"], map.Entries["click"]);
+    }
 
     [Fact]
     public void Binder_translates_buttons_and_steps()

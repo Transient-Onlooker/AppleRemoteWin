@@ -44,13 +44,14 @@ public static class Keys
 
 /// <summary>
 /// Mapping remote input -> key. Inputs: up, down, left, right, click, menu, tv,
-/// playpause, volup, voldown, siri. A missing input is disabled.
+/// playpause, volup, voldown, siri and A2854 mute. A missing input is disabled.
+/// A2854 TV/Siri/Power actions are intentionally filtered in RemoteSession.
 /// </summary>
 public sealed class KeyMap
 {
     public static readonly IReadOnlyList<string> Inputs = new[]
     {
-        "up", "down", "left", "right", "click", "menu", "tv", "playpause", "volup", "voldown", "siri",
+        "up", "down", "left", "right", "click", "menu", "tv", "playpause", "volup", "voldown", "siri", "mute",
     };
 
     readonly Dictionary<string, KeyCode> _map = new();
@@ -68,6 +69,9 @@ public sealed class KeyMap
         m._map["playpause"] = Keys.Names["MediaPlayPause"];
         m._map["volup"] = Keys.Names["VolumeUp"];
         m._map["voldown"] = Keys.Names["VolumeDown"];
+        // A2854 exposes a dedicated mute button. The first-generation
+        // protocol never emits "mute", so its behavior remains unchanged.
+        m._map["mute"] = Keys.Names["VolumeMute"];
         return m;
     }
 

@@ -21,6 +21,8 @@ Repository: `Transient-Onlooker/AppleRemoteWin`. Working branch: `feat/a2854-sup
 
 ### Current validated baseline and next gate
 
+- **Development after live UI visualization commit `05c60b6`:** A2854 Settings key-mapping panel with 10 editable safe inputs, original gen-1 panel unchanged, default mute-to-VolumeMute mapping added to portable KeyMap, three key tests. **New feature awaiting Windows QA**; user’s independent agent may still be testing previous SHA. Check current HEAD and test provenance separately.
+
 - **NEW live WPF GUI evidence at `4ffd858` (2026-10-23):** Existing DPAPI LTK encrypted connection and GATT notification enable **succeeded**, and mute press/release was received. Visual/coordinate problems remained; remote ended with **0x13** before locally initiated CCCD disable or host **0x16** could be confirmed. Local AppleRemote/Probe processes were fully stopped, settings restored, bond unchanged. See GUI validation history below and local `AppleRemoteWin-Validation/gui-4ffd858/GUI_VALIDATION.md`.
 - **Subsequent main-agent UI source awaiting independent Windows test:** separate A2854 live drawing with mute, direction ring, power and side Siri status; mode switching retains first-gen rendering; A2854 touch-display projection separated from gen-1 using signed-12-bit bounds (physical pad extents not yet measured). Do not claim this new UI has been built or run.
 
