@@ -112,6 +112,40 @@ public sealed class A2854InputGateTests
     }
 
     [Fact]
+    public void Ordinary_report_receiver_exception_forces_terminal_release_before_error_escapes()
+    {
+        int releaseMarkers = 0, backupMouseReleases = 0;
+        var gate = new A2854InputGate(
+            report =>
+            {
+                if (report is { Length: > 0 })
+                    throw new InvalidOperationException("Synthetic WPF button-event subscriber failed.");
+                Interlocked.Increment(ref releaseMarkers);
+            },
+            () => Interlocked.Increment(ref backupMouseReleases));
+
+        Assert.Throws<InvalidOperationException>(() => gate.TryForward([0xFB, 0x08, 0x00]));
+        Assert.True(gate.IsClosed);
+        Assert.Equal(1, releaseMarkers);
+        Assert.Equal(1, backupMouseReleases);
+        Assert.False(gate.TryForward([0xFB, 0x08, 0x00]));
+    }
+
+    [Fact]
+    public void Ordinary_and_terminal_receivers_may_both_throw_but_final_fallback_still_runs()
+    {
+        int backupMouseReleases = 0;
+        var gate = new A2854InputGate(
+            _ => throw new InvalidOperationException("GUI callback rejected both ordinary and terminal reports."),
+            () => Interlocked.Increment(ref backupMouseReleases));
+
+        Assert.Throws<InvalidOperationException>(() => gate.TryForward([0xFB, 0x08, 0x00]));
+        Assert.True(gate.IsClosed);
+        Assert.Equal(1, backupMouseReleases);
+        Assert.False(gate.TryForward([0xFC, 0x32]));
+    }
+
+    [Fact]
     public void Null_report_cannot_enter_gate()
     {
         var gate = new A2854InputGate(_ => { });
