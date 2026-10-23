@@ -206,6 +206,10 @@ public sealed class RemoteSession : IDisposable
                         catch { }
                     }
                 });
+                // A BLE task can be canceled during an ordinary Stop even
+                // when WinUSB shutdown succeeds. Track actual cleanup only.
+                var usbCleanup = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+                _a2854CleanupTask = usbCleanup.Task;
                 var a2854 = new A2854RemoteBle(a2854Hci.Host,
                     report => FeedA2854(report, transportFault),
                     status => Status?.Invoke(status), onTerminalCleanup: () =>
@@ -225,12 +229,21 @@ public sealed class RemoteSession : IDisposable
                     {
                         try
                         {
-                            a2854Hci.Dispose();
-                            // Keep driver task pending until the reader-owned
-                            // Barrot handles are truly released.
-                            await a2854Hci.CleanupCompletion.ConfigureAwait(false);
+                            try
+                            {
+                                a2854Hci.Dispose();
+                                // This signal tracks USB cleanup, not BLE task
+                                // cancellation or other transport outcomes.
+                                await a2854Hci.CleanupCompletion.ConfigureAwait(false);
+                            }
+                            finally { transportFault.Dispose(); }
+                            usbCleanup.TrySetResult();
                         }
-                        finally { transportFault.Dispose(); }
+                        catch (Exception e)
+                        {
+                            usbCleanup.TrySetException(e);
+                            throw;
+                        }
                     }
                 });
                 return; // A2854 data is decoded independently; no legacy gesture tick.
@@ -327,9 +340,9 @@ public sealed class RemoteSession : IDisposable
                 // when CancellationToken callbacks or terminal GUI listeners
                 // throw. The previous USB owner cannot be reopened until its
                 // asynchronous cleanup has actually finished.
-                // Faulted USB cleanup must not authorize a new A2854 Start.
-                if (wasA2854 && activeDriver is not null)
-                    _a2854CleanupTask = activeDriver;
+                // _a2854CleanupTask is the dedicated native-cleanup signal,
+                // NOT activeDriver (which may be Canceled after normal Stop).
+                // Keep it until the next Start confirms successful cleanup.
                 cts.Dispose();
                 _cts = null;
                 _driverTask = _tickTask = null;
