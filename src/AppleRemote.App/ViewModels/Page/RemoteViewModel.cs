@@ -2,6 +2,8 @@
 // Copyright (C) 2026 AnthoDingo
 
 using System.Diagnostics;
+using System.IO;
+using System.Text.Json;
 using System.Windows;
 using System.Windows.Media;
 using System.Windows.Threading;
@@ -41,6 +43,18 @@ public sealed partial class RemoteViewModel : ObservableObject, IDisposable
     readonly DispatcherTimer _trailTimer = new() { Interval = TimeSpan.FromMilliseconds(30) };
     readonly DispatcherTimer _gestureTimer = new() { Interval = TimeSpan.FromMilliseconds(TrailLifeMs) };
     bool _wasDown;
+    readonly A2854TouchSampleWindow _calibrationWindow = new();
+    readonly Dictionary<string, A2854TouchReference> _touchReferences =
+        new(StringComparer.Ordinal);
+    A2854TouchCalibration? _calibratedProjection;
+    static readonly string TouchCalibrationPath = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+        "AppleRemote", "A2854-touch-calibration.json");
+    public string[] CalibrationTargets { get; } = ["center", "left", "right", "top", "bottom"];
+    [ObservableProperty] string _selectedCalibrationTarget = "center";
+    [ObservableProperty] string _touchCalibrationSummary = "0 / 5 reference points collected";
+    [ObservableProperty] string _liveTouchCoordinates = "No active touch";
+    [ObservableProperty] bool _touchCalibrationPreviewEnabled;
     // A queued Dispatcher callback must never display data from a previous
     // connection or remote model after Start/Stop/model switching.
     long _visualEpoch;
@@ -117,6 +131,7 @@ public sealed partial class RemoteViewModel : ObservableObject, IDisposable
         _dialogs = dialogs;
         _log = log;
         _runBound = runBound;
+        LoadTouchCalibrationPoints();
         _session.Event += ev =>
         {
             long epoch = Interlocked.Read(ref _visualEpoch);
@@ -248,6 +263,9 @@ public sealed partial class RemoteViewModel : ObservableObject, IDisposable
         TrailPoints = new PointCollection();
         _trailTimer.Stop();
         _wasDown = false;
+        _calibrationWindow.Clear();
+        LiveTouchCoordinates = "No active touch";
+        TouchCalibrationPreviewEnabled = false;
         ResetGesture();
     }
 
@@ -270,6 +288,8 @@ public sealed partial class RemoteViewModel : ObservableObject, IDisposable
     public void StartSession()
     {
         Interlocked.Increment(ref _visualEpoch);
+        _calibrationWindow.Clear();
+        LiveTouchCoordinates = "No active touch";
         ClearNearby();
         _session.Start();
         // If startup was deliberately passive because Barrot was present,
@@ -291,6 +311,8 @@ public sealed partial class RemoteViewModel : ObservableObject, IDisposable
         TrailPoints = new PointCollection();
         _trailTimer.Stop();
         _wasDown = false;
+        _calibrationWindow.Clear();
+        LiveTouchCoordinates = "No active touch";
         RefreshButtons();
     }
 
@@ -352,6 +374,20 @@ public sealed partial class RemoteViewModel : ObservableObject, IDisposable
 
     void ShowTouch(TouchEvent t)
     {
+        if (_session.A2854Mode)
+        {
+            if (t.Down && t.Fingers.Count == 1 &&
+                t.Fingers[0].State is >= 3 and <= 6)
+            {
+                // A new contact clears previous positions. Only an active
+                // physical touch may contribute to the selected reference.
+                if (!_wasDown) _calibrationWindow.Clear();
+                _calibrationWindow.Add(t.X, t.Y, Environment.TickCount64);
+                LiveTouchCoordinates = $"Live 0xFC: X={t.X}, Y={t.Y}";
+            }
+            else
+                LiveTouchCoordinates = "No active touch";
+        }
         bool anyDown = false;
         for (int i = 0; i < Fingers.Length; i++)
         {
@@ -391,7 +427,9 @@ public sealed partial class RemoteViewModel : ObservableObject, IDisposable
     // The existing first-gen range is retained only for first-gen input.
     // A2854 gets an independent signed-12-bit, round-pad display projection.
     (double X, double Y) ProjectTouch(int x, int y) => _session.A2854Mode
-        ? A2854TouchProjection.Map(x, y)
+        ? TouchCalibrationPreviewEnabled && _calibratedProjection is { } profile
+            ? profile.Map(x, y)
+            : A2854TouchProjection.Map(x, y)
         : (PadX(x), PadY(y));
 
     static double PadX(int x) => Math.Clamp((x - XMin) / Span, 0, 1) * PadSize;
@@ -448,6 +486,93 @@ public sealed partial class RemoteViewModel : ObservableObject, IDisposable
         // "Stopped" only if the session is really stopped: an unknown message keeps the current level.
         StatusLevel = ok ? StatusLevel.Ok : warn ? StatusLevel.Warn : _session.IsRunning ? StatusLevel : StatusLevel.Idle;
         _log(message);
+    }
+
+    /// <summary>
+    /// Raw 0xFC geometry is stored apart from settings and the protected bond.
+    /// A captured sample is NEVER applied automatically, including on restart.
+    /// </summary>
+    void LoadTouchCalibrationPoints()
+    {
+        try
+        {
+            if (!File.Exists(TouchCalibrationPath)) return;
+            var saved = JsonSerializer.Deserialize<Dictionary<string, A2854TouchReference>>(
+                File.ReadAllText(TouchCalibrationPath));
+            if (saved is not null)
+                foreach (var (name, point) in saved)
+                    if (CalibrationTargets.Contains(name)) _touchReferences[name] = point;
+            RefreshTouchCalibration();
+        }
+        catch (Exception)
+        {
+            TouchCalibrationSummary = "Could not load calibration points; no preview applied.";
+        }
+    }
+
+    void RefreshTouchCalibration()
+    {
+        _calibratedProjection = A2854TouchCalibration.TryCreate(
+            _touchReferences, out var calibrated) ? calibrated : null;
+        TouchCalibrationSummary =
+            $"Saved {_touchReferences.Count} / 5 references: " +
+            string.Join(", ", CalibrationTargets.Select(name =>
+                _touchReferences.TryGetValue(name, out var point)
+                    ? $"{name} ({point.X}, {point.Y})" : $"{name} (—)")) +
+            (_calibratedProjection is null ? " — preview unavailable until valid." :
+                " — ready for optional visual preview.");
+        if (_calibratedProjection is null) TouchCalibrationPreviewEnabled = false;
+    }
+
+    [RelayCommand]
+    void CaptureCalibrationPoint()
+    {
+        if (!_session.A2854Mode)
+        {
+            TouchCalibrationSummary = "Select A2854 mode before recording touch geometry.";
+            return;
+        }
+        if (!_calibrationWindow.TryRead(Environment.TickCount64, out var point))
+        {
+            TouchCalibrationSummary =
+                "Hold one finger still on the chosen physical point, then press Capture while touching.";
+            return;
+        }
+        if (!CalibrationTargets.Contains(SelectedCalibrationTarget)) return;
+        // Persist across the device's observed ~30s disconnects. This file
+        // contains only small coordinate pairs, never BLE IDs/keys/reports.
+        try
+        {
+            var updated = new Dictionary<string, A2854TouchReference>(
+                _touchReferences, StringComparer.Ordinal)
+                { [SelectedCalibrationTarget] = point };
+            Directory.CreateDirectory(Path.GetDirectoryName(TouchCalibrationPath)!);
+            File.WriteAllText(TouchCalibrationPath,
+                JsonSerializer.Serialize(updated, new JsonSerializerOptions { WriteIndented = true }));
+            _touchReferences[SelectedCalibrationTarget] = point;
+            RefreshTouchCalibration();
+        }
+        catch (Exception e)
+        {
+            TouchCalibrationSummary = $"Could not save reference ({e.GetType().Name}); previous points preserved.";
+        }
+    }
+
+    [RelayCommand]
+    void ToggleTouchCalibrationPreview()
+    {
+        if (!_session.A2854Mode || _calibratedProjection is null)
+        {
+            TouchCalibrationPreviewEnabled = false;
+            return;
+        }
+        TouchCalibrationPreviewEnabled = !TouchCalibrationPreviewEnabled;
+        foreach (var finger in Fingers) finger.IsVisible = false;
+        _trail.Clear();
+        TrailPoints = new PointCollection();
+        _wasDown = false;
+        _calibrationWindow.Clear();
+        LiveTouchCoordinates = "No active touch";
     }
 
     // ---- commands -----------------------------------------------------------------------

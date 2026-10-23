@@ -21,6 +21,9 @@ Repository: `Transient-Onlooker/AppleRemoteWin`. Working branch: `feat/a2854-sup
 
 ### Current validated baseline and next gate
 
+- **2026-10-24 user QA on `f70d04d`:** 306/306 tests, 78 FB + 1,553 FC frames, last input 0.1s before 30.1s remote-initiated 0x13 disconnect; initial 30ms/latency0/supervision2s; parameter update not observed (LL 0x06 event masked). Root cause unknown.
+- **Main developer new calibration capture:** user-selected 5 physical clickpad landmarks + recent median 0xFC samples, saved across connections to a separate local JSON file, explicitly toggled visualization preview only. No default mapping change or pointer injection. Await independent Windows build/runtime QA.
+
 - **2026-10-24 owner QA at `5d9c740`:** 304/304 tests, 76 FB + 1,333 FC frames, last input 0.1s before remote 0x13 termination at 30.1s; no LE parameter update logs. Existing saved LTK connection/HID worked. Pre-handle parameter diagnostics could have been dropped by `handle != trace.Handle`, so missing logs do not exclude early updates. New source captures initial controller timing and pre-handle diagnostic events (not yet Windows-verified). LE Remote Connection Parameter Request subevent 0x06 remains masked; enabling it without a validated responder is intentionally deferred.
 
 - **Owner-reported QA on source `7317cc8`:** 301/301 tests, 25/25 dispatcher checks, two encrypted GUI HID connections succeeded; both terminated at 28–29s with HCI 0x13 despite use; one intermediate connect error/0x3E. New diagnostic source records connection phase and HCI opcode/status, link/input age and LE parameter-update negotiation outcomes; awaiting Windows build/hardware validation. This replaces speculation that 0x13 is necessarily idle sleep.
