@@ -1,5 +1,7 @@
 # Siri Remote A2854 — project home
 
+> **Next ChatGPT main agent: [READ THE FULL 2026-10-23 HANDOFF FIRST](../HANDOFF_2026-10-23_A2854.md).** It supersedes the older 10/18 and 10/21 handoffs and stale root README claims. Source at `be776ecd` introduced passive GUI startup and legacy-Barrot exclusion **after** the last independent Windows validation at `302fdb1` (256/256 × 3); the newest source is **not yet Windows tested**. Coding/commits belong to ChatGPT; local Codex performs independent Windows tests and owner-approved hardware checks.
+
 > **Experimental / Windows-native button/touch capture and normal teardown verified.** The separately approved eight-second trial at `a40c25c` received **33 FB / 360 FC frames**, zero malformed, both CCCD disable responses and normal host disconnect **0x16**, exit 0. Long-term stability and Windows mouse/media input synthesis remain unverified. This index supersedes historical instructions suggesting another internal-HID restart.
 
 ## Latest local validation and passive GUI launch fix (2026-10-23)
@@ -20,6 +22,7 @@ The local Windows verifier reported **229/229 tests passed**, `A2854PointerMappe
 | [`../../tools/A2854.Probe`](../../tools/A2854.Probe) | Native Windows diagnostic using a *separate* WinUSB USB Bluetooth HCI controller |
 | [`../../tests/AppleRemote.Tests/A2854DecoderTests.cs`](../../tests/AppleRemote.Tests/A2854DecoderTests.cs) | Hardware-observed decode fixtures / regression tests |
 | [`../../reference/siri-remote-for-windows`](../../reference/siri-remote-for-windows) | Exact, standalone historical Linux Rust and Windows diagnostic snapshot |
+| [CURRENT engineering handoff, 2026-10-23](../HANDOFF_2026-10-23_A2854.md) | **Start here:** verified hardware, exact source HEAD and test provenance, risks, role division, next approved work gates |
 | [Architecture](ARCHITECTURE.md) | Ownership and boundaries of Windows, Linux and hardware paths |
 | [Protocol and evidence](PROTOCOL_AND_EVIDENCE.md) | Known A2854 reports, provenance and unresolved behavior |
 | [Hardware validation](HARDWARE_VALIDATION.md) | Safe experimental order / stop conditions |
