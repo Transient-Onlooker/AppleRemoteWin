@@ -264,30 +264,79 @@ public sealed class RemoteSession : IDisposable
         {
             var cts = _cts;
             if (cts is null) return;
-            cts.Cancel();
-            if (_a2854Mode)
-            {
-                lock (_gate) _acceptA2854Input = false;
-                FeedA2854([]); // force held 0xFB buttons and pointer click up immediately
-            }
+
+            bool wasA2854 = _a2854Mode;
             Task? activeDriver = _driverTask;
-            try { Task.WaitAll(new[] { _driverTask, _tickTask }.Where(t => t is not null).Cast<Task>().ToArray(), 2000); }
-            catch (AggregateException) { }
-            if (_a2854Mode && activeDriver is { IsCompleted: false })
-                _a2854CleanupTask = activeDriver; // prevent opening same WinUSB dongle during asynchronous teardown
-            cts.Dispose();
-            _cts = null;
-            _driverTask = _tickTask = null;
-            AdapterInUse = null;
-            _dongle = null;
-            lock (_gate)
+            try
             {
-                _binder.ReleaseAll();
-                if (!_pointer.Reset())
-                        Status?.Invoke("A2854: Windows rejected mouse-up; held click retained for cleanup retry.");
+                try { cts.Cancel(); }
+                catch (Exception e)
+                {
+                    try { Status?.Invoke($"Remote: cancellation callback failed ({e.GetType().Name})."); }
+                    catch { }
+                }
+
+                if (wasA2854)
+                {
+                    // Revoke incoming input before notifying subscribers.
+                    lock (_gate) _acceptA2854Input = false;
+                    try { FeedA2854([]); }
+                    catch (Exception e)
+                    {
+                        // Never skip _cts/null cleanup due to GUI event code.
+                        try { Status?.Invoke($"A2854: Stop release callback failed ({e.GetType().Name})."); }
+                        catch { }
+                    }
+                }
+
+                try
+                {
+                    Task[] pending = new[] { _driverTask, _tickTask }
+                        .Where(t => t is not null).Cast<Task>().ToArray();
+                    if (pending.Length > 0) Task.WaitAll(pending, 2000);
+                }
+                catch (Exception e)
+                {
+                    try { Status?.Invoke($"Remote: Stop wait interrupted ({e.GetType().Name})."); }
+                    catch { }
+                }
             }
-            UsesBluetoothDirect = false;
-            Status?.Invoke(Loc.T("Status.Stopped"));
+            finally
+            {
+                // Session lifecycle cleanup must happen on every path, even
+                // when CancellationToken callbacks or terminal GUI listeners
+                // throw. The previous USB owner cannot be reopened until its
+                // asynchronous cleanup has actually finished.
+                if (wasA2854 && activeDriver is { IsCompleted: false })
+                    _a2854CleanupTask = activeDriver;
+                cts.Dispose();
+                _cts = null;
+                _driverTask = _tickTask = null;
+                AdapterInUse = null;
+                _dongle = null;
+                lock (_gate)
+                {
+                    try { _binder.ReleaseAll(); }
+                    catch (Exception e)
+                    {
+                        try { Status?.Invoke($"Remote: keyboard cleanup failed ({e.GetType().Name})."); }
+                        catch { }
+                    }
+                    try
+                    {
+                        if (!_pointer.Reset())
+                            Status?.Invoke("A2854: Windows rejected mouse-up; held click retained for cleanup retry.");
+                    }
+                    catch (Exception e)
+                    {
+                        try { Status?.Invoke($"A2854: pointer cleanup failed ({e.GetType().Name})."); }
+                        catch { }
+                    }
+                }
+                UsesBluetoothDirect = false;
+                try { Status?.Invoke(Loc.T("Status.Stopped")); }
+                catch { }
+            }
         }
     }
 
