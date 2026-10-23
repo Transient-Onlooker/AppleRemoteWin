@@ -109,7 +109,8 @@ public sealed class UsbHci : IDisposable
     /// whatever its VID/PID: the one with this PnP instance ID, or the first found if null.
     /// </summary>
     /// <param name="present">The device with this instance ID is plugged in (whatever its driver).</param>
-    static UsbHci? TryOpenAdapter(string? instanceId, out bool present, UsbId? targetId = null)
+    static UsbHci? TryOpenAdapter(string? instanceId, out bool present,
+        UsbId? targetId = null, UsbId? excludeId = null)
     {
         present = false;
         foreach (string path in EnumerateUsbPaths())
@@ -118,6 +119,9 @@ public sealed class UsbHci : IDisposable
             if (instanceId is not null && !candidate.Equals(instanceId, StringComparison.OrdinalIgnoreCase)) continue;
             if (targetId is { } id &&
                 !candidate.Contains($"VID_{id.Vid:X4}&PID_{id.Pid:X4}", StringComparison.OrdinalIgnoreCase))
+                continue;
+            if (excludeId is { } excluded &&
+                candidate.Contains($"VID_{excluded.Vid:X4}&PID_{excluded.Pid:X4}", StringComparison.OrdinalIgnoreCase))
                 continue;
             present = true;
             var handle = CreateFile(path, GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, IntPtr.Zero,
@@ -146,6 +150,32 @@ public sealed class UsbHci : IDisposable
             throw new InvalidOperationException($"The chosen Bluetooth adapter ({instanceId}) is not under WinUSB (or already in use).");
         return TryOpenAdapter(null, out _) ?? throw new InvalidOperationException(
             "No USB Bluetooth adapter under WinUSB (WinUSB driver installed, PC restarted since, adapter not already in use?).");
+    }
+
+    /// <summary>
+    /// Existing first-generation WPF path. Never selects the dedicated A2854
+    /// Barrot 33FA:0001, including when a saved legacy adapter disappears and
+    /// generic WinUSB auto-fallback would otherwise pick Barrot. Other adapters
+    /// retain the same selection and fallback behavior as UsbHci.Open().
+    /// </summary>
+    public static UsbHci OpenForLegacyRemote(string? instanceId = null)
+    {
+        var dedicated = new UsbId(0x33FA, 0x0001);
+        if (instanceId?.Contains($"VID_{dedicated.Vid:X4}&PID_{dedicated.Pid:X4}",
+                StringComparison.OrdinalIgnoreCase) == true)
+            throw new InvalidOperationException(
+                "Dedicated Barrot 33FA:0001 cannot use the first-generation pairing driver. Select A2854 mode.");
+
+        bool present = false;
+        if (instanceId is not null &&
+            TryOpenAdapter(instanceId, out present, excludeId: dedicated) is { } chosen)
+            return chosen;
+        if (present)
+            throw new InvalidOperationException(
+                $"The chosen Bluetooth adapter ({instanceId}) is not available under WinUSB.");
+        return TryOpenAdapter(null, out _, excludeId: dedicated)
+            ?? throw new InvalidOperationException(
+                "No legacy Bluetooth adapter available under WinUSB. Barrot 33FA:0001 is A2854-only.");
     }
 
     /// <summary>
