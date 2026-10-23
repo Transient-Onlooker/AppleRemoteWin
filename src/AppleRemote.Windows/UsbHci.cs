@@ -15,6 +15,9 @@ namespace AppleRemote.Windows;
 /// </summary>
 public sealed class UsbHci : IDisposable, IAsyncDisposable
 {
+    // Shared across all opens in this process, including constructor failures.
+    static readonly UsbAdapterOpenGate AdapterOpenGate = new();
+    readonly UsbAdapterOpenGate.Lease _openLease;
     readonly SafeFileHandle _file;
     readonly IntPtr _usb;
     readonly byte _eventPipe, _aclInPipe, _aclOutPipe, _commandRequestType;
@@ -51,9 +54,10 @@ public sealed class UsbHci : IDisposable, IAsyncDisposable
     /// </summary>
     public void WatchFailure(Action<string> handler) => _earlyFailure.Subscribe(handler);
 
-    UsbHci(SafeFileHandle file, IntPtr usb, string instanceId)
+    UsbHci(SafeFileHandle file, IntPtr usb, string instanceId, UsbAdapterOpenGate.Lease openLease)
     {
         InstanceId = instanceId;
+        _openLease = openLease;
         _file = file;
         _usb = usb;
         (_eventPipe, _aclInPipe, _aclOutPipe) = FindPipes(usb);
@@ -108,13 +112,19 @@ public sealed class UsbHci : IDisposable, IAsyncDisposable
 
     void ReleaseNativeHandles()
     {
-        // Called once only after BOTH reader threads have exited.
+        // Called once only after BOTH readers have exited. If either native
+        // cleanup step fails, retain the reservation and block later opens.
+        Exception? error = null;
         try
         {
             if (_usb != IntPtr.Zero && !WinUsb_Free(_usb))
-                throw new Win32Exception(Marshal.GetLastWin32Error(), "WinUsb_Free failed");
+                error = new Win32Exception(Marshal.GetLastWin32Error(), "WinUsb_Free failed");
         }
-        finally { _file.Dispose(); }
+        catch (Exception e) { error = e; }
+        try { _file.Dispose(); }
+        catch (Exception e) { error ??= e; }
+        if (error is not null) throw error;
+        _openLease.Release();
     }
 
     /// <summary>USB identifier (VID/PID) of an adapter.</summary>
@@ -180,12 +190,19 @@ public sealed class UsbHci : IDisposable, IAsyncDisposable
                 candidate.Contains($"VID_{excluded.Vid:X4}&PID_{excluded.Pid:X4}", StringComparison.OrdinalIgnoreCase))
                 continue;
             present = true;
-            var handle = CreateFile(path, GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, IntPtr.Zero,
-                OPEN_EXISTING, FILE_FLAG_OVERLAPPED, IntPtr.Zero);
+            // Reserve this instance before native open. A partial Thread.Start
+            // failure may return an exception while its first reader is alive.
+            var lease = AdapterOpenGate.TryAcquire(candidate)
+                ?? throw new InvalidOperationException(
+                    "USB controller already open, still cleaning up, or cleanup failed in this process.");
+            SafeFileHandle? handle = null;
             IntPtr usb = IntPtr.Zero;
             bool ownershipTransferred = false;
             try
             {
+                handle = CreateFile(path, GENERIC_READ | GENERIC_WRITE,
+                    FILE_SHARE_READ | FILE_SHARE_WRITE, IntPtr.Zero,
+                    OPEN_EXISTING, FILE_FLAG_OVERLAPPED, IntPtr.Zero);
                 if (handle.IsInvalid) continue;
                 if (!WinUsb_Initialize(handle, out usb)) continue;
                 if (!WinUsb_QueryInterfaceSettings(usb, 0, out var descriptor) ||
@@ -193,9 +210,7 @@ public sealed class UsbHci : IDisposable, IAsyncDisposable
                     descriptor.bInterfaceSubClass != 1 || descriptor.bInterfaceProtocol != 1)
                     continue;
 
-                // Constructor is passive. Transfer ownership BEFORE starting
-                // readers so any partial startup is cleaned up by the owner.
-                var controller = new UsbHci(handle, usb, candidate);
+                var controller = new UsbHci(handle, usb, candidate, lease);
                 ownershipTransferred = true;
                 try
                 {
@@ -216,19 +231,30 @@ public sealed class UsbHci : IDisposable, IAsyncDisposable
             {
                 if (!ownershipTransferred)
                 {
-                    // Preserve the primary constructor exception if native
-                    // cleanup itself throws (normally WinUSB reports failures
-                    // with a false return rather than a managed exception).
-                    try { if (usb != IntPtr.Zero) WinUsb_Free(usb); }
+                    bool usbFreed = usb == IntPtr.Zero;
+                    bool fileClosed = handle is null;
+                    try
+                    {
+                        if (usb != IntPtr.Zero) usbFreed = WinUsb_Free(usb);
+                    }
                     catch (Exception e)
                     {
                         System.Diagnostics.Trace.TraceError($"WinUSB rollback failed: {e.GetType().Name}");
                     }
-                    try { handle.Dispose(); }
+                    try
+                    {
+                        if (handle is not null)
+                        {
+                            handle.Dispose();
+                            fileClosed = true;
+                        }
+                    }
                     catch (Exception e)
                     {
                         System.Diagnostics.Trace.TraceError($"USB file rollback failed: {e.GetType().Name}");
                     }
+                    // Incomplete/failed rollback blocks this adapter only.
+                    if (usbFreed && fileClosed) lease.Release();
                 }
             }
         }
