@@ -92,7 +92,7 @@ public sealed class A2854SessionFaultGateTests
             // Reproduces the old CAS -> pause -> Dispose-return -> revoke
             // race. Disposal must remain blocked until the old callback
             // has completed (not merely until its task has been scheduled).
-            Assert.False(disposing.Wait(TimeSpan.FromMilliseconds(100)));
+            Assert.NotSame(disposing, await Task.WhenAny(disposing, Task.Delay(100)));
         }
         finally { allowOldRelease.Set(); }
 
