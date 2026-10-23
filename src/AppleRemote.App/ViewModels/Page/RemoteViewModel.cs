@@ -152,9 +152,25 @@ public sealed partial class RemoteViewModel : ObservableObject, IDisposable
         // A2854 can write 0xFB/0xFC CCCDs and feature 0xF0 immediately after
         // connecting, so saved A2854 mode requires an explicit Start click.
         if (RemoteStartupPolicy.AutoStartSession(_session.A2854Mode))
+        {
             StartSession();
-        _scanner.Start();
+            _scanner.Start();
+        }
+        // A2854 startup is fully passive: no direct HCI, no WinRT BLE scanner,
+        // no GATT writes. Explicit user Start begins the encrypted link.
         _scanTimer.Start();
+    }
+
+    /// <summary>
+    /// Switching remote models while stopped updates only Windows BLE scanning.
+    /// A2854 relies on its stored DPAPI bond and must never be paired via
+    /// Windows nearby-device lists; this does not start a remote session.
+    /// </summary>
+    public void OnRemoteModeChanged(bool a2854Mode)
+    {
+        if (a2854Mode) _scanner.Stop();
+        else if (_scanTimer.IsEnabled) _scanner.Start();
+        ClearNearby();
     }
 
     public void Dispose()
