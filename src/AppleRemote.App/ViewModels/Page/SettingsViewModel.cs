@@ -86,6 +86,8 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
 
     /// <summary>Third-generation Siri Remote mode: available only while stopped.</summary>
     [ObservableProperty] bool _a2854Mode;
+    /// <summary>The active hardware model, not a permanent gen-1 title.</summary>
+    public string WindowTitle => Loc.T(A2854Mode ? "App.TitleA2854" : "App.Title");
     partial void OnA2854ModeChanged(bool value)
     {
         _session.A2854Mode = value; // explicitly selected; no automatic pairing
@@ -93,6 +95,7 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
         _settings.Save();
         Remote.OnRemoteModeChanged(value); // stop internal Windows BLE scanning in A2854 mode
         Remote.RefreshTexts();
+        OnPropertyChanged(nameof(WindowTitle));
     }
 
     /// <summary>Pointer synthesis remains disabled until separately enabled by the user.</summary>

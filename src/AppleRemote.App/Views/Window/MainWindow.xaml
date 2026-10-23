@@ -8,7 +8,7 @@
         xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
         xmlns:views="clr-namespace:AppleRemote.App.Views"
         xmlns:tray="clr-namespace:Wpf.Ui.Tray.Controls;assembly=Wpf.Ui.Tray"
-        Title="{l:T App.Title}"
+        Title="{Binding WindowTitle}"
         WindowStartupLocation="CenterScreen" Width="1400" Height="800" MinWidth="860" MinHeight="640"
         ExtendsContentIntoTitleBar="True" WindowBackdropType="Mica" WindowCornerPreference="Round"
         FontSize="13"
@@ -19,12 +19,12 @@
         <RowDefinition Height="Auto" />
         <RowDefinition Height="*" />
     </Grid.RowDefinitions>
-    <ui:TitleBar Title="{l:T App.Title}">
+    <ui:TitleBar Title="{Binding WindowTitle}">
         <ui:TitleBar.Icon>
             <ui:ImageIcon Source="pack://application:,,,/app.ico" />
         </ui:TitleBar.Icon>
     </ui:TitleBar>
-    <tray:NotifyIcon Icon="pack://application:,,,/app.ico" TooltipText="Siri Remote (gen 1)"
+    <tray:NotifyIcon x:Name="AppTrayIcon" Icon="pack://application:,,,/app.ico" TooltipText="Siri Remote"
                    FocusOnLeftClick="True" MenuOnRightClick="True" LeftClick="Tray_Show">
         <tray:NotifyIcon.Menu>
             <ContextMenu x:Name="TrayMenu">

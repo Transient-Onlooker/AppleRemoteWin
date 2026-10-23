@@ -22,6 +22,13 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
         RootNavigation.FooterMenuItems.Remove(DebugItem);
 #endif
         _viewModel = new MainViewModel(new Dialogs(this));
+        DataContext = _viewModel.Preferences; // model-aware window and TitleBar captions
+        AppTrayIcon.TooltipText = _viewModel.Preferences.WindowTitle;
+        _viewModel.Preferences.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName is nameof(SettingsViewModel.WindowTitle) or "")
+                AppTrayIcon.TooltipText = _viewModel.Preferences.WindowTitle;
+        };
         TrayMenu.DataContext = _viewModel.Remote;   // the notification-area menu doesn't inherit the window's DataContext
         // Each page gets its own view-model and keeps its state between visits.
         RootNavigation.SetPageProviderService(new PageProvider(_viewModel));

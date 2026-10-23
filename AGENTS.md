@@ -21,6 +21,8 @@ Repository: `Transient-Onlooker/AppleRemoteWin`. Working branch: `feat/a2854-sup
 
 ### Current validated baseline and next gate
 
+- **2026-10-24 UI polish after screenshot:** A2854 safety caption moved below drawing, mode/pointer settings moved to top of right settings column and presented in conventional cards, window title/title bar/tray tooltip now reflect A2854 vs gen-1 with localized text, footer link changed to this repository. Await independent Windows GUI rendering QA. Latest developer commit is not yet run on Windows.
+
 - **Latest owner-reported independent WPF QA at `05c60b6`:** full solution/WPF/Probe builds 0 warnings/errors; 297/297 tests completed on each of 3 runs; actual saved-DPAPI encrypted GUI reconnection and GATT enable succeeded; remote disconnected first with 0x13 after about 28s; host CCCD disable/0x16 not verified. Temporary settings restored and protected bond unchanged. Owner saw correct model-specific drawing but inaccurate actual touch location. Static findings: battery persistence on mode change, queued old UI callbacks, contact dot clipped at outer edge.
 - **Subsequent developer commits not covered by that QA:** A2854 Settings mapping and mute default (`f31dcc0`), followed by visual epoch/battery reset/clip-center safety adjustments. The physical touch calibration remains empirical, not fixed by clip geometry. Next independent Windows validation should target the latest combined HEAD with one full Release suite plus targeted GUI checks.
 

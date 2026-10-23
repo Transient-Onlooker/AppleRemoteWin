@@ -104,15 +104,19 @@
              an editable mute action. Only safely dispatchable inputs get
              pickers: TV, Siri and Power are intentionally blocked in
              RemoteSession even when keyboard bindings are enabled. -->
-        <Grid Width="690" Height="585" HorizontalAlignment="Center" Margin="0,0,0,14"
+        <Grid Width="690" Height="615" HorizontalAlignment="Center" Margin="0,0,0,14"
               Visibility="{Binding A2854Mode, Converter={StaticResource BoolToVisibility}}">
-            <Grid Width="158" Height="565" Margin="0,0,0,0" VerticalAlignment="Top"
+            <Grid.RowDefinitions>
+                <RowDefinition Height="565" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+            <Grid Grid.Row="0" Width="158" Height="565" VerticalAlignment="Top"
                   HorizontalAlignment="Center">
                 <Viewbox Width="154" Height="565" Stretch="Uniform" VerticalAlignment="Top">
                     <local:A2854RemoteDrawing DataContext="{Binding Remote}" IsEnabled="False" />
                 </Viewbox>
             </Grid>
-            <Canvas>
+            <Canvas Grid.Row="0">
                 <StackPanel Canvas.Left="15" Canvas.Top="14" Width="188">
                     <TextBlock Text="Up" Style="{StaticResource A2854MappingCaption}" />
                     <c:KeyPicker Width="180" Choices="{Binding KeyChoices}" Software="{Binding SoftwareChoices}"
@@ -163,15 +167,16 @@
                     <c:KeyPicker Width="180" Choices="{Binding KeyChoices}" Software="{Binding SoftwareChoices}"
                                  Macros="{Binding MacroChoices}" Key="{Binding Bindings[voldown].Key}" />
                 </StackPanel>
-                <TextBlock Canvas.Left="200" Canvas.Top="530" Width="290" TextAlignment="Center"
-                           Text="TV, Siri and Power remain display-only."
-                           FontSize="11" TextWrapping="Wrap"
-                           Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
             </Canvas>
+            <TextBlock Grid.Row="1" HorizontalAlignment="Center" TextAlignment="Center"
+                       Margin="0,12,0,0" FontSize="12" TextWrapping="Wrap"
+                       Text="TV, Siri and Power show button state only; keyboard actions are disabled."
+                       Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
         </Grid>
         </StackPanel>
-        <ScrollViewer Grid.Column="1" VerticalScrollBarVisibility="Auto">
-        <StackPanel MinWidth="380" Margin="0,0,6,0">
+        <ScrollViewer Grid.Column="1" VerticalScrollBarVisibility="Auto"
+                      HorizontalScrollBarVisibility="Disabled">
+        <StackPanel MinWidth="340" Margin="0,0,6,0">
         <StackPanel.Resources>
             <Style TargetType="ui:CardControl" BasedOn="{StaticResource {x:Type ui:CardControl}}">
                 <Setter Property="Margin" Value="0,0,0,4" />
@@ -183,6 +188,41 @@
                 <Setter Property="Margin" Value="1,14,0,6" />
             </Style>
         </StackPanel.Resources>
+
+        <!-- Put device mode controls first: the active A2854 profile should not
+             be buried below updates, language and generic settings. Plain cards
+             avoid a giant empty CardControl content presenter on narrow windows. -->
+        <TextBlock Text="Siri Remote A2854 (USB-C)" Style="{StaticResource Head}" Margin="1,2,0,8" />
+        <Border Style="{StaticResource Card}" Padding="14,12" Margin="0,0,0,8">
+            <StackPanel>
+                <TextBlock Text="Dedicated Barrot USB adapter (33FA:0001)"
+                           FontSize="13" FontWeight="SemiBold" TextWrapping="Wrap" />
+                <ui:ToggleSwitch IsChecked="{Binding A2854Mode, Mode=TwoWay}"
+                                 IsEnabled="{Binding CanChangeAdapter}"
+                                 Margin="0,8,0,3" />
+                <TextBlock Text="Stop the current session before switching models. Uses the existing protected bond; never pairs automatically."
+                           FontSize="12" TextWrapping="Wrap"
+                           Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                <TextBlock Text="First-generation and ESP32 behavior is unchanged when this mode is off."
+                           FontSize="12" Margin="0,5,0,0" TextWrapping="Wrap"
+                           Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+            </StackPanel>
+        </Border>
+        <Border Style="{StaticResource Card}" Padding="14,12" Margin="0,0,0,12">
+            <StackPanel>
+                <TextBlock Text="A2854 touchpad as Windows mouse"
+                           FontSize="13" FontWeight="SemiBold" TextWrapping="Wrap" />
+                <ui:ToggleSwitch IsChecked="{Binding A2854PointerEnabled, Mode=TwoWay}"
+                                 Margin="0,8,0,3"/>
+                <TextBlock Text="Optional real cursor and left-click control. Keyboard and media mappings use the separate keyboard switch."
+                           FontSize="12" TextWrapping="Wrap"
+                           Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                <TextBlock Text="Pointer sensitivity" FontSize="12" Margin="0,9,0,2" />
+                <Slider Minimum="0.02" Maximum="3.0" TickFrequency="0.05"
+                        IsSnapToTickEnabled="False"
+                        Value="{Binding A2854PointerSensitivity, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+            </StackPanel>
+        </Border>
 
         <TextBlock Text="{l:T Settings.Updates}" Style="{StaticResource Head}" Margin="1,0,0,6" />
         <ui:CardExpander Icon="{ui:SymbolIcon ArrowSync24}" Margin="0,0,0,4">
@@ -231,38 +271,6 @@
             <ui:CardControl.Header><TextBlock Text="{l:T Settings.Language}" /></ui:CardControl.Header>
             <ComboBox ItemsSource="{Binding Languages}" DisplayMemberPath="Name" SelectedValuePath="Code"
                       SelectedValue="{Binding Language}" MinWidth="200" />
-        </ui:CardControl>
-
-        <TextBlock Text="Siri Remote A2854 (USB-C)" Style="{StaticResource Head}" />
-        <ui:CardControl Icon="{ui:SymbolIcon Bluetooth24}">
-            <ui:CardControl.Header>
-                <TextBlock Text="Use A2854 on Barrot 33FA:0001 (WinUSB)" TextWrapping="Wrap" />
-            </ui:CardControl.Header>
-            <StackPanel>
-                <ui:ToggleSwitch IsChecked="{Binding A2854Mode, Mode=TwoWay}"
-                                 IsEnabled="{Binding CanChangeAdapter}" />
-                <TextBlock Text="Stop the remote session before switching models. Requires an existing DPAPI protected bond; never pairs automatically."
-                           FontSize="12" TextWrapping="Wrap" Margin="0,5,0,0"
-                           Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
-                <TextBlock Text="The original first-generation and ESP32 modes are unchanged when this is off."
-                           FontSize="12" TextWrapping="Wrap" Margin="0,3,0,0"
-                           Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
-            </StackPanel>
-        </ui:CardControl>
-        <ui:CardControl Icon="{ui:SymbolIcon Map24}">
-            <ui:CardControl.Header>
-                <TextBlock Text="A2854 touchpad to Windows mouse (opt-in)" TextWrapping="Wrap" />
-            </ui:CardControl.Header>
-            <StackPanel>
-                <ui:ToggleSwitch IsChecked="{Binding A2854PointerEnabled, Mode=TwoWay}"/>
-                <TextBlock Text="Off by default. Enabling sends real cursor moves and left clicks. Disable to release a held click. Other keyboard/media mappings use the separate Keyboard toggle below."
-                           FontSize="12" TextWrapping="Wrap" Margin="0,5,0,6"
-                           Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
-                <TextBlock Text="Pointer sensitivity" FontSize="12" />
-                <Slider Minimum="0.02" Maximum="3.0" TickFrequency="0.05"
-                        IsSnapToTickEnabled="False"
-                        Value="{Binding A2854PointerSensitivity, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-            </StackPanel>
         </ui:CardControl>
 
         <TextBlock Text="{l:T Settings.Keyboard}" Style="{StaticResource Head}" />
@@ -337,7 +345,7 @@
         <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" TextElement.Foreground="{DynamicResource TextFillColorSecondaryBrush}">
             <TextBlock VerticalAlignment="Center"><Run Text="{l:T Settings.Version}" /> <Run Text="{Binding AppVersion, Mode=OneWay}" /></TextBlock>
             <TextBlock Text="·" Margin="12,0" VerticalAlignment="Center" />
-            <ui:HyperlinkButton Content="github.com/AnthoDingo/AppleRemoteWin" NavigateUri="https://github.com/AnthoDingo/AppleRemoteWin" Padding="0" />
+            <ui:HyperlinkButton Content="github.com/Transient-Onlooker/AppleRemoteWin" NavigateUri="https://github.com/Transient-Onlooker/AppleRemoteWin" Padding="0" />
             <TextBlock Text="·" Margin="12,0" VerticalAlignment="Center" />
             <TextBlock VerticalAlignment="Center"><Run Text="{l:T Settings.License}" /> AGPL-3.0-or-later</TextBlock>
             <TextBlock Text="·" Margin="12,0" VerticalAlignment="Center" />
