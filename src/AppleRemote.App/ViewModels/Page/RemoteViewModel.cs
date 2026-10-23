@@ -151,13 +151,31 @@ public sealed partial class RemoteViewModel : ObservableObject, IDisposable
         // The existing app starts first-generation remotes automatically.
         // A2854 can write 0xFB/0xFC CCCDs and feature 0xF0 immediately after
         // connecting, so saved A2854 mode requires an explicit Start click.
-        if (RemoteStartupPolicy.AutoStartSession(_session.A2854Mode))
+        // A legacy auto-start could select the external A2854 Barrot as the
+        // first generic WinUSB adapter while A2854Mode is false. A read-only
+        // interface lookup prevents any implicit HCI connection in that case.
+        // Enumeration errors also fail closed: Start remains available in UI.
+        bool dedicatedBarrotPresent = _session.A2854Mode;
+        if (!dedicatedBarrotPresent)
+        {
+            try
+            {
+                dedicatedBarrotPresent = UsbHci.IsWinUsbDevicePresent(new UsbHci.UsbId(0x33FA, 0x0001));
+            }
+            catch (Exception e)
+            {
+                dedicatedBarrotPresent = true;
+                _log($"Remote: WinUSB device enumeration unavailable ({e.GetType().Name}); auto-start disabled.");
+            }
+        }
+        if (RemoteStartupPolicy.AutoStartSession(_session.A2854Mode, dedicatedBarrotPresent))
         {
             StartSession();
             _scanner.Start();
         }
-        // A2854 startup is fully passive: no direct HCI, no WinRT BLE scanner,
-        // no GATT writes. Explicit user Start begins the encrypted link.
+        // A2854 or dedicated-Barrot startup is passive: no direct HCI,
+        // no WinRT BLE scanner, no GATT writes or user-input synthesis.
+        // Explicit Start is the only route to native A2854 transport.
         _scanTimer.Start();
     }
 
