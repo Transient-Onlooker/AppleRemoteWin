@@ -430,7 +430,8 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
         if (DriverBusy || before.SetEquals(Adapters.Select(a => (a.InstanceId, a.Driver)))) return;
         _log(Loc.T("Log.AdaptersChanged", Adapters.Count > 0 ? string.Join(", ", Adapters) : "—"));
         Remote.ClearNearby();
-        if (!_session.IsRunning || string.Equals(ExpectedAdapter(), _session.AdapterInUse, StringComparison.OrdinalIgnoreCase)) return;
+        if (!_session.IsRunning || !RemoteStartupPolicy.AllowBackgroundRestart(_session.A2854Mode) ||
+            string.Equals(ExpectedAdapter(), _session.AdapterInUse, StringComparison.OrdinalIgnoreCase)) return;
         Remote.StopSession();
         Remote.StartSession();
     }
