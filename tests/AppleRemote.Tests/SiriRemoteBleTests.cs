@@ -334,25 +334,44 @@ public class SiriRemoteBleTests
         {
             var remote = new FakeRemote(randomAddress: true);
             var connected = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+            // The fake peer responds synchronously, but heavily parallelized
+            // Release suites can starve continuations. Keep a bounded deadline
+            // and include status history on failure instead of only
+            // TaskCanceledException (which obscured the original regression).
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+            var statuses = new List<string>();
 
             var driver = new SiriRemoteBle(remote.Hci, new BondStore(path),
                 (_, _) => { },
                 status =>
                 {
+                    lock (statuses) statuses.Add(status);
                     if (Loc.StartsWith(status, "Status.ConnectedDirect")) connected.TrySetResult();
                 },
                 adapterName: "test", inputReportIds: new HashSet<byte> { 0xFB, 0xFC },
                 allowRandomAddress: true);
 
             Task run = driver.RunAsync(cts.Token);
-            await connected.Task.WaitAsync(cts.Token);
-            Assert.Equal(1, remote.Pairings);
-            Assert.Contains("0x0024 0100", remote.Writes); // only matching 0xFC report subscribed
-            Assert.Contains("0x001D AF", remote.Writes);   // feature unlock
-
-            cts.Cancel();
-            await run;
+            try
+            {
+                try { await connected.Task.WaitAsync(cts.Token); }
+                catch (OperationCanceledException) when (cts.IsCancellationRequested)
+                {
+                    string[] history;
+                    lock (statuses) history = statuses.ToArray();
+                    throw new TimeoutException("Fake random-address BLE session failed to reach ConnectedDirect. " +
+                        $"SMP pairings={remote.Pairings}; ATT writes={remote.Writes.Count}; " +
+                        $"Statuses={string.Join(" -> ", history)}");
+                }
+                Assert.Equal(1, remote.Pairings);
+                Assert.Contains("0x0024 0100", remote.Writes); // only matching 0xFC report subscribed
+                Assert.Contains("0x001D AF", remote.Writes);   // feature unlock
+            }
+            finally
+            {
+                cts.Cancel();
+                await run;
+            }
         }
         finally
         {
