@@ -13,14 +13,17 @@ namespace AppleRemote.Windows;
 /// commands via control transfers, events via the interrupt endpoint, ACL data via the bulk endpoints.
 /// The adapter must have the WinUSB driver (Zadig); Windows can then no longer use it.
 /// </summary>
-public sealed class UsbHci : IDisposable
+public sealed class UsbHci : IDisposable, IAsyncDisposable
 {
     readonly SafeFileHandle _file;
     readonly IntPtr _usb;
     readonly byte _eventPipe, _aclInPipe, _aclOutPipe, _commandRequestType;
-    // Readers are started independently: a partial construction must be able
-    // to stop an already-started event reader before its WinUSB owner is freed.
-    readonly Thread? _eventReader, _aclReader;
+    // Reader startup and shutdown share a gate; release is permitted only
+    // after every started reader has actually exited.
+    readonly object _readerLifecycle = new();
+    readonly UsbReaderShutdown _shutdown;
+    Thread? _eventReader, _aclReader;
+    Task? _cleanupTask;
     volatile bool _disposed;
 
     public HciHost Host { get; }
@@ -59,25 +62,59 @@ public sealed class UsbHci : IDisposable
             ? UsbHciTransportQuirks.CommandRequestType(id.Vid, id.Pid)
             : (byte)0x20;
         Host = new HciHost(SendCommand, SendAcl);
+        // Construction is passive. Ownership must transfer before readers
+        // can start so no partial startup takes the unsafe outer rollback path.
+        _shutdown = new UsbReaderShutdown(
+            ReadersAlive, AbortActiveReaders, WaitForReaders, ReleaseNativeHandles);
+    }
+
+    void StartReaders()
+    {
+        lock (_readerLifecycle)
+        {
+            if (_disposed) throw new ObjectDisposedException(nameof(UsbHci));
+            _eventReader = CreateReader(_eventPipe, 260, Host.ReceiveEventBytes, "events");
+            _aclReader = CreateReader(_aclInPipe, 1024, Host.ReceiveAclBytes, "ACL");
+            _eventReader.Start();
+            _aclReader.Start();
+        }
+    }
+
+    bool ReadersAlive() =>
+        _eventReader?.IsAlive == true || _aclReader?.IsAlive == true;
+
+    void AbortActiveReaders()
+    {
+        // Attempt both independently. Failed native aborts are retried by the
+        // lifetime worker while the handles remain owned.
+        if (_eventReader?.IsAlive == true)
+        {
+            try { WinUsb_AbortPipe(_usb, _eventPipe); }
+            catch (Exception e) { System.Diagnostics.Trace.TraceWarning($"USB event abort failed: {e.GetType().Name}"); }
+        }
+        if (_aclReader?.IsAlive == true)
+        {
+            try { WinUsb_AbortPipe(_usb, _aclInPipe); }
+            catch (Exception e) { System.Diagnostics.Trace.TraceWarning($"USB ACL abort failed: {e.GetType().Name}"); }
+        }
+    }
+
+    void WaitForReaders()
+    {
+        // Invoked only on the cleanup worker, never from a reader callback.
+        if (_eventReader?.IsAlive == true) _eventReader.Join(250);
+        if (_aclReader?.IsAlive == true) _aclReader.Join(250);
+    }
+
+    void ReleaseNativeHandles()
+    {
+        // Called once only after BOTH reader threads have exited.
         try
         {
-            _eventReader = StartReader(_eventPipe, 260, Host.ReceiveEventBytes, "events");
-            _aclReader = StartReader(_aclInPipe, 1024, Host.ReceiveAclBytes, "ACL");
+            if (_usb != IntPtr.Zero && !WinUsb_Free(_usb))
+                throw new Win32Exception(Marshal.GetLastWin32Error(), "WinUsb_Free failed");
         }
-        catch
-        {
-            // TryOpenAdapter still owns the USB/file handles if construction
-            // fails. Stop any first reader before its caller releases them.
-            _disposed = true;
-            if (_eventReader is not null)
-            {
-                try { WinUsb_AbortPipe(_usb, _eventPipe); }
-                catch { /* preserve the original constructor failure */ }
-                try { _eventReader.Join(1000); }
-                catch { /* preserve the original constructor failure */ }
-            }
-            throw;
-        }
+        finally { _file.Dispose(); }
     }
 
     /// <summary>USB identifier (VID/PID) of an adapter.</summary>
@@ -156,18 +193,42 @@ public sealed class UsbHci : IDisposable
                     descriptor.bInterfaceSubClass != 1 || descriptor.bInterfaceProtocol != 1)
                     continue;
 
-                // Only a fully constructed controller owns the two handles.
-                // FindPipes, ReadName or reader setup can throw before then.
+                // Constructor is passive. Transfer ownership BEFORE starting
+                // readers so any partial startup is cleaned up by the owner.
                 var controller = new UsbHci(handle, usb, candidate);
                 ownershipTransferred = true;
-                return controller;
+                try
+                {
+                    controller.StartReaders();
+                    return controller;
+                }
+                catch
+                {
+                    try { controller.Dispose(); }
+                    catch (Exception e)
+                    {
+                        System.Diagnostics.Trace.TraceError($"USB startup cleanup failed: {e.GetType().Name}");
+                    }
+                    throw;
+                }
             }
             finally
             {
                 if (!ownershipTransferred)
                 {
+                    // Preserve the primary constructor exception if native
+                    // cleanup itself throws (normally WinUSB reports failures
+                    // with a false return rather than a managed exception).
                     try { if (usb != IntPtr.Zero) WinUsb_Free(usb); }
-                    finally { handle.Dispose(); }
+                    catch (Exception e)
+                    {
+                        System.Diagnostics.Trace.TraceError($"WinUSB rollback failed: {e.GetType().Name}");
+                    }
+                    try { handle.Dispose(); }
+                    catch (Exception e)
+                    {
+                        System.Diagnostics.Trace.TraceError($"USB file rollback failed: {e.GetType().Name}");
+                    }
                 }
             }
         }
@@ -282,7 +343,7 @@ public sealed class UsbHci : IDisposable
             throw new Win32Exception(Marshal.GetLastWin32Error(), "Envoi ACL impossible");
     }
 
-    Thread StartReader(byte pipe, int size, SpanAction receive, string name)
+    Thread CreateReader(byte pipe, int size, SpanAction receive, string name)
     {
         var thread = new Thread(() =>
         {
@@ -322,21 +383,43 @@ public sealed class UsbHci : IDisposable
                 }
             }
         }) { IsBackground = true, Name = $"UsbHci {name}" };
-        thread.Start();
         return thread;
     }
 
     delegate void SpanAction(ReadOnlySpan<byte> data);
 
+    /// <summary>
+    /// Completes only after both readers exit and native handles are freed;
+    /// a Join timeout by itself is never considered successful cleanup.
+    /// </summary>
+    public Task CleanupCompletion
+    {
+        get { lock (_readerLifecycle) return _cleanupTask ?? Task.CompletedTask; }
+    }
+
     public void Dispose()
     {
-        if (_disposed) return;
-        _disposed = true;
-        WinUsb_AbortPipe(_usb, _eventPipe);   // unblocks pending reads
-        WinUsb_AbortPipe(_usb, _aclInPipe);
-        _eventReader?.Join(1000);
-        _aclReader?.Join(1000);
-        WinUsb_Free(_usb);
-        _file.Dispose();
+        Task cleanup;
+        lock (_readerLifecycle)
+        {
+            _disposed = true;
+            cleanup = _cleanupTask ??= _shutdown.Begin();
+        }
+
+        // Do not hang the UI forever when the OS refuses to abort a read:
+        // the worker keeps the handles owned until safe release is possible.
+        if (Thread.CurrentThread == _eventReader || Thread.CurrentThread == _aclReader)
+            return;
+        try { cleanup.Wait(TimeSpan.FromSeconds(1)); }
+        catch (AggregateException e)
+        {
+            System.Diagnostics.Trace.TraceError($"USB cleanup failed: {e.GetBaseException().GetType().Name}");
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        Dispose();
+        await CleanupCompletion.ConfigureAwait(false);
     }
 }

@@ -163,7 +163,7 @@ internal static partial class Program
         // local-version query suffice to isolate controller availability.
         if (hciOnly)
         {
-            using (usb)
+            await using (usb)
             {
                 Console.WriteLine($"USB controller: {usb.Name}; HCI EP0 request=0x{usb.CommandRequestType:X2}.");
                 try
@@ -192,7 +192,7 @@ internal static partial class Program
         // Only packet counts and protocol flags are printed: no MAC/serial/AD dump.
         if (scanOnly)
         {
-            using (usb)
+            await using (usb)
             using (var cts = new CancellationTokenSource(TimeSpan.FromSeconds(seconds)))
             {
                 var central = new LeCentral(usb.Host);
@@ -242,7 +242,7 @@ internal static partial class Program
         // discover GATT HID and subscribe to reports.
         if (connectOnly)
         {
-            using (usb)
+            await using (usb)
             using (var stop = new CancellationTokenSource())
             {
                 ConsoleCancelEventHandler onCancel = (_, e) =>
@@ -392,7 +392,7 @@ internal static partial class Program
         // and immediately disconnects without key exchange, encryption start, or bond persistence.
         if (smpNegotiateOnly)
         {
-            using (usb)
+            await using (usb)
             using (var stop = new CancellationTokenSource())
             {
                 ConsoleCancelEventHandler onCancel = (_, e) =>
@@ -570,7 +570,7 @@ internal static partial class Program
         // A successful in-memory pairing may still replace the remote's existing bond.
         if (smpPairOnly)
         {
-            using (usb)
+            await using (usb)
             using (var stop = new CancellationTokenSource())
             {
                 ConsoleCancelEventHandler onCancel = (_, e) => { e.Cancel = true; stop.Cancel(); };
@@ -736,7 +736,7 @@ internal static partial class Program
         // They NEVER issue SMP Pairing Request or overwrite an existing bond.
         if (reconnectOnly || gattInspectOnly || hidInputOnly)
         {
-            using (usb)
+            await using (usb)
             using (var stop = new CancellationTokenSource())
             {
                 ConsoleCancelEventHandler onCancel = (_, e) => { e.Cancel = true; stop.Cancel(); };
@@ -1067,7 +1067,7 @@ internal static partial class Program
         // Historical full BLE driver: ONLY reachable through explicit
         // --full-legacy-driver --confirm-plaintext-bond. It writes plaintext
         // bond material and is NOT an appropriate initial A2854 pairing test.
-        using (usb)
+        await using (usb)
         using (var cts = new CancellationTokenSource())
         {
             Loc.SetLanguage("en");
