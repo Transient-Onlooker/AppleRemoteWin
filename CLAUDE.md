@@ -1,5 +1,7 @@
 # CLAUDE.md
 
+> **2026-10-23 A2854 main-development handoff:** [docs/HANDOFF_2026-10-23_A2854.md](docs/HANDOFF_2026-10-23_A2854.md) and [AGENTS.md](AGENTS.md) take precedence for the third-generation (USB-C) Siri Remote project. The material below mostly describes **first-generation** support and historical architecture. Windows-native A2854 CLI input capture **has succeeded**; the A2854 **WPF GUI and Windows mouse/media input synthesis have not been physically verified**. Do not auto-pair, touch the DPAPI bond, start the GUI transport, send GATT writes or alter drivers without the user's explicit approval. Main coding belongs to ChatGPT; local Codex is an independent verifier.
+
 WPF application + user-mode driver for Windows 11 for the **Siri Remote gen 1** (Apple TV, A1513/A1962).
 C# port of [a-funk/open-appleremote](https://github.com/a-funk/open-appleremote) (MIT, Python/Linux): `Decoder.cs` and `Gestures.cs`
 are ports of `decode.py` and `gestures.py`. Reference protocol: `docs/PROTOCOL.md` in the upstream repository.
