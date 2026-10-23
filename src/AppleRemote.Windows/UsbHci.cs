@@ -18,7 +18,9 @@ public sealed class UsbHci : IDisposable
     readonly SafeFileHandle _file;
     readonly IntPtr _usb;
     readonly byte _eventPipe, _aclInPipe, _aclOutPipe, _commandRequestType;
-    readonly Thread _eventReader, _aclReader;
+    // Readers are started independently: a partial construction must be able
+    // to stop an already-started event reader before its WinUSB owner is freed.
+    readonly Thread? _eventReader, _aclReader;
     volatile bool _disposed;
 
     public HciHost Host { get; }
@@ -57,8 +59,25 @@ public sealed class UsbHci : IDisposable
             ? UsbHciTransportQuirks.CommandRequestType(id.Vid, id.Pid)
             : (byte)0x20;
         Host = new HciHost(SendCommand, SendAcl);
-        _eventReader = StartReader(_eventPipe, 260, Host.ReceiveEventBytes, "events");
-        _aclReader = StartReader(_aclInPipe, 1024, Host.ReceiveAclBytes, "ACL");
+        try
+        {
+            _eventReader = StartReader(_eventPipe, 260, Host.ReceiveEventBytes, "events");
+            _aclReader = StartReader(_aclInPipe, 1024, Host.ReceiveAclBytes, "ACL");
+        }
+        catch
+        {
+            // TryOpenAdapter still owns the USB/file handles if construction
+            // fails. Stop any first reader before its caller releases them.
+            _disposed = true;
+            if (_eventReader is not null)
+            {
+                try { WinUsb_AbortPipe(_usb, _eventPipe); }
+                catch { /* preserve the original constructor failure */ }
+                try { _eventReader.Join(1000); }
+                catch { /* preserve the original constructor failure */ }
+            }
+            throw;
+        }
     }
 
     /// <summary>USB identifier (VID/PID) of an adapter.</summary>
@@ -126,13 +145,31 @@ public sealed class UsbHci : IDisposable
             present = true;
             var handle = CreateFile(path, GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, IntPtr.Zero,
                 OPEN_EXISTING, FILE_FLAG_OVERLAPPED, IntPtr.Zero);
-            if (handle.IsInvalid) continue;
-            if (WinUsb_Initialize(handle, out IntPtr h)
-                && WinUsb_QueryInterfaceSettings(h, 0, out var d)
-                && d.bInterfaceClass == 0xE0 && d.bInterfaceSubClass == 1 && d.bInterfaceProtocol == 1)
-                return new UsbHci(handle, h, PathInstanceId(path));
-            if (h != IntPtr.Zero) WinUsb_Free(h);
-            handle.Dispose();
+            IntPtr usb = IntPtr.Zero;
+            bool ownershipTransferred = false;
+            try
+            {
+                if (handle.IsInvalid) continue;
+                if (!WinUsb_Initialize(handle, out usb)) continue;
+                if (!WinUsb_QueryInterfaceSettings(usb, 0, out var descriptor) ||
+                    descriptor.bInterfaceClass != 0xE0 ||
+                    descriptor.bInterfaceSubClass != 1 || descriptor.bInterfaceProtocol != 1)
+                    continue;
+
+                // Only a fully constructed controller owns the two handles.
+                // FindPipes, ReadName or reader setup can throw before then.
+                var controller = new UsbHci(handle, usb, candidate);
+                ownershipTransferred = true;
+                return controller;
+            }
+            finally
+            {
+                if (!ownershipTransferred)
+                {
+                    try { if (usb != IntPtr.Zero) WinUsb_Free(usb); }
+                    finally { handle.Dispose(); }
+                }
+            }
         }
         return null;
     }
@@ -297,8 +334,8 @@ public sealed class UsbHci : IDisposable
         _disposed = true;
         WinUsb_AbortPipe(_usb, _eventPipe);   // unblocks pending reads
         WinUsb_AbortPipe(_usb, _aclInPipe);
-        _eventReader.Join(1000);
-        _aclReader.Join(1000);
+        _eventReader?.Join(1000);
+        _aclReader?.Join(1000);
         WinUsb_Free(_usb);
         _file.Dispose();
     }

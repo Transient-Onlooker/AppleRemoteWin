@@ -33,3 +33,7 @@ The main-author audit found three ways to bypass the deliberate A2854 Start gate
 ### Remaining unverified
 
 WPF runtime data bindings, passive GUI launch, physical GUI encrypted reconnection, Windows SendInput mouse input, long-duration BLE stability, and cross-process Barrot USB exclusive access. The original real 8-second `A2854.Probe` observation (33 0xFB + 360 0xFC frames; successful CCCD disable and host 0x16) remains the physical HID baseline, not a test of GUI auto-start.
+
+## 2026-10-23 verification follow-up — native open cleanup
+
+Independent Windows verification at `49d5169`: complete Release tests **272/272 passed three times**, focused **91/91**, and solution, WPF and Probe Release builds with **zero warnings/errors**. The reviewer found no remaining implicit A2854 start bypass, but reported one pre-existing static defect: if WinUSB initialization/interface validation succeeded and `UsbHci` construction failed in `FindPipes` or later initialization, `TryOpenAdapter` skipped `WinUsb_Free` and the file-handle disposal. The main agent now uses a `try/finally` with ownership transfer only after successful construction, and stops any first reader if starting the second reader fails. The original exception is propagated. **The cleanup patch needs fresh native Windows build/test and static/fault-injection review; no GUI, hardware or Windows input was run.**
