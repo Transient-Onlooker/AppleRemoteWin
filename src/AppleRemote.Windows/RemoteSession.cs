@@ -198,7 +198,8 @@ public sealed class RemoteSession : IDisposable
                         catch { }
                     }
                 });
-                var a2854 = new A2854RemoteBle(a2854Hci.Host, FeedA2854,
+                var a2854 = new A2854RemoteBle(a2854Hci.Host,
+                    report => FeedA2854(report, transportFault),
                     status => Status?.Invoke(status), onTerminalCleanup: () =>
                     {
                         lock (_gate) _acceptA2854Input = false;
@@ -290,8 +291,9 @@ public sealed class RemoteSession : IDisposable
         }
     }
 
-    void FeedA2854(byte[]? report)
+    void FeedA2854(byte[]? report, A2854SessionFaultGate? faultGate = null)
     {
+        bool receiverFailed = false;
         lock (_gate)
         {
             // A terminal release sentinel must always run to completion, even
@@ -336,9 +338,30 @@ public sealed class RemoteSession : IDisposable
                     Event?.Invoke(ev);
                 }
             }
+            catch (Exception e)
+            {
+                // An app/UI subscriber can throw on a non-terminal button
+                // press. Such exceptions must never escape to USB reader
+                // threads or leave an injected click held until user Stop.
+                receiverFailed = true;
+                _acceptA2854Input = false;
+                try { Status?.Invoke($"A2854: input callback failed ({e.GetType().Name}); session is stopping."); }
+                catch { /* continue forced input release */ }
+            }
             finally
             {
-                if (terminal) ReleaseA2854HeldInputs();
+                if (terminal || receiverFailed) ReleaseA2854HeldInputs();
+            }
+        }
+        // Do not acquire the USB-fault gate while holding _gate: its own
+        // revocation takes _gate and could otherwise deadlock with this path.
+        if (receiverFailed && faultGate is not null)
+        {
+            try { faultGate.Fail(); }
+            catch (Exception e)
+            {
+                try { Status?.Invoke($"A2854: input fault cancellation failed ({e.GetType().Name})."); }
+                catch { }
             }
         }
     }
