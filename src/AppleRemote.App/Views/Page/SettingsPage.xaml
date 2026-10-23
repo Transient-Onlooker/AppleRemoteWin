@@ -217,6 +217,12 @@
                 <TextBlock Text="Optional real cursor and left-click control. Keyboard and media mappings use the separate keyboard switch."
                            FontSize="12" TextWrapping="Wrap"
                            Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                <CheckBox Content="Use measured five-point physical axes for Windows pointer"
+                          IsChecked="{Binding A2854PointerUseCalibration, Mode=TwoWay}"
+                          Margin="0,9,0,1" />
+                <TextBlock Text="Optional, off by default. Needs a valid five-point profile. Only affects actual cursor after the separate mouse switch is enabled. Toggle off/on to reload new measurements."
+                           FontSize="11" TextWrapping="Wrap"
+                           Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                 <TextBlock Text="Pointer sensitivity" FontSize="12" Margin="0,9,0,2" />
                 <Slider Minimum="0.02" Maximum="3.0" TickFrequency="0.05"
                         IsSnapToTickEnabled="False"

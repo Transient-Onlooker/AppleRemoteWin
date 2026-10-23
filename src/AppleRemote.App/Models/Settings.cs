@@ -16,6 +16,11 @@ public sealed class Settings
     public bool A2854PointerEnabled { get; set; }
     /// <summary>Relative cursor sensitivity in pixels per A2854 coordinate unit.</summary>
     public double A2854PointerSensitivity { get; set; } = 0.18;
+    /// <summary>
+    /// Separate, optional measured physical X/Y pointer mapping. Disabled by
+    /// default, even when calibration visualization auto-applies.
+    /// </summary>
+    public bool A2854PointerUseCalibration { get; set; }
     public string? KeyMapPath { get; set; }
     /// <summary>Closing the window minimises it to the notification area (otherwise the app exits).</summary>
     public bool CloseToTray { get; set; } = true;

@@ -53,16 +53,7 @@ public sealed record A2854TouchCalibration(
     /// </summary>
     public (double X, double Y) Map(int x, int y)
     {
-        double directionX = Math.Sign(Right.X - Center.X);
-        double directionY = Math.Sign(Top.Y - Center.Y);
-        double xFromCenter = (x - (double)Center.X) * directionX;
-        double yFromCenter = (y - (double)Center.Y) * directionY;
-        double relativeX = xFromCenter >= 0
-            ? xFromCenter / Math.Abs(Right.X - Center.X)
-            : xFromCenter / Math.Abs(Left.X - Center.X);
-        double relativeY = yFromCenter >= 0
-            ? yFromCenter / Math.Abs(Top.Y - Center.Y)
-            : yFromCenter / Math.Abs(Bottom.Y - Center.Y);
+        var (relativeX, relativeY) = NormalizedPosition(x, y);
         double dx = Math.Clamp(relativeX, -1, 1) * A2854TouchProjection.ContactCenterRadius;
         double dy = -Math.Clamp(relativeY, -1, 1) * A2854TouchProjection.ContactCenterRadius;
         double radius = Math.Sqrt(dx * dx + dy * dy);
@@ -74,6 +65,27 @@ public sealed record A2854TouchCalibration(
         }
         return (A2854TouchProjection.PadSize / 2 + dx,
                 A2854TouchProjection.PadSize / 2 + dy);
+    }
+
+    /// <summary>
+    /// Continuous, un-clipped center-relative physical axes. This is distinct
+    /// from drawing projection (which clips to the round clickpad) and is used
+    /// ONLY when the user explicitly opts into calibrated Windows pointer.
+    /// Positive X means physically right, positive Y means physically up.
+    /// </summary>
+    public (double X, double Y) NormalizedPosition(int x, int y)
+    {
+        double directionX = Math.Sign(Right.X - Center.X);
+        double directionY = Math.Sign(Top.Y - Center.Y);
+        double xFromCenter = (x - (double)Center.X) * directionX;
+        double yFromCenter = (y - (double)Center.Y) * directionY;
+        double relativeX = xFromCenter >= 0
+            ? xFromCenter / Math.Abs(Right.X - Center.X)
+            : xFromCenter / Math.Abs(Left.X - Center.X);
+        double relativeY = yFromCenter >= 0
+            ? yFromCenter / Math.Abs(Top.Y - Center.Y)
+            : yFromCenter / Math.Abs(Bottom.Y - Center.Y);
+        return (relativeX, relativeY);
     }
 }
 

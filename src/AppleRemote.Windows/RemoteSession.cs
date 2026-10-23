@@ -17,6 +17,7 @@ public sealed class RemoteSession : IDisposable
     readonly A2854PointerMapper _pointer = new(new WindowsPointerSink());
     readonly KeyBinder _binder;
     bool _a2854Mode, _a2854PointerEnabled, _acceptA2854Input;
+    bool _a2854PointerUseCalibration;
     Task? _a2854CleanupTask;
     bool _keyboardEnabled;
 
@@ -82,7 +83,52 @@ public sealed class RemoteSession : IDisposable
                         Status?.Invoke("A2854: Windows rejected mouse-up; held click retained for cleanup retry.");
                 }
                 _a2854PointerEnabled = value;
+                if (value && _a2854PointerUseCalibration)
+                    ReloadPointerCalibration();
             }
+        }
+    }
+
+    /// <summary>
+    /// An additional, explicit opt-in: apply the user's measured clickpad
+    /// physical axes to Windows cursor movement. The pointer itself remains
+    /// OFF unless A2854PointerEnabled is separately enabled. A failed profile
+    /// load leaves the original relative mapper active, never guesses bounds.
+    /// </summary>
+    public bool A2854PointerUseCalibration
+    {
+        get { lock (_gate) return _a2854PointerUseCalibration; }
+        set
+        {
+            lock (_gate)
+            {
+                _a2854PointerUseCalibration = value;
+                ReloadPointerCalibration();
+            }
+        }
+    }
+
+    void ReloadPointerCalibration()
+    {
+        _pointer.Calibration = null;
+        if (!_a2854PointerUseCalibration) return;
+        try
+        {
+            string path = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+                "AppleRemote", "A2854-touch-calibration.json");
+            var points = A2854TouchCalibrationStore.Load(path);
+            if (A2854TouchCalibration.TryCreate(points, out var profile))
+            {
+                _pointer.Calibration = profile;
+                Status?.Invoke("A2854: measured physical clickpad pointer axes are active.");
+            }
+            else
+                Status?.Invoke("A2854: no valid five-point pointer calibration; using original cursor axes.");
+        }
+        catch (Exception e)
+        {
+            Status?.Invoke($"A2854: pointer calibration not loaded ({e.GetType().Name}); original axes retained.");
         }
     }
 

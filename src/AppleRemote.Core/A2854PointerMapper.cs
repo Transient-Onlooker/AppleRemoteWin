@@ -21,12 +21,29 @@ public sealed class A2854PointerMapper(IRelativePointerSink sink, double sensiti
 {
     const int JumpThreshold = 350; // signed-12-bit touch coordinates; reject discontinuities
     const int MaxStep = 60;        // Windows relative pixels per accepted frame
+    const double NormalizedPointerSpan = 1000; // calibrated full-axis fraction -> legacy-ish units
 
     readonly IRelativePointerSink _sink = sink ?? throw new ArgumentNullException(nameof(sink));
     double _sensitivity = CheckSensitivity(sensitivity);
     bool _tracking, _held;
     int _previousX, _previousY;
     double _remainderX, _remainderY;
+    A2854TouchCalibration? _calibration;
+
+    /// <summary>
+    /// Optional physical-axis mapping. Default is null: legacy pointer input
+    /// stays byte-for-byte unchanged unless the user opts in. Updating while
+    /// moving resets the previous position to prevent a sudden cursor jump.
+    /// </summary>
+    public A2854TouchCalibration? Calibration
+    {
+        get => _calibration;
+        set
+        {
+            _calibration = value;
+            ResetTracking();
+        }
+    }
 
     /// <summary>Whether a successful mouse-down still needs a confirmed mouse-up.</summary>
     public bool HasHeldClick => _held;
@@ -81,7 +98,8 @@ public sealed class A2854PointerMapper(IRelativePointerSink sink, double sensiti
                 return; // never move on first touch
             }
 
-            int dx = touch.X - _previousX, dy = touch.Y - _previousY;
+            int previousX = _previousX, previousY = _previousY;
+            int dx = touch.X - previousX, dy = touch.Y - previousY;
             _previousX = touch.X;
             _previousY = touch.Y;
             if (Math.Abs(dx) > JumpThreshold || Math.Abs(dy) > JumpThreshold)
@@ -90,8 +108,16 @@ public sealed class A2854PointerMapper(IRelativePointerSink sink, double sensiti
                 return; // tracking restarts at the new position, no jump
             }
 
-            double movementX = _remainderX + dx * _sensitivity;
-            double movementY = _remainderY - dy * _sensitivity; // A2854 Y grows upward
+            double scaledX = dx, scaledY = dy;
+            if (_calibration is { } profile)
+            {
+                var before = profile.NormalizedPosition(previousX, previousY);
+                var after = profile.NormalizedPosition(touch.X, touch.Y);
+                scaledX = (after.X - before.X) * NormalizedPointerSpan;
+                scaledY = (after.Y - before.Y) * NormalizedPointerSpan;
+            }
+            double movementX = _remainderX + scaledX * _sensitivity;
+            double movementY = _remainderY - scaledY * _sensitivity; // visual up => OS cursor up
             int pixelsX = Math.Clamp((int)Math.Truncate(movementX), -MaxStep, MaxStep);
             int pixelsY = Math.Clamp((int)Math.Truncate(movementY), -MaxStep, MaxStep);
             // Discard clamped excess instead of moving the mouse again on a

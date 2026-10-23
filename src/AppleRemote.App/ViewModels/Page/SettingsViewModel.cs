@@ -107,6 +107,14 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
         _settings.Save();
     }
 
+    [ObservableProperty] bool _a2854PointerUseCalibration;
+    partial void OnA2854PointerUseCalibrationChanged(bool value)
+    {
+        _session.A2854PointerUseCalibration = value;
+        _settings.A2854PointerUseCalibration = value;
+        _settings.Save();
+    }
+
     [ObservableProperty] double _a2854PointerSensitivity = 0.18;
     partial void OnA2854PointerSensitivityChanged(double value)
     {
@@ -182,6 +190,7 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
         _keyboardEnabled = _settings.KeyboardEnabled;
         _a2854Mode = _settings.A2854Mode;
         _a2854PointerEnabled = _settings.A2854PointerEnabled;
+        _a2854PointerUseCalibration = _settings.A2854PointerUseCalibration;
         _a2854PointerSensitivity =
             double.IsFinite(_settings.A2854PointerSensitivity) &&
             _settings.A2854PointerSensitivity is >= 0.02 and <= 3.0
@@ -196,6 +205,7 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
         _session.KeyboardEnabled = _settings.KeyboardEnabled;
         _session.A2854Mode = _a2854Mode;
         _session.A2854PointerSensitivity = _a2854PointerSensitivity;
+        _session.A2854PointerUseCalibration = _a2854PointerUseCalibration;
         _session.A2854PointerEnabled = _a2854PointerEnabled;
         _session.AdapterId = _settings.Adapter;
         _ = RefreshDriver();

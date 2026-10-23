@@ -170,6 +170,53 @@ public sealed class A2854PointerMapperTests
     }
 
     [Fact]
+    public void Optional_physical_calibration_corrects_sensor_axis_direction_for_cursor()
+    {
+        var measured = new Dictionary<string, A2854TouchReference>
+        {
+            ["center"] = new(300, 250),
+            ["left"] = new(1200, 250),
+            ["right"] = new(-900, 250),
+            ["top"] = new(300, -700),
+            ["bottom"] = new(300, 1300)
+        };
+        Assert.True(A2854TouchCalibration.TryCreate(measured, out var calibration));
+        var sink = new FakePointer();
+        var mapper = new A2854PointerMapper(sink, 0.2);
+        mapper.Calibration = calibration;
+        mapper.OnEvent(Touch(300, 250, true, Contact(300, 250))); // anchor
+        mapper.OnEvent(Touch(180, 155, true, Contact(180, 155))); // physical right and up
+        Assert.Equal((20, -20), Assert.Single(sink.Moves));
+    }
+
+    [Fact]
+    public void Switching_pointer_calibration_resets_anchor_and_never_clicks()
+    {
+        var measured = new Dictionary<string, A2854TouchReference>
+        {
+            ["center"] = new(300, 250),
+            ["left"] = new(1200, 250),
+            ["right"] = new(-900, 250),
+            ["top"] = new(300, -700),
+            ["bottom"] = new(300, 1300)
+        };
+        Assert.True(A2854TouchCalibration.TryCreate(measured, out var calibration));
+        var sink = new FakePointer();
+        var mapper = new A2854PointerMapper(sink, 0.2);
+        Assert.Null(mapper.Calibration); // default has no synthesized OS effects
+        mapper.OnEvent(Touch(300, 250, true, Contact(300, 250)));
+        mapper.Calibration = calibration; // change mapping mid-contact
+        mapper.OnEvent(Touch(180, 155, true, Contact(180, 155)));
+        Assert.Empty(sink.Moves); // fresh anchor, not a jump
+        mapper.OnEvent(Touch(60, 155, true, Contact(60, 155)));
+        Assert.Equal((20, 0), Assert.Single(sink.Moves));
+        mapper.Calibration = null;
+        mapper.OnEvent(Touch(-60, 155, true, Contact(-60, 155)));
+        Assert.Single(sink.Moves); // reset anchor again
+        Assert.Empty(sink.Clicks);
+    }
+
+    [Fact]
     public void Changing_sensitivity_resets_motion_remainders()
     {
         var sink = new FakePointer();

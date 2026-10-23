@@ -21,6 +21,8 @@ Repository: `Transient-Onlooker/AppleRemoteWin`. Working branch: `feat/a2854-sup
 
 ### Current validated baseline and next gate
 
+- **Further pointer feature awaiting Windows QA:** opt-in `A2854PointerUseCalibration` (default OFF), physically measured signed coordinate axes used in real cursor mapping only if separately enabled with the original pointer switch. Missing/invalid measured profile keeps raw pointer behavior; first touch re-anchors on changes. Test with fake sink first, physical OS mouse only on a controlled desktop.
+
 - **New diagnostics source (await Windows QA):** model-specific A2854 Copy timeline, max 48 relative-time redacted whitelisted HCI/ATT/BLE events, reset per explicit Start. No automatic reconnection or raw packet export; do not confuse it with a 30s-disconnect fix.
 
 - **New UI polish (await Windows QA):** first-gen Nearby/Pair/Forget card hidden only while A2854 selected, replaced by dedicated protected-bond link summary with safe one-click Copy result. No BLE action or profile mutation.
