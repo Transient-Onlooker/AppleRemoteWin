@@ -60,11 +60,11 @@ public sealed class BondStore(string path)
 public readonly record struct LePeer(string Address, byte AddressType);
 
 /// <summary>Stages of the BLE connection-parameter update negotiation (no peer identity or key data).</summary>
-public enum LeConnectionUpdatePhase { RequestReceived, CommandAccepted, CommandRejected, CommandFailed, Completed }
+public enum LeConnectionUpdatePhase { LinkEstablished, RequestReceived, CommandAccepted, CommandRejected, CommandFailed, Completed }
 
 /// <summary>
-/// Non-sensitive BLE timing/parameter-update diagnostic. A completed HCI event
-/// has no L2CAP request identifier (Identifier = 0).
+/// Non-sensitive BLE timing/parameter-update diagnostic. Initial link timing
+/// and a completed HCI event have no L2CAP request identifier (Identifier = 0).
 /// </summary>
 public readonly record struct LeConnectionUpdateTrace(
     ushort Handle, byte Identifier, LeConnectionUpdatePhase Phase,
@@ -465,6 +465,17 @@ public sealed class LeCentral
             return;
         }
 
-        connecting.TrySetResult((ushort)(p[2] | p[3] << 8));
+        ushort handle = (ushort)(p[2] | p[3] << 8);
+        // Initial LE Connection Complete contains the controller-accepted
+        // interval, latency and supervision timeout. Preserve these numerical
+        // timings without logging the peer address, RPA or encryption data.
+        int intervalOffset = enhanced ? 24 : 12;
+        ushort interval = (ushort)(p[intervalOffset] | p[intervalOffset + 1] << 8);
+        ushort latency = (ushort)(p[intervalOffset + 2] | p[intervalOffset + 3] << 8);
+        ushort timeout = (ushort)(p[intervalOffset + 4] | p[intervalOffset + 5] << 8);
+        ReportConnectionUpdate(new LeConnectionUpdateTrace(
+            handle, 0, LeConnectionUpdatePhase.LinkEstablished,
+            interval, interval, latency, timeout, 0));
+        connecting.TrySetResult(handle);
     }
 }

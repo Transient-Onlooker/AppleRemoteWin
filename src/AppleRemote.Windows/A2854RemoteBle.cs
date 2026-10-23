@@ -53,13 +53,22 @@ public sealed class A2854RemoteBle(
             central = new LeCentral(host);
             central.ConnectionUpdateTrace += trace =>
             {
-                if (handle != trace.Handle) return;
-                // Timing parameters are not a peer identifier. Record both the
-                // L2CAP request and HCI command/completion outcome; these can
-                // distinguish rejected updates from a peer-initiated 0x13.
+                // HCI events can arrive on the USB reader thread *before* the
+                // awaited ConnectAsync continuation assigns the session handle.
+                // This central owns a single dedicated A2854 link. Keep early
+                // diagnostics (tagged "unbound"), but reject unrelated handles
+                // once the actual session handle is known.
+                ushort? activeHandle = handle;
+                if (activeHandle is ushort selected && selected != trace.Handle) return;
+                if (trace.Phase == LeConnectionUpdatePhase.LinkEstablished)
+                    Interlocked.CompareExchange(ref connectedAt, Stopwatch.GetTimestamp(), 0);
+                long start = Interlocked.Read(ref connectedAt);
+                string elapsed = start == 0 ? "unknown" :
+                    $"{Stopwatch.GetElapsedTime(start).TotalSeconds:F2}s";
                 string status = trace.Status is byte code ? $"0x{code:X2}" : "n/a";
                 onStatus($"A2854: LE connection parameters {trace.Phase}; " +
-                    $"min={trace.MinInterval} max={trace.MaxInterval} " +
+                    $"association={(activeHandle.HasValue ? "bound" : "unbound")} " +
+                    $"elapsed={elapsed} min={trace.MinInterval} max={trace.MaxInterval} " +
                     $"latency={trace.Latency} timeout={trace.SupervisionTimeout} " +
                     $"status={status}.");
             };
@@ -90,7 +99,9 @@ public sealed class A2854RemoteBle(
                 phase = "connect";
                 handle = await central.ConnectAsync(saved.Value.Address,
                     connectWindow.Token, saved.Value.AddressType);
-                connectedAt = Stopwatch.GetTimestamp();
+                // The LE Connection Complete event records a more precise start
+                // before the async ConnectAsync continuation. Keep that timestamp.
+                Interlocked.CompareExchange(ref connectedAt, Stopwatch.GetTimestamp(), 0);
             }
 
             using (var encryptWindow = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken))
@@ -151,7 +162,9 @@ public sealed class A2854RemoteBle(
                 var ended = await disconnected.Task.WaitAsync(cancellationToken);
                 alreadyDisconnected = true;
                 onStatus(Loc.T("Status.DisconnectedReason", ended.Reason));
-                double durationSeconds = connectedAt == 0 ? 0 : Stopwatch.GetElapsedTime(connectedAt).TotalSeconds;
+                long connectionStart = Interlocked.Read(ref connectedAt);
+                double durationSeconds = connectionStart == 0 ? 0 :
+                    Stopwatch.GetElapsedTime(connectionStart).TotalSeconds;
                 long lastReportTimestamp = Interlocked.Read(ref lastInputAt);
                 string lastReportAge = lastReportTimestamp == 0
                     ? "none" : $"{Stopwatch.GetElapsedTime(lastReportTimestamp).TotalSeconds:F1}s ago";

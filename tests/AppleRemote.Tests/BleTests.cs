@@ -42,6 +42,59 @@ public class BleTests
     }
 
     [Fact]
+    public async Task Legacy_connection_reports_link_timing_before_connect_continuation_sets_handle()
+    {
+        ushort? assigned = null;
+        var observations = new List<LeConnectionUpdateTrace>();
+        _central.ConnectionUpdateTrace += report =>
+        {
+            // Replicates the A2854 early-event ordering: the caller has not yet
+            // resumed from await ConnectAsync so its local handle is still null.
+            Assert.Null(assigned);
+            observations.Add(report);
+        };
+
+        var connecting = _central.ConnectAsync("14:9D:99:26:BF:CC");
+        CommandStatusOk(HciOpcode.LeCreateConnection);
+        _hci.ReceiveEventBytes([
+            0x3E, 0x13, 0x01, 0x00, 0x40, 0x00, 0x00, 0x00,
+            0xCC, 0xBF, 0x26, 0x99, 0x9D, 0x14,
+            0x18, 0x00, 0x01, 0x00, 0xC8, 0x00, 0x00
+        ]);
+        var initial = Assert.Single(observations);
+        Assert.Equal(LeConnectionUpdatePhase.LinkEstablished, initial.Phase);
+        Assert.Equal((ushort)0x0040, initial.Handle);
+        Assert.Equal((ushort)0x18, initial.MinInterval);
+        Assert.Equal((ushort)1, initial.Latency);
+        Assert.Equal((ushort)0xC8, initial.SupervisionTimeout);
+        assigned = await connecting;
+        Assert.Equal((ushort)0x0040, assigned.Value);
+    }
+
+    [Fact]
+    public async Task Enhanced_connection_timing_uses_offsets_after_resolvable_private_addresses()
+    {
+        // The enhanced event includes two 6-byte RPAs *before* the timings.
+        // Never log or mistake either RPA for interval/latency/timeout.
+        var report = new List<LeConnectionUpdateTrace>();
+        _central.ConnectionUpdateTrace += report.Add;
+        var connecting = _central.ConnectAsync("14:9D:99:26:BF:CC");
+        CommandStatusOk(HciOpcode.LeCreateConnection);
+        _hci.ReceiveEventBytes([
+            0x3E, 0x1F, 0x0A, 0x00, 0x40, 0x00, 0x00, 0x00,
+            0xCC, 0xBF, 0x26, 0x99, 0x9D, 0x14,
+            .. new byte[12],
+            0x30, 0x00, 0x02, 0x00, 0xE8, 0x03, 0x00
+        ]);
+        Assert.Equal((ushort)0x0040, await connecting);
+        var initial = Assert.Single(report);
+        Assert.Equal(LeConnectionUpdatePhase.LinkEstablished, initial.Phase);
+        Assert.Equal((ushort)0x30, initial.MinInterval);
+        Assert.Equal((ushort)2, initial.Latency);
+        Assert.Equal((ushort)0x03E8, initial.SupervisionTimeout);
+    }
+
+    [Fact]
     public void Scan_reports_every_advertisement_with_address_and_rssi()
     {
         var seen = new List<(byte[] Address, sbyte Rssi, byte[] Data)>();
