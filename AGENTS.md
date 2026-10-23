@@ -21,6 +21,8 @@ Repository: `Transient-Onlooker/AppleRemoteWin`. Working branch: `feat/a2854-sup
 
 ### Current validated baseline and next gate
 
+- **New UI polish (await Windows QA):** first-gen Nearby/Pair/Forget card hidden only while A2854 selected, replaced by dedicated protected-bond link summary with safe one-click Copy result. No BLE action or profile mutation.
+
 - **New manual one-click reconnect feature (not yet verified):** after a peer-ended A2854 run AND verified completion of the previous driver and successful native USB cleanup, the GUI button switches to Reconnect; explicit click invokes the existing Stop then Start gates. No automatic radio reconnection and no bypass if cleanup is pending/failed. Prior `7bdcf61` safe calibration edit also awaits Windows QA.
 
 - **New touch-calibration durability source (unverified):** stable dwell/single-current-finger validation, backup of last complete five-point profile before overwrite, atomic JSON save, corrupt-profile protection, UI mode indicator and copy-only measured coordinate export. Existing physical touch measurement is preserved; no BLE changes.

@@ -88,6 +88,10 @@ public sealed partial class RemoteViewModel : ObservableObject, IDisposable
     public FingerViewModel[] Fingers { get; } = [new(0), new(1)];
 
     [ObservableProperty] string _statusText = Loc.T("Status.Stopped");
+
+    // Generated only from our own status strings; never store peer addresses,
+    // raw HCI/ATT frames, cryptographic keys or the protected bond in the UI.
+    [ObservableProperty] string _a2854LastLinkSummary = "No A2854 session result yet.";
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(StatusTitle))]
     StatusLevel _statusLevel;
@@ -272,6 +276,7 @@ public sealed partial class RemoteViewModel : ObservableObject, IDisposable
         // A preceding model's button/touch highlights must not leak through.
         OnPropertyChanged(nameof(IsA2854Mode));
         BatteryLevel = null;
+        A2854LastLinkSummary = "No A2854 session result yet.";
         StatusText = Loc.T("Status.Stopped");
         StatusLevel = StatusLevel.Idle;
         ShowButtons(0);
@@ -311,6 +316,8 @@ public sealed partial class RemoteViewModel : ObservableObject, IDisposable
         _calibrationWindow.Clear();
         _calibrationFingerDown = false;
         LiveTouchCoordinates = "No active touch";
+        if (_session.A2854Mode)
+            A2854LastLinkSummary = "Connecting to remote with existing protected bond…";
         ClearNearby();
         _session.Start();
         // If startup was deliberately passive because Barrot was present,
@@ -507,6 +514,19 @@ public sealed partial class RemoteViewModel : ObservableObject, IDisposable
         // Battery is optional: its failure is logged but must not hide the connection status.
         if (Loc.StartsWith(message, "Status.BatteryUnreadable")) { _log(message); return; }
         StatusText = message;
+        if (_session.A2854Mode &&
+            (message.StartsWith("A2854: peer disconnection ", StringComparison.Ordinal) ||
+             message.StartsWith("A2854: HCI error phase=", StringComparison.Ordinal) ||
+             message.StartsWith("A2854: session error phase=", StringComparison.Ordinal) ||
+             message.StartsWith("A2854: early ATT request count=", StringComparison.Ordinal) ||
+             message.StartsWith("A2854: host disconnect completed", StringComparison.Ordinal) ||
+             message.StartsWith("A2854: disconnect ended with", StringComparison.Ordinal) ||
+             message.StartsWith("A2854: connection or operation timed out.", StringComparison.Ordinal) ||
+             message.StartsWith("A2854: dedicated Barrot WinUSB interface unavailable", StringComparison.Ordinal) ||
+             message.StartsWith("A2854: previous USB", StringComparison.Ordinal) ||
+             message.StartsWith("A2854: transport error (", StringComparison.Ordinal) ||
+             message.StartsWith("A2854: link cleanup incomplete", StringComparison.Ordinal)))
+            A2854LastLinkSummary = message;
         bool ok = new[] { "Status.ConnectedHid", "Status.ConnectedDirect", "Status.ConnectedDongle" }.Any(k => Loc.StartsWith(message, k));
         bool warn = new[] { "Status.WaitHid", "Status.WaitBonded", "Status.WaitPairing", "Status.Unreachable", "Status.Disconnected", "Status.DisconnectedReason", "Status.WaitDongle", "Status.DongleIdle" }
             .Any(k => Loc.StartsWith(message, k));
@@ -584,6 +604,18 @@ public sealed partial class RemoteViewModel : ObservableObject, IDisposable
         catch (Exception e)
         {
             TouchCalibrationSummary = $"Could not save reference ({e.GetType().Name}); previous points preserved.";
+        }
+    }
+
+    /// <summary>Copy only the bounded and sanitized A2854 link summary.</summary>
+    [RelayCommand]
+    void CopyA2854LastLink()
+    {
+        if (!_session.A2854Mode) return;
+        try { Clipboard.SetText(A2854LastLinkSummary); }
+        catch (Exception e)
+        {
+            _log($"A2854: unable to copy safe connection summary ({e.GetType().Name}).");
         }
     }
 
