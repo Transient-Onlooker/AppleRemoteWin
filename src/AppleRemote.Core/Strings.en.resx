@@ -87,7 +87,7 @@ Do not unplug the dongle during the update (about a minute). The dongle checks t
   <data name="Settings.InstallFilter" xml:space="preserve"><value>Install the Bluetooth filter…</value></data>
   <data name="Settings.UninstallFilter" xml:space="preserve"><value>Remove the filter…</value></data>
   <data name="Settings.Language" xml:space="preserve"><value>LANGUAGE</value></data>
-  <data name="Settings.LanguageNote" xml:space="preserve"><value>Restart the application to apply the language.</value></data>
+  <data name="Settings.LanguageNote" xml:space="preserve"><value>Language changes take effect immediately.</value></data>
   <data name="Language.Auto" xml:space="preserve"><value>Automatic (Windows language)</value></data>
   <data name="Language.Fr" xml:space="preserve"><value>Français</value></data>
   <data name="Language.En" xml:space="preserve"><value>English</value></data>
@@ -270,4 +270,78 @@ An administrator confirmation (UAC) will appear.</value></data>
   <data name="Status.BatteryUnreadable" xml:space="preserve"><value>Battery unreadable: {0}</value></data>
   <data name="Driver.InstallerMissing" xml:space="preserve"><value>{0} not found: put it next to the application (or build AppleRemote.DriverInstaller).</value></data>
   <data name="Status.Relocked" xml:space="preserve"><value>Remote woke up: unlocked again.</value></data>
+  <data name="Language.Ko" xml:space="preserve"><value>Korean</value></data>
+  <data name="A2854.Remote.Title" xml:space="preserve"><value>Siri Remote A2854</value></data>
+  <data name="A2854.Remote.CopyResult" xml:space="preserve"><value>Copy result</value></data>
+  <data name="A2854.Remote.CopyTimeline" xml:space="preserve"><value>Copy timeline</value></data>
+  <data name="A2854.Remote.Bond" xml:space="preserve"><value>External Barrot USB · existing protected bond</value></data>
+  <data name="A2854.Remote.ReconnectHint" xml:space="preserve"><value>Reconnect requires a previously active HID link and completed USB cleanup. No automatic retries or pairing.</value></data>
+  <data name="A2854.Mapping.Up" xml:space="preserve"><value>Up</value></data>
+  <data name="A2854.Mapping.Left" xml:space="preserve"><value>Left</value></data>
+  <data name="A2854.Mapping.Back" xml:space="preserve"><value>Back</value></data>
+  <data name="A2854.Mapping.PlayPause" xml:space="preserve"><value>Play / Pause</value></data>
+  <data name="A2854.Mapping.Mute" xml:space="preserve"><value>Mute</value></data>
+  <data name="A2854.Mapping.Right" xml:space="preserve"><value>Right</value></data>
+  <data name="A2854.Mapping.Center" xml:space="preserve"><value>Clickpad center</value></data>
+  <data name="A2854.Mapping.Down" xml:space="preserve"><value>Down</value></data>
+  <data name="A2854.Mapping.VolUp" xml:space="preserve"><value>Volume +</value></data>
+  <data name="A2854.Mapping.VolDown" xml:space="preserve"><value>Volume −</value></data>
+  <data name="A2854.Mapping.DisplayOnly" xml:space="preserve"><value>TV, Siri and Power show button state only; keyboard actions are disabled.</value></data>
+  <data name="A2854.Settings.Title" xml:space="preserve"><value>Siri Remote A2854 (USB-C)</value></data>
+  <data name="A2854.Settings.Adapter" xml:space="preserve"><value>Dedicated Barrot USB adapter (33FA:0001)</value></data>
+  <data name="A2854.Settings.SwitchHint" xml:space="preserve"><value>Stop the session before switching models. Uses the saved protected bond; never pairs automatically.</value></data>
+  <data name="A2854.Settings.LegacyHint" xml:space="preserve"><value>Gen-1 and ESP32 behavior is unchanged when A2854 mode is off.</value></data>
+  <data name="A2854.Settings.PointerTitle" xml:space="preserve"><value>Use A2854 touchpad as a Windows mouse</value></data>
+  <data name="A2854.Settings.PointerHint" xml:space="preserve"><value>Optional real cursor movement and left click; keyboard and media shortcuts have a separate switch.</value></data>
+  <data name="A2854.Settings.UseMeasuredAxes" xml:space="preserve"><value>Apply measured five-point axes to Windows pointer</value></data>
+  <data name="A2854.Settings.AxesHint" xml:space="preserve"><value>Off by default. Requires a valid five-point profile and the separate mouse switch. Toggle off/on to reload measurements.</value></data>
+  <data name="A2854.Settings.Sensitivity" xml:space="preserve"><value>Pointer sensitivity</value></data>
+  <data name="A2854.Cal.Title" xml:space="preserve"><value>A2854 touchpad calibration</value></data>
+  <data name="A2854.Cal.Instructions" xml:space="preserve"><value>Mark center and four reachable edge contact centers. Hold one finger steady then capture. Saves back up the previous valid profile. Continue across reconnects.</value></data>
+  <data name="A2854.Cal.Capture" xml:space="preserve"><value>Capture point</value></data>
+  <data name="A2854.Cal.Copy" xml:space="preserve"><value>Copy points</value></data>
+  <data name="A2854.Cal.PreviewOn" xml:space="preserve"><value>Calibrated display preview active</value></data>
+  <data name="A2854.Cal.PreviewInfo" xml:space="preserve"><value>A valid five-point profile automatically calibrates displayed touch markers. Toggle to compare raw coordinates. Windows mouse input is unchanged.</value></data>
+  <data name="A2854.Tooltip.Power" xml:space="preserve"><value>Power</value></data>
+  <data name="A2854.Tooltip.Center" xml:space="preserve"><value>Clickpad center</value></data>
+  <data name="A2854.Tooltip.Up" xml:space="preserve"><value>Up</value></data>
+  <data name="A2854.Tooltip.Down" xml:space="preserve"><value>Down</value></data>
+  <data name="A2854.Tooltip.Left" xml:space="preserve"><value>Left</value></data>
+  <data name="A2854.Tooltip.Right" xml:space="preserve"><value>Right</value></data>
+  <data name="A2854.Tooltip.Siri" xml:space="preserve"><value>Siri (side)</value></data>
+  <data name="A2854.Tooltip.Back" xml:space="preserve"><value>Back</value></data>
+  <data name="A2854.Tooltip.TV" xml:space="preserve"><value>TV / Home</value></data>
+  <data name="A2854.Tooltip.PlayPause" xml:space="preserve"><value>Play / Pause</value></data>
+  <data name="A2854.Tooltip.Mute" xml:space="preserve"><value>Mute</value></data>
+  <data name="A2854.Tooltip.VolUp" xml:space="preserve"><value>Volume up</value></data>
+  <data name="A2854.Tooltip.VolDown" xml:space="preserve"><value>Volume down</value></data>
+  <data name="A2854.Preview.CompareRaw" xml:space="preserve"><value>Compare raw</value></data>
+  <data name="A2854.Preview.UseSaved" xml:space="preserve"><value>Use saved calibration</value></data>
+  <data name="A2854.Preview.NoValid" xml:space="preserve"><value>No valid five-point profile. Raw display in use.</value></data>
+  <data name="A2854.Preview.Active" xml:space="preserve"><value>Measured calibration active (display only)</value></data>
+  <data name="A2854.Preview.Raw" xml:space="preserve"><value>Raw signed-12-bit comparison active</value></data>
+  <data name="A2854.Touch.Initial" xml:space="preserve"><value>0 / 5 reference points collected</value></data>
+  <data name="A2854.Touch.None" xml:space="preserve"><value>No active touch</value></data>
+  <data name="A2854.Link.None" xml:space="preserve"><value>No A2854 session result yet.</value></data>
+  <data name="A2854.Link.Connecting" xml:space="preserve"><value>Connecting with existing protected bond…</value></data>
+  <data name="A2854.Link.EventsInitial" xml:space="preserve"><value>0 diagnostic events</value></data>
+  <data name="A2854.Link.EventsCount" xml:space="preserve"><value>{0} diagnostic events (max 48)</value></data>
+  <data name="A2854.Link.Fallback" xml:space="preserve"><value>Connection event (details withheld)</value></data>
+  <data name="A2854.Cal.LoadFailed" xml:space="preserve"><value>Could not load calibration points; preview disabled.</value></data>
+  <data name="A2854.Cal.ModeRequired" xml:space="preserve"><value>Select A2854 mode before capturing touch positions.</value></data>
+  <data name="A2854.Cal.Hold" xml:space="preserve"><value>Hold one finger still on the landmark for at least 0.1 seconds. Moving/lifted touches cannot be captured.</value></data>
+  <data name="A2854.Cal.SaveFailed" xml:space="preserve"><value>Could not save point ({0}); previous measurements preserved.</value></data>
+  <data name="A2854.Cal.CopyFailed" xml:space="preserve"><value>Could not copy points ({0}).</value></data>
+  <data name="A2854.Cal.Summary" xml:space="preserve"><value>Saved {0} / 5 points: {1}{2}</value></data>
+  <data name="A2854.Cal.Missing" xml:space="preserve"><value>(not captured)</value></data>
+  <data name="A2854.Cal.Invalid" xml:space="preserve"><value> — valid profile required for preview.</value></data>
+  <data name="A2854.Cal.Valid" xml:space="preserve"><value> — calibrated display ready.</value></data>
+  <data name="A2854.Cal.ExportTitle" xml:space="preserve"><value>A2854 measured clickpad landmarks (signed X/Y):</value></data>
+  <data name="A2854.Cal.NotCaptured" xml:space="preserve"><value>not captured</value></data>
+  <data name="A2854.Cal.Center" xml:space="preserve"><value>Center</value></data>
+  <data name="A2854.Cal.Left" xml:space="preserve"><value>Left</value></data>
+  <data name="A2854.Cal.Right" xml:space="preserve"><value>Right</value></data>
+  <data name="A2854.Cal.Top" xml:space="preserve"><value>Top</value></data>
+  <data name="A2854.Cal.Bottom" xml:space="preserve"><value>Bottom</value></data>
+  <data name="A2854.Touch.Live" xml:space="preserve"><value>Live 0xFC: X={0}, Y={1}</value></data>
 </root>

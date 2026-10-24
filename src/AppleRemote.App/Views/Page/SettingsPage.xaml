@@ -129,59 +129,59 @@
             </Grid>
             <Canvas Grid.Row="0">
                 <StackPanel Canvas.Left="15" Canvas.Top="14" Width="188">
-                    <TextBlock Text="Up" Style="{StaticResource A2854MappingCaption}" />
+                    <TextBlock Text="{l:T A2854.Mapping.Up}" Style="{StaticResource A2854MappingCaption}" />
                     <c:KeyPicker Width="180" Choices="{Binding KeyChoices}" Software="{Binding SoftwareChoices}"
                                  Macros="{Binding MacroChoices}" Key="{Binding Bindings[up].Key}" />
                 </StackPanel>
                 <StackPanel Canvas.Left="15" Canvas.Top="111" Width="188">
-                    <TextBlock Text="Left" Style="{StaticResource A2854MappingCaption}" />
+                    <TextBlock Text="{l:T A2854.Mapping.Left}" Style="{StaticResource A2854MappingCaption}" />
                     <c:KeyPicker Width="180" Choices="{Binding KeyChoices}" Software="{Binding SoftwareChoices}"
                                  Macros="{Binding MacroChoices}" Key="{Binding Bindings[left].Key}" />
                 </StackPanel>
                 <StackPanel Canvas.Left="15" Canvas.Top="208" Width="188">
-                    <TextBlock Text="Back" Style="{StaticResource A2854MappingCaption}" />
+                    <TextBlock Text="{l:T A2854.Mapping.Back}" Style="{StaticResource A2854MappingCaption}" />
                     <c:KeyPicker Width="180" Choices="{Binding KeyChoices}" Software="{Binding SoftwareChoices}"
                                  Macros="{Binding MacroChoices}" Key="{Binding Bindings[menu].Key}" />
                 </StackPanel>
                 <StackPanel Canvas.Left="15" Canvas.Top="305" Width="188">
-                    <TextBlock Text="Play / Pause" Style="{StaticResource A2854MappingCaption}" />
+                    <TextBlock Text="{l:T A2854.Mapping.PlayPause}" Style="{StaticResource A2854MappingCaption}" />
                     <c:KeyPicker Width="180" Choices="{Binding KeyChoices}" Software="{Binding SoftwareChoices}"
                                  Macros="{Binding MacroChoices}" Key="{Binding Bindings[playpause].Key}" />
                 </StackPanel>
                 <StackPanel Canvas.Left="15" Canvas.Top="402" Width="188">
-                    <TextBlock Text="Mute" Style="{StaticResource A2854MappingCaption}" />
+                    <TextBlock Text="{l:T A2854.Mapping.Mute}" Style="{StaticResource A2854MappingCaption}" />
                     <c:KeyPicker Width="180" Choices="{Binding KeyChoices}" Software="{Binding SoftwareChoices}"
                                  Macros="{Binding MacroChoices}" Key="{Binding Bindings[mute].Key}" />
                 </StackPanel>
                 <StackPanel Canvas.Left="488" Canvas.Top="14" Width="188">
-                    <TextBlock Text="Right" Style="{StaticResource A2854MappingCaption}" />
+                    <TextBlock Text="{l:T A2854.Mapping.Right}" Style="{StaticResource A2854MappingCaption}" />
                     <c:KeyPicker Width="180" Choices="{Binding KeyChoices}" Software="{Binding SoftwareChoices}"
                                  Macros="{Binding MacroChoices}" Key="{Binding Bindings[right].Key}" />
                 </StackPanel>
                 <StackPanel Canvas.Left="488" Canvas.Top="111" Width="188">
-                    <TextBlock Text="Clickpad center" Style="{StaticResource A2854MappingCaption}" />
+                    <TextBlock Text="{l:T A2854.Mapping.Center}" Style="{StaticResource A2854MappingCaption}" />
                     <c:KeyPicker Width="180" Choices="{Binding KeyChoices}" Software="{Binding SoftwareChoices}"
                                  Macros="{Binding MacroChoices}" Key="{Binding Bindings[click].Key}" />
                 </StackPanel>
                 <StackPanel Canvas.Left="488" Canvas.Top="208" Width="188">
-                    <TextBlock Text="Down" Style="{StaticResource A2854MappingCaption}" />
+                    <TextBlock Text="{l:T A2854.Mapping.Down}" Style="{StaticResource A2854MappingCaption}" />
                     <c:KeyPicker Width="180" Choices="{Binding KeyChoices}" Software="{Binding SoftwareChoices}"
                                  Macros="{Binding MacroChoices}" Key="{Binding Bindings[down].Key}" />
                 </StackPanel>
                 <StackPanel Canvas.Left="488" Canvas.Top="305" Width="188">
-                    <TextBlock Text="Volume +" Style="{StaticResource A2854MappingCaption}" />
+                    <TextBlock Text="{l:T A2854.Mapping.VolUp}" Style="{StaticResource A2854MappingCaption}" />
                     <c:KeyPicker Width="180" Choices="{Binding KeyChoices}" Software="{Binding SoftwareChoices}"
                                  Macros="{Binding MacroChoices}" Key="{Binding Bindings[volup].Key}" />
                 </StackPanel>
                 <StackPanel Canvas.Left="488" Canvas.Top="402" Width="188">
-                    <TextBlock Text="Volume −" Style="{StaticResource A2854MappingCaption}" />
+                    <TextBlock Text="{l:T A2854.Mapping.VolDown}" Style="{StaticResource A2854MappingCaption}" />
                     <c:KeyPicker Width="180" Choices="{Binding KeyChoices}" Software="{Binding SoftwareChoices}"
                                  Macros="{Binding MacroChoices}" Key="{Binding Bindings[voldown].Key}" />
                 </StackPanel>
             </Canvas>
             <TextBlock Grid.Row="1" HorizontalAlignment="Center" TextAlignment="Center"
                        Margin="0,12,0,0" FontSize="12" TextWrapping="Wrap"
-                       Text="TV, Siri and Power show button state only; keyboard actions are disabled."
+                       Text="{l:T A2854.Mapping.DisplayOnly}"
                        Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
         </Grid>
         </StackPanel>
@@ -204,38 +204,38 @@
         <!-- Put device mode controls first: the active A2854 profile should not
              be buried below updates, language and generic settings. Plain cards
              avoid a giant empty CardControl content presenter on narrow windows. -->
-        <TextBlock Text="Siri Remote A2854 (USB-C)" Style="{StaticResource Head}" Margin="1,2,0,8" />
+        <TextBlock Text="{l:T A2854.Settings.Title}" Style="{StaticResource Head}" Margin="1,2,0,8" />
         <Border Style="{StaticResource Card}" Padding="14,12" Margin="0,0,0,8">
             <StackPanel>
-                <TextBlock Text="Dedicated Barrot USB adapter (33FA:0001)"
+                <TextBlock Text="{l:T A2854.Settings.Adapter}"
                            FontSize="13" FontWeight="SemiBold" TextWrapping="Wrap" />
                 <ui:ToggleSwitch IsChecked="{Binding A2854Mode, Mode=TwoWay}"
                                  IsEnabled="{Binding CanChangeAdapter}"
                                  Margin="0,8,0,3" />
-                <TextBlock Text="Stop the current session before switching models. Uses the existing protected bond; never pairs automatically."
+                <TextBlock Text="{l:T A2854.Settings.SwitchHint}"
                            FontSize="12" TextWrapping="Wrap"
                            Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
-                <TextBlock Text="First-generation and ESP32 behavior is unchanged when this mode is off."
+                <TextBlock Text="{l:T A2854.Settings.LegacyHint}"
                            FontSize="12" Margin="0,5,0,0" TextWrapping="Wrap"
                            Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
             </StackPanel>
         </Border>
         <Border Style="{StaticResource Card}" Padding="14,12" Margin="0,0,0,12">
             <StackPanel>
-                <TextBlock Text="A2854 touchpad as Windows mouse"
+                <TextBlock Text="{l:T A2854.Settings.PointerTitle}"
                            FontSize="13" FontWeight="SemiBold" TextWrapping="Wrap" />
                 <ui:ToggleSwitch IsChecked="{Binding A2854PointerEnabled, Mode=TwoWay}"
                                  Margin="0,8,0,3"/>
-                <TextBlock Text="Optional real cursor and left-click control. Keyboard and media mappings use the separate keyboard switch."
+                <TextBlock Text="{l:T A2854.Settings.PointerHint}"
                            FontSize="12" TextWrapping="Wrap"
                            Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
-                <CheckBox Content="Use measured five-point physical axes for Windows pointer"
+                <CheckBox Content="{l:T A2854.Settings.UseMeasuredAxes}"
                           IsChecked="{Binding A2854PointerUseCalibration, Mode=TwoWay}"
                           Margin="0,9,0,1" />
-                <TextBlock Text="Optional, off by default. Needs a valid five-point profile. Only affects actual cursor after the separate mouse switch is enabled. Toggle off/on to reload new measurements."
+                <TextBlock Text="{l:T A2854.Settings.AxesHint}"
                            FontSize="11" TextWrapping="Wrap"
                            Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
-                <TextBlock Text="Pointer sensitivity" FontSize="12" Margin="0,9,0,2" />
+                <TextBlock Text="{l:T A2854.Settings.Sensitivity}" FontSize="12" Margin="0,9,0,2" />
                 <Slider Minimum="0.02" Maximum="3.0" TickFrequency="0.05"
                         IsSnapToTickEnabled="False"
                         Value="{Binding A2854PointerSensitivity, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
@@ -248,9 +248,9 @@
         <Border Style="{StaticResource Card}" Padding="14,12" Margin="0,0,0,12"
                 Visibility="{Binding A2854Mode, Converter={StaticResource BoolToVisibility}}">
             <StackPanel DataContext="{Binding Remote}">
-                <TextBlock Text="A2854 touchpad calibration" FontSize="13"
+                <TextBlock Text="{l:T A2854.Cal.Title}" FontSize="13"
                            FontWeight="SemiBold" />
-                <TextBlock Text="Mark the physical center and four reachable edge centers. Hold one finger still before Capture; each save preserves a backup of the last complete profile. Continue across reconnects."
+                <TextBlock Text="{l:T A2854.Cal.Instructions}"
                            TextWrapping="Wrap" FontSize="12" Margin="0,5,0,10"
                            Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                 <TextBlock Text="{Binding LiveTouchCoordinates}" FontFamily="Consolas" FontSize="12"
@@ -259,11 +259,11 @@
                           SelectedItem="{Binding SelectedCalibrationTarget, Mode=TwoWay}"
                           Margin="0,0,0,8" />
                 <WrapPanel>
-                    <ui:Button Content="Capture point" Command="{Binding CaptureCalibrationPointCommand}"
+                    <ui:Button Content="{l:T A2854.Cal.Capture}" Command="{Binding CaptureCalibrationPointCommand}"
                                Margin="0,0,8,8" />
                     <ui:Button Content="{Binding TouchPreviewActionText}" Command="{Binding ToggleTouchCalibrationPreviewCommand}"
                                Margin="0,0,8,8" />
-                    <ui:Button Content="Copy points" Command="{Binding CopyTouchCalibrationPointsCommand}"
+                    <ui:Button Content="{l:T A2854.Cal.Copy}" Command="{Binding CopyTouchCalibrationPointsCommand}"
                                Margin="0,0,0,8" />
                 </WrapPanel>
                 <TextBlock Text="{Binding TouchDisplayModeText}" FontWeight="SemiBold"
@@ -274,9 +274,9 @@
                            Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                 <CheckBox IsChecked="{Binding TouchCalibrationPreviewEnabled, Mode=OneWay}"
                           IsHitTestVisible="False" Focusable="False"
-                          Content="Calibrated visualization preview active"
+                          Content="{l:T A2854.Cal.PreviewOn}"
                           Margin="0,8,0,2" />
-                <TextBlock Text="A complete valid five-point profile is applied automatically to the drawn marker on startup. Toggle preview to compare with the uncalibrated view. Windows mouse input (SendInput) is unchanged."
+                <TextBlock Text="{l:T A2854.Cal.PreviewInfo}"
                            TextWrapping="Wrap" FontSize="11"
                            Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
             </StackPanel>

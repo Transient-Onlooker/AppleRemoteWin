@@ -134,16 +134,16 @@
                     Visibility="{Binding IsA2854Mode, Converter={StaticResource BoolToVisibility}}">
                 <StackPanel>
                     <Grid Margin="0,0,0,6">
-                        <TextBlock Text="Siri Remote A2854" Style="{StaticResource Section}"
+                        <TextBlock Text="{l:T A2854.Remote.Title}" Style="{StaticResource Section}"
                                    VerticalAlignment="Center" />
                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                            <ui:Button Content="Copy result" Command="{Binding CopyA2854LastLinkCommand}"
+                            <ui:Button Content="{l:T A2854.Remote.CopyResult}" Command="{Binding CopyA2854LastLinkCommand}"
                                        Margin="0,0,6,0" Padding="8,4" />
-                            <ui:Button Content="Copy timeline" Command="{Binding CopyA2854SessionTimelineCommand}"
+                            <ui:Button Content="{l:T A2854.Remote.CopyTimeline}" Command="{Binding CopyA2854SessionTimelineCommand}"
                                        Padding="8,4" />
                         </StackPanel>
                     </Grid>
-                    <TextBlock Text="External Barrot USB · existing protected bond"
+                    <TextBlock Text="{l:T A2854.Remote.Bond}"
                                FontSize="12" TextWrapping="Wrap"
                                Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                     <!-- Battery is application metadata, not printed on the aluminum face. -->
@@ -154,7 +154,7 @@
                     <TextBlock Text="{Binding A2854LastLinkSummary}"
                                FontSize="12" TextWrapping="Wrap" Margin="0,8,0,5"
                                Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
-                    <TextBlock Text="After an interrupted link, Reconnect appears only when the previous USB cleanup succeeds. No automatic re-pair or retry."
+                    <TextBlock Text="{l:T A2854.Remote.ReconnectHint}"
                                FontSize="11" TextWrapping="Wrap"
                                Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                 </StackPanel>

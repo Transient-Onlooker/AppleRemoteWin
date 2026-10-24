@@ -1,6 +1,8 @@
 # Siri Remote (gen 1) pour Windows 11
 
-*[English version](README.md)*
+> **Développement A2854 (2026-10-24) :** l'ancienne procédure d'appairage ci-dessous concerne exclusivement la 1re génération. Sur A2854, l'application utilise un adaptateur USB Barrot dédié et la liaison DPAPI protégée. Les tests Windows ont validé 351/351 cas sur `5df3307`, mais une correction de débordement des Paramètres (`d1e570d`) et la localisation coréenne restent à revérifier. Voir [les notes techniques A2854](docs/a2854/README.md).
+
+*[English version](README.md) · [한국어](README.ko.md)*
 
 Application **WPF (.NET 10)** + pilote user-mode pour utiliser la Siri Remote gen 1 (Apple TV 2015/2017, A1513/A1962)
 sur Windows 11 : surface tactile, boutons, gestes façon tvOS et clavier virtuel.

@@ -157,8 +157,11 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
     }
 
     public sealed record LanguageChoice(string Code, string Name);
-    public IReadOnlyList<LanguageChoice> Languages { get; } =
-        [new("auto", Loc.T("Language.Auto")), new("fr", Loc.T("Language.Fr")), new("en", Loc.T("Language.En"))];
+    // Recreate display names on culture changes; keep stable language codes
+    // (including existing persisted "auto"/"fr"/"en" settings).
+    public IReadOnlyList<LanguageChoice> Languages =>
+        [new("auto", Loc.T("Language.Auto")), new("ko", Loc.T("Language.Ko")),
+         new("en", Loc.T("Language.En")), new("fr", Loc.T("Language.Fr"))];
 
     /// <summary>Applied live: XAML texts (<see cref="LocSource"/>) and model properties are re-evaluated.</summary>
     [ObservableProperty] string _language = "auto";
@@ -169,6 +172,7 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
         _settings.Save();
         Loc.SetLanguage(value);
         LocSource.Instance.Refresh();
+        OnPropertyChanged(nameof(Languages));
         OnPropertyChanged(string.Empty);
         Remote.RefreshTexts();
     }

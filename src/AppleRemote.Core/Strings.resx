@@ -87,7 +87,7 @@ Ne débranchez pas le dongle pendant la mise à jour (environ une minute). Le do
   <data name="Settings.InstallFilter" xml:space="preserve"><value>Installer le filtre Bluetooth…</value></data>
   <data name="Settings.UninstallFilter" xml:space="preserve"><value>Retirer le filtre…</value></data>
   <data name="Settings.Language" xml:space="preserve"><value>LANGUE</value></data>
-  <data name="Settings.LanguageNote" xml:space="preserve"><value>Redémarrez l'application pour appliquer la langue.</value></data>
+  <data name="Settings.LanguageNote" xml:space="preserve"><value>Le changement de langue prend effet immédiatement.</value></data>
   <data name="Language.Auto" xml:space="preserve"><value>Automatique (langue de Windows)</value></data>
   <data name="Language.Fr" xml:space="preserve"><value>Français</value></data>
   <data name="Language.En" xml:space="preserve"><value>English</value></data>
@@ -270,4 +270,78 @@ Une confirmation administrateur (UAC) va s'afficher.</value></data>
   <data name="Status.BatteryUnreadable" xml:space="preserve"><value>Batterie illisible : {0}</value></data>
   <data name="Driver.InstallerMissing" xml:space="preserve"><value>{0} introuvable : placez-le à côté de l'application (ou compilez AppleRemote.DriverInstaller).</value></data>
   <data name="Status.Relocked" xml:space="preserve"><value>Télécommande réveillée : déverrouillage refait.</value></data>
+  <data name="Language.Ko" xml:space="preserve"><value>Coréen</value></data>
+  <data name="A2854.Remote.Title" xml:space="preserve"><value>Siri Remote A2854</value></data>
+  <data name="A2854.Remote.CopyResult" xml:space="preserve"><value>Copier le résultat</value></data>
+  <data name="A2854.Remote.CopyTimeline" xml:space="preserve"><value>Copier la chronologie</value></data>
+  <data name="A2854.Remote.Bond" xml:space="preserve"><value>USB Barrot externe · liaison protégée existante</value></data>
+  <data name="A2854.Remote.ReconnectHint" xml:space="preserve"><value>Reconnecter exige un lien HID actif auparavant et un nettoyage USB terminé. Aucun nouvel appairage automatique.</value></data>
+  <data name="A2854.Mapping.Up" xml:space="preserve"><value>Haut</value></data>
+  <data name="A2854.Mapping.Left" xml:space="preserve"><value>Gauche</value></data>
+  <data name="A2854.Mapping.Back" xml:space="preserve"><value>Retour</value></data>
+  <data name="A2854.Mapping.PlayPause" xml:space="preserve"><value>Lecture / Pause</value></data>
+  <data name="A2854.Mapping.Mute" xml:space="preserve"><value>Muet</value></data>
+  <data name="A2854.Mapping.Right" xml:space="preserve"><value>Droite</value></data>
+  <data name="A2854.Mapping.Center" xml:space="preserve"><value>Centre du pavé tactile</value></data>
+  <data name="A2854.Mapping.Down" xml:space="preserve"><value>Bas</value></data>
+  <data name="A2854.Mapping.VolUp" xml:space="preserve"><value>Volume +</value></data>
+  <data name="A2854.Mapping.VolDown" xml:space="preserve"><value>Volume −</value></data>
+  <data name="A2854.Mapping.DisplayOnly" xml:space="preserve"><value>TV, Siri et Alimentation affichent seulement leur état, sans action clavier.</value></data>
+  <data name="A2854.Settings.Title" xml:space="preserve"><value>Siri Remote A2854 (USB-C)</value></data>
+  <data name="A2854.Settings.Adapter" xml:space="preserve"><value>Adaptateur USB Barrot dédié (33FA:0001)</value></data>
+  <data name="A2854.Settings.SwitchHint" xml:space="preserve"><value>Arrêtez la session avant de changer de modèle. Liaison protégée préservée, sans appairage automatique.</value></data>
+  <data name="A2854.Settings.LegacyHint" xml:space="preserve"><value>La première génération et ESP32 sont inchangés en dehors du mode A2854.</value></data>
+  <data name="A2854.Settings.PointerTitle" xml:space="preserve"><value>Utiliser le pavé A2854 comme souris Windows</value></data>
+  <data name="A2854.Settings.PointerHint" xml:space="preserve"><value>Curseur et clic gauche facultatifs. Les raccourcis clavier et multimédias sont séparés.</value></data>
+  <data name="A2854.Settings.UseMeasuredAxes" xml:space="preserve"><value>Appliquer les cinq points mesurés au pointeur Windows</value></data>
+  <data name="A2854.Settings.AxesHint" xml:space="preserve"><value>Désactivé par défaut. Nécessite cinq points valides et la souris activée. Désactivez et réactivez pour actualiser.</value></data>
+  <data name="A2854.Settings.Sensitivity" xml:space="preserve"><value>Sensibilité du pointeur</value></data>
+  <data name="A2854.Cal.Title" xml:space="preserve"><value>Étalonnage du pavé A2854</value></data>
+  <data name="A2854.Cal.Instructions" xml:space="preserve"><value>Mesurez le centre et les quatre bords. Maintenez un doigt immobile avant de mesurer. Le profil valide précédent est sauvegardé.</value></data>
+  <data name="A2854.Cal.Capture" xml:space="preserve"><value>Mesurer ce point</value></data>
+  <data name="A2854.Cal.Copy" xml:space="preserve"><value>Copier les points</value></data>
+  <data name="A2854.Cal.PreviewOn" xml:space="preserve"><value>Aperçu calibré actif</value></data>
+  <data name="A2854.Cal.PreviewInfo" xml:space="preserve"><value>Cinq points valides calibrent automatiquement les marqueurs affichés. Basculez pour comparer aux données brutes. La souris Windows reste inchangée.</value></data>
+  <data name="A2854.Tooltip.Power" xml:space="preserve"><value>Alimentation</value></data>
+  <data name="A2854.Tooltip.Center" xml:space="preserve"><value>Centre du pavé tactile</value></data>
+  <data name="A2854.Tooltip.Up" xml:space="preserve"><value>Haut</value></data>
+  <data name="A2854.Tooltip.Down" xml:space="preserve"><value>Bas</value></data>
+  <data name="A2854.Tooltip.Left" xml:space="preserve"><value>Gauche</value></data>
+  <data name="A2854.Tooltip.Right" xml:space="preserve"><value>Droite</value></data>
+  <data name="A2854.Tooltip.Siri" xml:space="preserve"><value>Siri (côté)</value></data>
+  <data name="A2854.Tooltip.Back" xml:space="preserve"><value>Retour</value></data>
+  <data name="A2854.Tooltip.TV" xml:space="preserve"><value>TV / Accueil</value></data>
+  <data name="A2854.Tooltip.PlayPause" xml:space="preserve"><value>Lecture / Pause</value></data>
+  <data name="A2854.Tooltip.Mute" xml:space="preserve"><value>Muet</value></data>
+  <data name="A2854.Tooltip.VolUp" xml:space="preserve"><value>Augmenter le volume</value></data>
+  <data name="A2854.Tooltip.VolDown" xml:space="preserve"><value>Baisser le volume</value></data>
+  <data name="A2854.Preview.CompareRaw" xml:space="preserve"><value>Comparer les données brutes</value></data>
+  <data name="A2854.Preview.UseSaved" xml:space="preserve"><value>Appliquer les mesures</value></data>
+  <data name="A2854.Preview.NoValid" xml:space="preserve"><value>Profil cinq points invalide. Affichage brut.</value></data>
+  <data name="A2854.Preview.Active" xml:space="preserve"><value>Étalonnage actif (affichage uniquement)</value></data>
+  <data name="A2854.Preview.Raw" xml:space="preserve"><value>Comparaison 12 bits bruts active</value></data>
+  <data name="A2854.Touch.Initial" xml:space="preserve"><value>0 / 5 points enregistrés</value></data>
+  <data name="A2854.Touch.None" xml:space="preserve"><value>Aucun contact actif</value></data>
+  <data name="A2854.Link.None" xml:space="preserve"><value>Aucun résultat de session A2854.</value></data>
+  <data name="A2854.Link.Connecting" xml:space="preserve"><value>Connexion avec liaison protégée existante…</value></data>
+  <data name="A2854.Link.EventsInitial" xml:space="preserve"><value>0 événement de diagnostic</value></data>
+  <data name="A2854.Link.EventsCount" xml:space="preserve"><value>{0} événements de diagnostic (max. 48)</value></data>
+  <data name="A2854.Link.Fallback" xml:space="preserve"><value>Événement de connexion (détails masqués)</value></data>
+  <data name="A2854.Cal.LoadFailed" xml:space="preserve"><value>Chargement impossible; aperçu désactivé.</value></data>
+  <data name="A2854.Cal.ModeRequired" xml:space="preserve"><value>Activez le mode A2854 avant la mesure.</value></data>
+  <data name="A2854.Cal.Hold" xml:space="preserve"><value>Maintenez un doigt immobile au moins 0,1 s. Les mouvements ne sont pas enregistrés.</value></data>
+  <data name="A2854.Cal.SaveFailed" xml:space="preserve"><value>Enregistrement impossible ({0}); points précédents conservés.</value></data>
+  <data name="A2854.Cal.CopyFailed" xml:space="preserve"><value>Copie impossible ({0}).</value></data>
+  <data name="A2854.Cal.Summary" xml:space="preserve"><value>{0} / 5 points enregistrés : {1}{2}</value></data>
+  <data name="A2854.Cal.Missing" xml:space="preserve"><value>(non mesuré)</value></data>
+  <data name="A2854.Cal.Invalid" xml:space="preserve"><value> — profil valide requis pour l'aperçu.</value></data>
+  <data name="A2854.Cal.Valid" xml:space="preserve"><value> — affichage calibré prêt.</value></data>
+  <data name="A2854.Cal.ExportTitle" xml:space="preserve"><value>Points mesurés du pavé A2854 (X/Y signés) :</value></data>
+  <data name="A2854.Cal.NotCaptured" xml:space="preserve"><value>non mesuré</value></data>
+  <data name="A2854.Cal.Center" xml:space="preserve"><value>Centre</value></data>
+  <data name="A2854.Cal.Left" xml:space="preserve"><value>Gauche</value></data>
+  <data name="A2854.Cal.Right" xml:space="preserve"><value>Droite</value></data>
+  <data name="A2854.Cal.Top" xml:space="preserve"><value>Haut</value></data>
+  <data name="A2854.Cal.Bottom" xml:space="preserve"><value>Bas</value></data>
+  <data name="A2854.Touch.Live" xml:space="preserve"><value>Contact 0xFC : X={0}, Y={1}</value></data>
 </root>

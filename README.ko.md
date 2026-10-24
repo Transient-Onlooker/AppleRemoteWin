@@ -1,0 +1,45 @@
+# Windows용 Siri Remote — 한국어 안내
+
+> 이 문서는 [AppleRemoteWin](https://github.com/Transient-Onlooker/AppleRemoteWin) 개발 브랜치 `feat/a2854-support`의 **2026년 10월 24일 기준** 안내야. 1세대 Siri Remote와 USB-C 3세대 **A2854**는 연결 방식이 다르므로 아래 내용을 구분해서 사용해야 해. 이 한국어화 변경 자체는 아직 독립 Windows 빌드·화면 검증 전이야.
+
+## 지원 기능과 검증 상태
+
+- **1세대 Siri Remote:** 기존 Windows HID/페어링 경로, 방향·제스처·키 매핑·매크로. 기존 영문/불문 기능을 유지.
+- **A2854:** 외장 Barrot `33FA:0001` WinUSB 컨트롤러, 기존 CurrentUser DPAPI 보호 본드로 암호화 연결, 버튼 `0xFB`/터치 `0xFC` 입력, 매트 블랙 리모컨 그림과 독립적인 두 손가락 표시, 수동 5점 터치 보정, 키 매핑·진단·수동 재연결. **Siri/TV/전원은 화면 표시 전용**이며 Windows 입력을 보내지 않음.
+- 실제 연결 QA 중 `dd06b2f`에서 약 **70초간** 암호화 연결 및 HID 알림을 유지했고, Stop에서 알림 해제와 로컬 HCI `0x16` 종료까지 확인함. 다른 시도인 `71733be`에서는 LE 연결 직후 암호화 단계 `0x2019/0x3E` 오류가 발생했음. **30초 종료 문제가 완전히 해결됐다고 단정하지 않음.**
+- `5df3307` 소프트웨어 QA: Release **351/351 통과**, 새 터치 그림·마커·버튼·1세대 회귀 확인. 다만 Settings 가로 넘침이 남아 `d1e570d`에서 레이아웃을 수정했으며 **검증 대기 중**임.
+
+## 한국어 설정
+
+앱 **설정 → 언어 → 한국어**에서 선택할 수 있어. 프랑스어·영어도 계속 지원하며 **자동**은 Windows 표시 언어가 한국어면 한국어, 프랑스어면 프랑스어, 그 외에는 영어로 설정돼. 언어 전환은 앱 재시작 없이 적용돼. 디버그용 HCI/ATT 로그의 영문 기술 키워드는 진단 도구와 호환되도록 유지해.
+
+## A2854 연결 및 안전 수칙
+
+1. A2854 모드를 선택하고 **명시적으로 시작**을 눌러야 연결을 시도해. 앱을 켰다는 이유만으로 자동 페어링하지 않음.
+2. 이 구현은 **기존에 페어링해 저장한 보호된 본드와 전용 외장 어댑터**를 사용해. 1세대용 Menu + Volume+ 페어링/등록 해제 설명을 그대로 따라 하면 안 돼.
+3. 처음 사용할 때 **가상 키보드 및 Windows 마우스 합성 입력은 기본적으로 꺼져 있어**. 실제 입력을 원한다면 각 스위치를 별도로 활성화해야 해.
+4. 리모컨 연결이 종료되면 드라이버 작업·USB 정리가 정상 완료됐고 암호화 HID 세션이 성립했던 경우에만 **다시 연결**을 제공해. 자동 재연결이나 자동 본드 초기화는 하지 않아.
+5. 장치/드라이버/인증서/페어링 정보를 변경하기 전에는 별도 검증과 명시적인 사용자 승인이 필요해.
+
+## 터치 보정
+
+**설정 → A2854 터치패드 보정**에서 중앙과 상하좌우의 **실제 손가락 접촉 중심 5개**를 한 점씩 측정해. 손가락을 고정하고 기준점 측정을 누르면 해당 좌표를 저장해. 유효한 5점 보정값은 **화면의 터치 표시**에 자동 반영되며, 원시 좌표 표시와 비교할 수 있어.
+
+- 실측 좌표: `%APPDATA%\AppleRemote\A2854-touch-calibration.json`
+- 백업: 같은 폴더의 `A2854-touch-calibration.json.bak`
+- 보호된 BLE 본드: `%LOCALAPPDATA%\AppleRemoteWin\A2854\bond.v1.dpapi`
+
+**실측 좌표 파일과 DPAPI 본드는 별개야.** 보정 파일을 삭제하거나 테스트용 좌표로 덮어쓰면 안 돼. 실제 Windows 커서에 물리 보정 좌표를 적용하는 기능도 기본값이 꺼져 있고, 커서 입력 스위치를 별도로 켜야 작동해.
+
+## 개발 및 독립 QA
+
+Windows에 .NET 10 SDK를 준비한 뒤 저장소에서 다음 명령으로 **드라이버·동글 다운로드 없이** 빌드와 테스트를 실행해.
+
+```powershell
+dotnet build AppleRemote.sln -c Release -p:AppleRemoteDriver=false -p:AppleRemoteDongle=false
+dotnet test tests/AppleRemote.Tests/AppleRemote.Tests.csproj -c Release --no-build -p:AppleRemoteDriver=false -p:AppleRemoteDongle=false
+```
+
+한국어화 확인 시에는 자동/한국어/영어/프랑스어 전환, Remote·Settings·툴팁, 저장된 키 매핑·보정 좌표의 유지, 좁은 창에서 Settings 가로 잘림이 실제로 **0 DIP인지** 확인해. 하드웨어 연결을 새로 수행할 필요는 없어.
+
+자세한 개발 내역과 정확한 QA 이력은 [A2854 프로젝트 안내](docs/a2854/README.md), [개발 인수인계](docs/HANDOFF_2026-10-23_A2854.md), [리모컨 보정 절차](docs/a2854/TOUCH_CALIBRATION_2026-10-24.md)를 참고해.

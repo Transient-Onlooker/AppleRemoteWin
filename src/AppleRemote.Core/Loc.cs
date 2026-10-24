@@ -7,20 +7,34 @@ using System.Resources;
 namespace AppleRemote;
 
 /// <summary>
-/// Translated texts (Strings.resx = French, Strings.en.resx = English). The language follows <see cref="CultureInfo.CurrentUICulture"/> :
-/// the application sets it at startup (<see cref="SetLanguage"/>). An unknown key is returned as is.
+/// Translations: Strings.resx (French), Strings.en.resx (English),
+/// Strings.ko.resx (Korean). Follows <see cref="CultureInfo.CurrentUICulture"/>.
+/// Unknown keys are returned as-is for diagnosis.
 /// </summary>
 public static class Loc
 {
     static readonly ResourceManager Resources = new("AppleRemote.Strings", typeof(Loc).Assembly);
 
-    /// <summary>"fr", "en" or null/"auto": Windows language (English if it isn't French).</summary>
+    /// <summary>
+    /// Select fr/en/ko or "auto" from Windows display language. An unsupported
+    /// locale intentionally falls back to English, matching legacy behavior.
+    /// Kept pure so language resolution can be unit tested without mutating
+    /// process-wide UI culture.
+    /// </summary>
+    public static CultureInfo ResolveCulture(string? language, string? windowsLanguage = null)
+    {
+        string requested = language is "fr" or "en" or "ko"
+            ? language
+            : windowsLanguage ??
+              CultureInfo.InstalledUICulture.TwoLetterISOLanguageName;
+        return CultureInfo.GetCultureInfo(requested is "fr" or "en" or "ko"
+            ? requested : "en");
+    }
+
     public static void SetLanguage(string? language)
     {
-        var culture = language is "fr" or "en"
-            ? CultureInfo.GetCultureInfo(language)
-            : CultureInfo.InstalledUICulture.TwoLetterISOLanguageName == "fr" ? CultureInfo.GetCultureInfo("fr") : CultureInfo.GetCultureInfo("en");
-        CultureInfo.DefaultThreadCurrentUICulture = CultureInfo.CurrentUICulture = culture;
+        CultureInfo.DefaultThreadCurrentUICulture =
+            CultureInfo.CurrentUICulture = ResolveCulture(language);
     }
 
     public static string T(string key) => Resources.GetString(key) ?? key;

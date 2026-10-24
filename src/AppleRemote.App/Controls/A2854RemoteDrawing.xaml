@@ -5,6 +5,7 @@
 <UserControl x:Class="AppleRemote.App.Views.A2854RemoteDrawing"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:l="clr-namespace:AppleRemote.App"
              IsHitTestVisible="False">
     <!-- Original vector illustration of the third-generation A2854.
          Distinct from the first-generation RemoteDrawing and its calibration. -->
@@ -111,7 +112,7 @@
                        Fill="#171819" Opacity="0.48" />
             <Border Canvas.Left="259" Canvas.Top="39" Width="62" Height="62" CornerRadius="31"
                     Tag="{Binding PowerPressed}" Style="{StaticResource A2854PowerKey}"
-                    ToolTip="Power">
+                    ToolTip="{l:T A2854.Tooltip.Power}">
                 <TextBlock Text="⏻" FontFamily="Segoe UI Symbol" FontSize="36"
                            Foreground="#212427" HorizontalAlignment="Center"
                            VerticalAlignment="Center" />
@@ -125,7 +126,7 @@
                      Stroke="#343538" StrokeThickness="1.5" />
             <Border Canvas.Left="89" Canvas.Top="203" Width="182" Height="182"
                     CornerRadius="91" BorderBrush="#101113" BorderThickness="1.6"
-                    Tag="{Binding TouchPressed}" ToolTip="Clickpad center">
+                    Tag="{Binding TouchPressed}" ToolTip="{l:T A2854.Tooltip.Center}">
                 <Border.Style>
                     <Style TargetType="Border">
                         <Setter Property="Background" Value="{StaticResource A2854CenterRubber}" />
@@ -141,13 +142,13 @@
 
             <!-- Direction indicators follow actual A2854 0xFB button bits. -->
             <Border Canvas.Left="176" Canvas.Top="146" Width="8" Height="8" CornerRadius="4"
-                    Tag="{Binding UpPressed}" Style="{StaticResource A2854RingKey}" ToolTip="Up"/>
+                    Tag="{Binding UpPressed}" Style="{StaticResource A2854RingKey}" ToolTip="{l:T A2854.Tooltip.Up}"/>
             <Border Canvas.Left="176" Canvas.Top="434" Width="8" Height="8" CornerRadius="4"
-                    Tag="{Binding DownPressed}" Style="{StaticResource A2854RingKey}" ToolTip="Down"/>
+                    Tag="{Binding DownPressed}" Style="{StaticResource A2854RingKey}" ToolTip="{l:T A2854.Tooltip.Down}"/>
             <Border Canvas.Left="32" Canvas.Top="290" Width="8" Height="8" CornerRadius="4"
-                    Tag="{Binding LeftPressed}" Style="{StaticResource A2854RingKey}" ToolTip="Left"/>
+                    Tag="{Binding LeftPressed}" Style="{StaticResource A2854RingKey}" ToolTip="{l:T A2854.Tooltip.Left}"/>
             <Border Canvas.Left="320" Canvas.Top="290" Width="8" Height="8" CornerRadius="4"
-                    Tag="{Binding RightPressed}" Style="{StaticResource A2854RingKey}" ToolTip="Right"/>
+                    Tag="{Binding RightPressed}" Style="{StaticResource A2854RingKey}" ToolTip="{l:T A2854.Tooltip.Right}"/>
 
             <!-- Live 0xFC touch contacts drawn over the 360-square ring.
                  Projection clips each dot inside the round physical surface. -->
@@ -212,12 +213,12 @@
             <!-- Right-side Siri key is drawn as a slim side switch. -->
             <Border Canvas.Left="354" Canvas.Top="178" Width="9" Height="190"
                     CornerRadius="4" Tag="{Binding SiriPressed}"
-                    Style="{StaticResource A2854PowerKey}" ToolTip="Siri (side)"/>
+                    Style="{StaticResource A2854PowerKey}" ToolTip="{l:T A2854.Tooltip.Siri}"/>
 
             <!-- Back / TV -->
             <Border Canvas.Left="36" Canvas.Top="470" Width="128" Height="128"
                     CornerRadius="64" Tag="{Binding MenuPressed}"
-                    Style="{StaticResource A2854Button}" ToolTip="Back">
+                    Style="{StaticResource A2854Button}" ToolTip="{l:T A2854.Tooltip.Back}">
                 <Canvas Width="55" Height="56" HorizontalAlignment="Center" VerticalAlignment="Center">
                     <Path Data="M 34,9 L 15,28 L 34,47"
                           Stroke="#EDEFF1" StrokeThickness="4.5"
@@ -226,7 +227,7 @@
             </Border>
             <Border Canvas.Left="194" Canvas.Top="470" Width="128" Height="128"
                     CornerRadius="64" Tag="{Binding TvPressed}"
-                    Style="{StaticResource A2854Button}" ToolTip="TV / Home">
+                    Style="{StaticResource A2854Button}" ToolTip="{l:T A2854.Tooltip.TV}">
                 <Canvas Width="54" Height="54" HorizontalAlignment="Center" VerticalAlignment="Center">
                     <Path Data="M 8,9 L 46,9 L 46,35 L 8,35 Z M 19,45 L 35,45"
                           Stroke="#EDEFF1" StrokeThickness="3.2"
@@ -237,7 +238,7 @@
             <!-- Play/Pause and Mute on the left, two-part volume pill on the right. -->
             <Border Canvas.Left="36" Canvas.Top="624" Width="128" Height="128"
                     CornerRadius="64" Tag="{Binding PlayPressed}"
-                    Style="{StaticResource A2854Button}" ToolTip="Play / Pause">
+                    Style="{StaticResource A2854Button}" ToolTip="{l:T A2854.Tooltip.PlayPause}">
                 <!-- Match the smaller compact play/pause mark in the photo: keep
                      the entire glyph centered without oversized tall bars. -->
                 <Canvas Width="46" Height="46" HorizontalAlignment="Center" VerticalAlignment="Center">
@@ -252,7 +253,7 @@
             </Border>
             <Border Canvas.Left="36" Canvas.Top="778" Width="128" Height="128"
                     CornerRadius="64" Tag="{Binding MutePressed}"
-                    Style="{StaticResource A2854Button}" ToolTip="Mute">
+                    Style="{StaticResource A2854Button}" ToolTip="{l:T A2854.Tooltip.Mute}">
                 <!-- Speaker and diagonal slash must overlap as on the physical
                      mute key, rather than a separate slash to its right. -->
                 <Grid Width="54" Height="54" HorizontalAlignment="Center"
@@ -276,12 +277,12 @@
                         BorderBrush="#4D4E50" BorderThickness="1.4" />
                 <Border Grid.Row="0" CornerRadius="64,64,0,0"
                         Tag="{Binding VolUpPressed}" Style="{StaticResource A2854VolumeHalf}"
-                        ToolTip="Volume up">
+                        ToolTip="{l:T A2854.Tooltip.VolUp}">
                     <TextBlock Text="+" Style="{StaticResource A2854Glyph}" FontFamily="Segoe UI" FontWeight="Light" FontSize="58" />
                 </Border>
                 <Border Grid.Row="1" CornerRadius="0,0,64,64"
                         Tag="{Binding VolDownPressed}" Style="{StaticResource A2854VolumeHalf}"
-                        ToolTip="Volume down">
+                        ToolTip="{l:T A2854.Tooltip.VolDown}">
                     <TextBlock Text="−" Style="{StaticResource A2854Glyph}" FontFamily="Segoe UI" FontWeight="Light" FontSize="56" />
                 </Border>
             </Grid>

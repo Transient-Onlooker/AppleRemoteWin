@@ -1,0 +1,347 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <data name="App.Title" xml:space="preserve"><value>Windows용 Siri Remote(1세대)</value></data>
+  <data name="App.TitleA2854" xml:space="preserve"><value>Windows용 Siri Remote A2854(USB-C)</value></data>
+  <data name="Tray.Show" xml:space="preserve"><value>열기</value></data>
+  <data name="Tray.Quit" xml:space="preserve"><value>종료</value></data>
+  <data name="Nav.Remote" xml:space="preserve"><value>리모컨</value></data>
+  <data name="Nav.Guide" xml:space="preserve"><value>사용 안내</value></data>
+  <data name="Nav.Macros" xml:space="preserve"><value>매크로</value></data>
+  <data name="Nav.Settings" xml:space="preserve"><value>설정</value></data>
+  <data name="Nav.Debug" xml:space="preserve"><value>디버그</value></data>
+  <data name="Remote.Level.Ok" xml:space="preserve"><value>연결됨</value></data>
+  <data name="Remote.Level.Warn" xml:space="preserve"><value>대기 중</value></data>
+  <data name="Remote.Level.Idle" xml:space="preserve"><value>중지됨</value></data>
+  <data name="Remote.State" xml:space="preserve"><value>상태</value></data>
+  <data name="Remote.Gesture" xml:space="preserve"><value>제스처</value></data>
+  <data name="Remote.Nearby" xml:space="preserve"><value>주변 APPLE HID 기기</value></data>
+  <data name="Remote.Connected" xml:space="preserve"><value>연결됨</value></data>
+  <data name="Remote.NearbyNone" xml:space="preserve"><value>기기가 없습니다.</value></data>
+  <data name="Remote.Pair" xml:space="preserve"><value>페어링</value></data>
+  <data name="Remote.Forget" xml:space="preserve"><value>등록 해제</value></data>
+  <data name="Remote.Battery" xml:space="preserve"><value>배터리: {0}%</value></data>
+  <data name="Remote.BatteryUnknown" xml:space="preserve"><value>배터리: —</value></data>
+  <data name="Remote.Start" xml:space="preserve"><value>시작</value></data>
+  <data name="Remote.Stop" xml:space="preserve"><value>중지</value></data>
+  <data name="Remote.Reconnect" xml:space="preserve"><value>다시 연결</value></data>
+  <data name="Settings.RemoteKeys" xml:space="preserve"><value>리모컨 키 매핑</value></data>
+  <data name="Settings.General" xml:space="preserve"><value>일반</value></data>
+  <data name="Settings.RunAtStartup" xml:space="preserve"><value>Windows 시작 시 실행</value></data>
+  <data name="Settings.CloseToTray" xml:space="preserve"><value>닫을 때 시스템 트레이로 최소화</value></data>
+  <data name="Settings.Keyboard" xml:space="preserve"><value>키보드</value></data>
+  <data name="Settings.KeyboardCheck" xml:space="preserve"><value>가상 키보드 사용</value></data>
+  <data name="Settings.DefaultMap" xml:space="preserve"><value>기본 매핑</value></data>
+  <data name="Settings.ExportMap" xml:space="preserve"><value>내보내기</value></data>
+  <data name="Settings.ImportMap" xml:space="preserve"><value>가져오기</value></data>
+  <data name="Settings.ExportAll" xml:space="preserve"><value>모두 내보내기</value></data>
+  <data name="Settings.ImportAll" xml:space="preserve"><value>모두 가져오기</value></data>
+  <data name="Settings.Pairing" xml:space="preserve"><value>페어링</value></data>
+  <data name="Settings.PairButton" xml:space="preserve"><value>Bluetooth 페어링…</value></data>
+  <data name="Settings.Updates" xml:space="preserve"><value>버전 및 업데이트</value></data>
+  <data name="Settings.CheckUpdates" xml:space="preserve"><value>업데이트 확인</value></data>
+  <data name="Settings.UpToDate" xml:space="preserve"><value>최신 버전입니다(최신: {0}).</value></data>
+  <data name="Settings.NewVersion" xml:space="preserve"><value>새 버전 사용 가능: {0}</value></data>
+  <data name="Settings.UpdateFailed" xml:space="preserve"><value>업데이트를 확인할 수 없습니다.</value></data>
+  <data name="Settings.ReleaseNotes" xml:space="preserve"><value>릴리스 노트</value></data>
+  <data name="Settings.InstalledVersion" xml:space="preserve"><value>설치된 버전</value></data>
+  <data name="Settings.AvailableVersion" xml:space="preserve"><value>사용 가능한 버전</value></data>
+  <data name="Settings.LastChecked" xml:space="preserve"><value>마지막 확인: {0}</value></data>
+  <data name="Settings.NotifyUpdates" xml:space="preserve"><value>새 업데이트 알림 표시</value></data>
+  <data name="Settings.AutoUpdate" xml:space="preserve"><value>업데이트 자동 다운로드 및 설치</value></data>
+  <data name="Settings.AutoUpdateNote" xml:space="preserve"><value>관리자 권한 확인 창(UAC)이 표시됩니다.</value></data>
+  <data name="Settings.Version" xml:space="preserve"><value>버전</value></data>
+  <data name="Settings.License" xml:space="preserve"><value>라이선스</value></data>
+  <data name="Settings.Components" xml:space="preserve"><value>구성 요소 및 라이선스</value></data>
+  <data name="Update.Title" xml:space="preserve"><value>업데이트 사용 가능</value></data>
+  <data name="Update.Body" xml:space="preserve"><value>Siri Remote {0} 버전이 출시됐습니다. 클릭하면 릴리스 페이지가 열립니다.</value></data>
+  <data name="Settings.Driver" xml:space="preserve"><value>BLUETOOTH 어댑터 드라이버</value></data>
+  <data name="Settings.InstallWinUsb" xml:space="preserve"><value>WinUSB 설치…</value></data>
+  <data name="Settings.RestoreDriver" xml:space="preserve"><value>원래 드라이버 복원…</value></data>
+  <data name="Settings.Option1" xml:space="preserve"><value>WinUSB 드라이버</value></data>
+  <data name="Settings.Option2" xml:space="preserve"><value>Bluetooth 필터</value></data>
+  <data name="Settings.Option3" xml:space="preserve"><value>ESP 동글</value></data>
+  <data name="Settings.DonglePresent" xml:space="preserve"><value>ESP32-S3 동글 연결됨</value></data>
+  <data name="Settings.DongleAbsent" xml:space="preserve"><value>연결된 동글 없음</value></data>
+  <data name="Settings.DongleFirmware" xml:space="preserve"><value>ESP32-S3 동글 연결됨(펌웨어 {0})</value></data>
+  <data name="Settings.DongleUpdating" xml:space="preserve"><value>펌웨어 업데이트 중: {0}%</value></data>
+  <data name="Settings.UpdateDongle" xml:space="preserve"><value>{0} 버전으로 업데이트</value></data>
+  <data name="Firmware.Title" xml:space="preserve"><value>동글 펌웨어</value></data>
+  <data name="Firmware.Ask" xml:space="preserve"><value>동글 펌웨어를 {0}에서 {1}(으)로 업데이트할까요?
+
+업데이트하는 동안 동글을 분리하지 마세요(약 1분). 동글은 설치 전에 서명을 자체적으로 검사하며 문제가 발생하면 기존 펌웨어를 유지합니다.</value></data>
+  <data name="Firmware.NoDongle" xml:space="preserve"><value>연결된 ESP32-S3 동글이 없습니다.</value></data>
+  <data name="Firmware.BadSize" xml:space="preserve"><value>동글 펌웨어 파일 크기가 잘못됐습니다.</value></data>
+  <data name="Firmware.NotImage" xml:space="preserve"><value>ESP32 펌웨어 이미지가 아닙니다(앱용 .bin 파일 필요).</value></data>
+  <data name="Firmware.WrongChip" xml:space="preserve"><value>ESP32-S3용 펌웨어가 아닙니다.</value></data>
+  <data name="Firmware.Unsigned" xml:space="preserve"><value>서명이 없어 동글에서 거부할 펌웨어입니다.</value></data>
+  <data name="Firmware.BadSignature" xml:space="preserve"><value>서명 검증 실패: 프로젝트 키로 서명되지 않았습니다. 기존 펌웨어는 유지됩니다.</value></data>
+  <data name="Firmware.Downgrade" xml:space="preserve"><value>동글보다 오래된 펌웨어라 거부됐습니다. 기존 펌웨어는 유지됩니다.</value></data>
+  <data name="Firmware.WrongProject" xml:space="preserve"><value>AppleRemote 동글용 펌웨어가 아니므로 거부됐습니다.</value></data>
+  <data name="Firmware.Failed" xml:space="preserve"><value>동글이 업데이트를 거부했습니다(코드 0x{0:X2}). 기존 펌웨어는 유지됩니다.</value></data>
+  <data name="Firmware.Timeout" xml:space="preserve"><value>동글의 검사 시간이 초과됐습니다.</value></data>
+  <data name="Settings.Refresh" xml:space="preserve"><value>새로고침</value></data>
+  <data name="Settings.InstallFilter" xml:space="preserve"><value>Bluetooth 필터 설치…</value></data>
+  <data name="Settings.UninstallFilter" xml:space="preserve"><value>필터 제거…</value></data>
+  <data name="Settings.Language" xml:space="preserve"><value>언어</value></data>
+  <data name="Settings.LanguageNote" xml:space="preserve"><value>언어 변경은 즉시 적용됩니다.</value></data>
+  <data name="Language.Auto" xml:space="preserve"><value>자동(Windows 표시 언어)</value></data>
+  <data name="Language.Fr" xml:space="preserve"><value>프랑스어</value></data>
+  <data name="Language.En" xml:space="preserve"><value>영어</value></data>
+  <data name="Pick.Key" xml:space="preserve"><value>키</value></data>
+  <data name="Pick.KeyCombo" xml:space="preserve"><value>키 조합</value></data>
+  <data name="Pick.Software" xml:space="preserve"><value>프로그램</value></data>
+  <data name="Pick.Macro" xml:space="preserve"><value>매크로</value></data>
+  <data name="Pick.Browse" xml:space="preserve"><value>찾아보기…</value></data>
+  <data name="Combo.Title" xml:space="preserve"><value>키 조합</value></data>
+  <data name="Combo.Prompt" xml:space="preserve"><value>실행할 키 조합을 누른 뒤 확인을 클릭하세요.</value></data>
+  <data name="Combo.Reset" xml:space="preserve"><value>초기화</value></data>
+  <data name="Combo.Validate" xml:space="preserve"><value>확인</value></data>
+  <data name="Pick.NewMacro" xml:space="preserve"><value>새 매크로…</value></data>
+  <data name="Pick.EditMacro" xml:space="preserve"><value>매크로 편집…</value></data>
+  <data name="Macro.Title" xml:space="preserve"><value>매크로</value></data>
+  <data name="Macro.Name" xml:space="preserve"><value>매크로 이름</value></data>
+  <data name="Macro.Cancel" xml:space="preserve"><value>취소</value></data>
+  <data name="Macro.DeleteMacro" xml:space="preserve"><value>매크로 삭제</value></data>
+  <data name="Macro.ConfirmDelete" xml:space="preserve"><value>"{0}" 매크로를 삭제할까요?</value></data>
+  <data name="Log.MacroMissing" xml:space="preserve"><value>매크로를 찾을 수 없거나 읽을 수 없습니다: {0}</value></data>
+  <data name="Pick.DuplicateMacro" xml:space="preserve"><value>매크로 복제</value></data>
+  <data name="Macro.Copy" xml:space="preserve"><value>{0}(복사본)</value></data>
+  <data name="Macros.New" xml:space="preserve"><value>새 매크로</value></data>
+  <data name="Macros.Save" xml:space="preserve"><value>저장</value></data>
+  <data name="Macros.Test" xml:space="preserve"><value>매크로 테스트</value></data>
+  <data name="Macros.StopTest" xml:space="preserve"><value>테스트 중지</value></data>
+  <data name="Input.Drop" xml:space="preserve"><value>여기에 파일을 놓으세요.</value></data>
+  <data name="Step.askText" xml:space="preserve"><value>텍스트 입력</value></data>
+  <data name="Step.askFile" xml:space="preserve"><value>파일 선택</value></data>
+  <data name="Step.askDrop" xml:space="preserve"><value>끌어서 놓기</value></data>
+  <data name="Prompt.askText" xml:space="preserve"><value>입력할 텍스트를 적으세요.</value></data>
+  <data name="Prompt.askFile" xml:space="preserve"><value>경로를 입력할 파일을 선택하세요.</value></data>
+  <data name="Prompt.askDrop" xml:space="preserve"><value>경로를 입력할 파일을 놓으세요.</value></data>
+  <data name="Macro.WebViewError" xml:space="preserve"><value>블록 편집기를 시작할 수 없습니다(WebView2): {0}</value></data>
+  <data name="Log.MacroStopped" xml:space="preserve"><value>매크로 중지: {0}</value></data>
+  <data name="Dialog.Yes" xml:space="preserve"><value>예</value></data>
+  <data name="Dialog.No" xml:space="preserve"><value>아니요</value></data>
+  <data name="NoKey" xml:space="preserve"><value>(없음)</value></data>
+  <data name="Debug.Diagnostic" xml:space="preserve"><value>진단</value></data>
+  <data name="Debug.HidDevices" xml:space="preserve"><value>Apple HID 기기</value></data>
+  <data name="Debug.BleScan" xml:space="preserve"><value>Bluetooth LE 검색…</value></data>
+  <data name="Debug.Log" xml:space="preserve"><value>로그</value></data>
+  <data name="Debug.Clear" xml:space="preserve"><value>지우기</value></data>
+  <data name="Ble.Title" xml:space="preserve"><value>Bluetooth LE 검색</value></data>
+  <data name="Ble.Intro" xml:space="preserve"><value>리모컨을 PC 가까이 두고 Menu + 음량 + 버튼을 약 5~10초간 누르세요. 새 항목이 나타납니다. Siri Remote는 제조사 Apple(0x004C)과 일련번호를 기기 이름으로 광고합니다. 항목을 두 번 클릭하거나 '페어링'을 누르면 Windows 설정을 거치지 않고 연결할 수 있습니다.</value></data>
+  <data name="Ble.Pair" xml:space="preserve"><value>페어링</value></data>
+  <data name="Ble.SystemPair" xml:space="preserve"><value>페어링(시스템)</value></data>
+  <data name="Ble.SystemPairTip" xml:space="preserve"><value>설정과 동일하게 Windows가 페어링을 처리합니다.</value></data>
+  <data name="Ble.Copy" xml:space="preserve"><value>결과 복사</value></data>
+  <data name="Ble.OnlyLikely" xml:space="preserve"><value>"Apple HID"만 표시(해제하면 모두 표시)</value></data>
+  <data name="Ble.ColName" xml:space="preserve"><value>이름</value></data>
+  <data name="Ble.ColAddress" xml:space="preserve"><value>주소</value></data>
+  <data name="Ble.ColSignal" xml:space="preserve"><value>신호</value></data>
+  <data name="Ble.ColMaker" xml:space="preserve"><value>제조사</value></data>
+  <data name="Ble.ColHints" xml:space="preserve"><value>참고</value></data>
+  <data name="Ble.Pause" xml:space="preserve"><value>일시 중지</value></data>
+  <data name="Ble.Resume" xml:space="preserve"><value>계속</value></data>
+  <data name="Ble.Relaunch" xml:space="preserve"><value>다시 시작</value></data>
+  <data name="Ble.Unnamed" xml:space="preserve"><value>(이름 없음)</value></data>
+  <data name="Ble.Count" xml:space="preserve"><value>기기 {0}개, 후보 {1}개</value></data>
+  <data name="Ble.SelectRow" xml:space="preserve"><value>페어링할 항목을 선택하세요.</value></data>
+  <data name="Ble.Pairing" xml:space="preserve"><value>페어링 중: {0}({1})…</value></data>
+  <data name="Ble.AlreadyTitle" xml:space="preserve"><value>이미 페어링됨</value></data>
+  <data name="Ble.AlreadyAsk" xml:space="preserve"><value>Windows에서 {0}({1})은(는) 이미 페어링된 상태입니다.
+
+리모컨이 페어링 모드인데도 HID 장치가 표시되지 않는다면 기존 연결 정보가 오래됐을 수 있습니다.
+
+기존 페어링을 해제하고 다시 페어링할까요?</value></data>
+  <data name="Ble.Unpairing" xml:space="preserve"><value>기존 페어링 삭제 중…</value></data>
+  <data name="Ble.UnpairFailed" xml:space="preserve"><value>페어링을 삭제하지 못했습니다: {0}</value></data>
+  <data name="Ble.PairFailed" xml:space="preserve"><value>페어링 실패: {0}</value></data>
+  <data name="Ble.TableHeader" xml:space="preserve"><value>이름 | 주소 | 신호 | 제조사 | 참고</value></data>
+  <data name="Ble.Copied" xml:space="preserve"><value>결과를 클립보드에 복사했습니다.</value></data>
+  <data name="Ble.CopyFailed" xml:space="preserve"><value>복사 실패: {0}</value></data>
+  <data name="Ble.NoteSerial" xml:space="preserve"><value>이름 = 일련번호?</value></data>
+  <data name="Ble.ScanNoRadio" xml:space="preserve"><value>검색 불가: Bluetooth가 꺼졌거나 어댑터가 없습니다.</value></data>
+  <data name="Ble.ScanNoLe" xml:space="preserve"><value>검색 불가: 이 어댑터는 Bluetooth LE를 지원하지 않습니다.</value></data>
+  <data name="Ble.ScanOffUser" xml:space="preserve"><value>검색 불가: Windows에서 Bluetooth가 꺼져 있습니다.</value></data>
+  <data name="Ble.ScanOffPolicy" xml:space="preserve"><value>검색 불가: 정책으로 Bluetooth가 비활성화됐습니다.</value></data>
+  <data name="Ble.SourceWindows" xml:space="preserve"><value>Windows(기본 어댑터)</value></data>
+  <data name="Ble.SourceTip" xml:space="preserve"><value>검색 어댑터: Windows 기본 또는 WinUSB 어댑터(리모컨 세션 종료 후 사용 가능)</value></data>
+  <data name="Ble.ScanStopped" xml:space="preserve"><value>검색 중지({0}).</value></data>
+  <data name="Ble.DeviceNotFound" xml:space="preserve"><value>기기를 찾을 수 없습니다(페어링 모드가 종료됐나요?).</value></data>
+  <data name="Ble.AlreadyPaired" xml:space="preserve"><value>이미 페어링돼 있습니다.</value></data>
+  <data name="Ble.KindSystem" xml:space="preserve"><value>시스템</value></data>
+  <data name="Ble.KindApp" xml:space="preserve"><value>앱</value></data>
+  <data name="Ble.PairKind" xml:space="preserve"><value>({0}, {1:0.0}초</value></data>
+  <data name="Ble.PairKindMethod" xml:space="preserve"><value>, 방식: {0})</value></data>
+  <data name="Ble.Paired" xml:space="preserve"><value>페어링 완료{0}. {1}</value></data>
+  <data name="Ble.PairFailedKind" xml:space="preserve"><value>페어링 실패: {0}{1}.</value></data>
+  <data name="Ble.DiscoverFailed" xml:space="preserve"><value>서비스 검색 실패({0}): Windows에서 HID 장치를 만들지 못할 수 있습니다.</value></data>
+  <data name="Ble.Discovered" xml:space="preserve"><value>GATT 서비스 {0}개 발견. 'Apple HID 기기'에 HID 장치가 나타나야 합니다.</value></data>
+  <data name="Guide.ResetTitle" xml:space="preserve"><value>리모컨 초기화</value></data>
+  <data name="Guide.Reset1" xml:space="preserve"><value>리모컨을 PC 가까이(몇 cm) 두세요.</value></data>
+  <data name="Guide.Reset2" xml:space="preserve"><value>표시된 원을 참고해 TV + 음량 − 버튼을 동시에 누르세요.</value></data>
+  <data name="Guide.Reset3" xml:space="preserve"><value>약 5초 후 놓으면 리모컨이 페어링 정보를 지웁니다.</value></data>
+  <data name="Guide.Reset4" xml:space="preserve"><value>작동하지 않으면 Lightning 케이블로 30분 충전한 뒤 다시 시도하세요.</value></data>
+  <data name="Guide.Hold" xml:space="preserve"><value>약 5초 동안 누르세요.</value></data>
+  <data name="Guide.PairTitle" xml:space="preserve"><value>페어링 모드 진입</value></data>
+  <data name="Guide.Pair1" xml:space="preserve"><value>설정에서 'Bluetooth 페어링…'을 클릭하세요.</value></data>
+  <data name="Guide.Pair2" xml:space="preserve"><value>표시된 원을 참고해 Menu + 음량 + 버튼을 동시에 누르세요.</value></data>
+  <data name="Guide.Pair3" xml:space="preserve"><value>약 5초 후 놓으면 앱이 리모컨을 찾아 연결합니다.</value></data>
+  <data name="Guide.Pair4" xml:space="preserve"><value>페어링 직후 1~2번 연결이 끊기는 것은 정상일 수 있습니다.</value></data>
+  <data name="Dir.Up" xml:space="preserve"><value>위</value></data>
+  <data name="Dir.Down" xml:space="preserve"><value>아래</value></data>
+  <data name="Dir.Left" xml:space="preserve"><value>왼쪽</value></data>
+  <data name="Dir.Right" xml:space="preserve"><value>오른쪽</value></data>
+  <data name="Src.Flick" xml:space="preserve"><value>튕기기</value></data>
+  <data name="Src.Glide" xml:space="preserve"><value>슬라이드</value></data>
+  <data name="Log.Focus" xml:space="preserve"><value>초점 {0}({1})</value></data>
+  <data name="Log.MapIgnored" xml:space="preserve"><value>매핑 무시({0})</value></data>
+  <data name="Log.MapNotSaved" xml:space="preserve"><value>매핑 저장 실패({0})</value></data>
+  <data name="Log.KeyboardOn" xml:space="preserve"><value>가상 키보드 활성화됨</value></data>
+  <data name="Log.KeyboardOff" xml:space="preserve"><value>가상 키보드 비활성화됨</value></data>
+  <data name="Log.PairDirect" xml:space="preserve"><value>페어링: PC 가까이에서 Menu + 음량 + 버튼을 약 5초 누르세요.</value></data>
+  <data name="Log.PairSettings" xml:space="preserve"><value>PC 가까이에서 Menu + 음량 + 버튼을 약 5초 누른 뒤 설정 &gt; Bluetooth에서 기기를 추가하세요.</value></data>
+  <data name="Log.Forget" xml:space="preserve"><value>리모컨 등록 해제됨</value></data>
+  <data name="Log.DongleDetected" xml:space="preserve"><value>ESP32-S3 동글 감지: 세션이 동글로 전환됩니다.</value></data>
+  <data name="Log.OpenBtFailed" xml:space="preserve"><value>Bluetooth 설정을 열 수 없습니다: {0}</value></data>
+  <data name="Log.DriverReboot" xml:space="preserve"><value>드라이버 설치됨: 마무리하려면 PC를 재시작하세요.</value></data>
+  <data name="Log.DriverInstalled" xml:space="preserve"><value>WinUSB 드라이버 설치됨</value></data>
+  <data name="Log.AdaptersChanged" xml:space="preserve"><value>Bluetooth 어댑터 변경됨: {0}.</value></data>
+  <data name="Log.DriverRestored" xml:space="preserve"><value>원래 드라이버 복원됨</value></data>
+  <data name="Log.FilterInstalled" xml:space="preserve"><value>Bluetooth 필터 설치됨</value></data>
+  <data name="Log.FilterRemoved" xml:space="preserve"><value>Bluetooth 필터 제거됨</value></data>
+  <data name="Log.FirmwareSending" xml:space="preserve"><value>펌웨어 {0}을(를) 동글로 전송 중(SHA-256 {1})…</value></data>
+  <data name="Log.FirmwareAvailable" xml:space="preserve"><value>동글용 펌웨어 {0} 사용 가능(설치됨: {1}): 설정 &gt; ESP 동글</value></data>
+  <data name="Log.FirmwareUpdated" xml:space="preserve"><value>동글이 펌웨어를 승인했습니다. 새 펌웨어로 재시작합니다.</value></data>
+  <data name="Log.FirmwareFailed" xml:space="preserve"><value>펌웨어 업데이트 실패: {0}</value></data>
+  <data name="Log.NoHid" xml:space="preserve"><value>Windows에 Apple HID 장치가 없습니다. 리모컨이 페어링되지 않았거나 연결되지 않았습니다.</value></data>
+  <data name="Log.HidCount" xml:space="preserve"><value>Apple HID 컬렉션 {0}개:</value></data>
+  <data name="Log.HidGen1" xml:space="preserve"><value>   &lt;- Siri Remote 1세대</value></data>
+  <data name="Log.EnumFailed" xml:space="preserve"><value>장치 열거 실패: {0}</value></data>
+  <data name="Log.BlePaired" xml:space="preserve"><value>페어링 성공: Windows에서 장치를 제공하면 자동으로 연결합니다.</value></data>
+  <data name="Log.DefaultMap" xml:space="preserve"><value>기본 매핑 적용</value></data>
+  <data name="Log.MapExported" xml:space="preserve"><value>매핑 내보냄: {0}</value></data>
+  <data name="Log.MapImported" xml:space="preserve"><value>매핑 가져옴: {0}</value></data>
+  <data name="Driver.Checking" xml:space="preserve"><value>어댑터 드라이버 확인 중…</value></data>
+  <data name="Filter.Installed" xml:space="preserve"><value>Bluetooth 필터(AppleRemoteDriver): 설치됨</value></data>
+  <data name="Filter.NotInstalled" xml:space="preserve"><value>Bluetooth 필터(AppleRemoteDriver): 미설치</value></data>
+  <data name="Driver.Absent" xml:space="preserve"><value>USB Bluetooth 어댑터를 찾을 수 없습니다.</value></data>
+  <data name="Driver.WinUsb" xml:space="preserve"><value>현재 드라이버: WinUSB(직접 Bluetooth 사용 가능, Windows에서 이 어댑터를 사용하지 않음)</value></data>
+  <data name="Driver.Original" xml:space="preserve"><value>현재 드라이버: 원래 드라이버(Windows Bluetooth 스택)</value></data>
+  <data name="Driver.Unknown" xml:space="preserve"><value>어댑터 드라이버: 상태 알 수 없음({0})</value></data>
+  <data name="Driver.DialogTitle" xml:space="preserve"><value>어댑터 드라이버</value></data>
+  <data name="Driver.InstallAsk" xml:space="preserve"><value>Bluetooth 어댑터에 WinUSB를 설치할까요?
+
+원래 드라이버를 복원하기 전까지 Windows에서 해당 어댑터를 사용할 수 없습니다(Bluetooth 마우스·헤드셋 포함). 자체 서명 인증서가 PC의 신뢰할 수 있는 인증 기관에 추가됩니다(Zadig과 유사). 관리자 권한 확인(UAC)이 표시됩니다.</value></data>
+  <data name="Driver.RestoreAsk" xml:space="preserve"><value>Bluetooth 어댑터의 원래 드라이버를 복원할까요?
+
+WinUSB가 제거되고 Windows가 해당 어댑터를 다시 사용합니다(직접 Bluetooth 사용 중지). 관리자 권한 확인(UAC)이 표시됩니다.</value></data>
+  <data name="Driver.FilterInstallAsk" xml:space="preserve"><value>Bluetooth 필터(AppleRemoteDriver)를 어댑터 드라이버에 설치할까요?
+
+실험용 커널 드라이버로 테스트 서명 모드가 필요하며 오류 시 블루스크린이 발생할 수 있습니다. 어댑터는 WinUSB가 아닌 원래 드라이버여야 합니다. 관리자 권한 확인(UAC)이 표시됩니다.</value></data>
+  <data name="Driver.FilterRemoveAsk" xml:space="preserve"><value>어댑터에서 Bluetooth 필터(AppleRemoteDriver)를 제거할까요?
+
+관리자 권한 확인(UAC)이 표시됩니다.</value></data>
+  <data name="Driver.Failed" xml:space="preserve"><value>실패(코드 {0})</value></data>
+  <data name="Driver.ElevationDenied" xml:space="preserve"><value>관리자 권한 상승 거부됨</value></data>
+  <data name="Driver.UnknownVerb" xml:space="preserve"><value>알 수 없는 작업: {0}</value></data>
+  <data name="Status.Stopped" xml:space="preserve"><value>중지됨</value></data>
+  <data name="Status.BtUnavailable" xml:space="preserve"><value>직접 Bluetooth 사용 불가({0}): Windows HID 사용</value></data>
+  <data name="Status.BtError" xml:space="preserve"><value>직접 Bluetooth 오류: {0}</value></data>
+  <data name="Status.WaitHid" xml:space="preserve"><value>리모컨 대기 중: 페어링(Menu + 음량 + 5초)하거나 버튼을 누르세요.</value></data>
+  <data name="Status.Error" xml:space="preserve"><value>오류: {0}</value></data>
+  <data name="Status.CannotOpen" xml:space="preserve"><value>리모컨을 열 수 없습니다(오류 {0}). 다른 프로그램이 사용 중일 수 있습니다.</value></data>
+  <data name="Status.Unreachable" xml:space="preserve"><value>리모컨을 찾았으나 연결 불가(절전 모드?): 버튼을 누르세요(잠금 해제 거부, Windows 오류 {0}).</value></data>
+  <data name="Status.ConnectedHid" xml:space="preserve"><value>연결됨: {0}(잠금 해제 완료)</value></data>
+  <data name="Status.Disconnected" xml:space="preserve"><value>연결 끊김: 버튼을 눌러 깨우세요.</value></data>
+  <data name="Status.WaitBonded" xml:space="preserve"><value>리모컨 대기 중: 버튼을 누르세요.</value></data>
+  <data name="Status.WaitPairing" xml:space="preserve"><value>페어링 모드 리모컨 대기 중: PC 가까이에서 Menu + 음량 + 버튼을 약 5초 누르세요.</value></data>
+  <data name="Status.Found" xml:space="preserve"><value>{1} 경로로 리모컨 발견({0}): 페어링 중…</value></data>
+  <data name="Status.ConnectedDirect" xml:space="preserve"><value>연결됨: Siri Remote(직접 Bluetooth, 잠금 해제됨)</value></data>
+  <data name="Status.ConnectedDongle" xml:space="preserve"><value>연결됨: Siri Remote(ESP32-S3 동글, 잠금 해제됨)</value></data>
+  <data name="Status.WaitDongle" xml:space="preserve"><value>ESP32-S3 동글(USB) 대기 중…</value></data>
+  <data name="Status.DongleIdle" xml:space="preserve"><value>ESP32-S3 동글: 리모컨 없음, 페어링을 클릭하세요.</value></data>
+  <data name="Status.DisconnectedReason" xml:space="preserve"><value>연결 끊김(이유 0x{0:X2}): 버튼을 눌러 깨우세요.</value></data>
+  <data name="Status.KeysRefused" xml:space="preserve"><value>리모컨이 키 입력을 거부했습니다(0x{0:X2}): 다시 페어링 중…</value></data>
+  <data name="Status.PairingFirst" xml:space="preserve"><value>페어링 중…(첫 연결: 리모컨을 페어링 모드로, Menu + 음량 + 약 5초)</value></data>
+  <data name="Status.BatteryUnreadable" xml:space="preserve"><value>배터리 정보를 읽을 수 없습니다: {0}</value></data>
+  <data name="Driver.InstallerMissing" xml:space="preserve"><value>{0}을(를) 찾을 수 없습니다. 앱 옆에 두거나 AppleRemote.DriverInstaller를 빌드하세요.</value></data>
+  <data name="Status.Relocked" xml:space="preserve"><value>리모컨이 다시 활성화되어 잠금 해제했습니다.</value></data>
+  <data name="Language.Ko" xml:space="preserve"><value>한국어</value></data>
+  <data name="A2854.Remote.Title" xml:space="preserve"><value>Siri Remote A2854</value></data>
+  <data name="A2854.Remote.CopyResult" xml:space="preserve"><value>결과 복사</value></data>
+  <data name="A2854.Remote.CopyTimeline" xml:space="preserve"><value>연결 기록 복사</value></data>
+  <data name="A2854.Remote.Bond" xml:space="preserve"><value>외장 Barrot USB · 기존 보호된 연결 정보 사용</value></data>
+  <data name="A2854.Remote.ReconnectHint" xml:space="preserve"><value>HID 연결 이력과 USB 정리 완료 시에만 다시 연결할 수 있습니다. 자동 재시도·페어링은 하지 않습니다.</value></data>
+  <data name="A2854.Mapping.Up" xml:space="preserve"><value>위</value></data>
+  <data name="A2854.Mapping.Left" xml:space="preserve"><value>왼쪽</value></data>
+  <data name="A2854.Mapping.Back" xml:space="preserve"><value>뒤로</value></data>
+  <data name="A2854.Mapping.PlayPause" xml:space="preserve"><value>재생 / 일시정지</value></data>
+  <data name="A2854.Mapping.Mute" xml:space="preserve"><value>음소거</value></data>
+  <data name="A2854.Mapping.Right" xml:space="preserve"><value>오른쪽</value></data>
+  <data name="A2854.Mapping.Center" xml:space="preserve"><value>클릭패드 중앙</value></data>
+  <data name="A2854.Mapping.Down" xml:space="preserve"><value>아래</value></data>
+  <data name="A2854.Mapping.VolUp" xml:space="preserve"><value>음량 +</value></data>
+  <data name="A2854.Mapping.VolDown" xml:space="preserve"><value>음량 −</value></data>
+  <data name="A2854.Mapping.DisplayOnly" xml:space="preserve"><value>TV·Siri·전원은 눌림 상태만 표시하며 키보드 입력은 실행하지 않습니다.</value></data>
+  <data name="A2854.Settings.Title" xml:space="preserve"><value>Siri Remote A2854(USB-C)</value></data>
+  <data name="A2854.Settings.Adapter" xml:space="preserve"><value>전용 Barrot USB 어댑터(33FA:0001)</value></data>
+  <data name="A2854.Settings.SwitchHint" xml:space="preserve"><value>모델을 변경하려면 세션을 먼저 중지하세요. 기존 보호된 연결 정보를 사용하며 자동 페어링하지 않습니다.</value></data>
+  <data name="A2854.Settings.LegacyHint" xml:space="preserve"><value>A2854 모드를 끄면 기존 1세대·ESP32 동작을 유지합니다.</value></data>
+  <data name="A2854.Settings.PointerTitle" xml:space="preserve"><value>A2854 터치패드로 Windows 마우스 조작</value></data>
+  <data name="A2854.Settings.PointerHint" xml:space="preserve"><value>실제 커서 이동·왼쪽 클릭을 선택적으로 활성화합니다. 키보드·미디어 키 설정은 별도입니다.</value></data>
+  <data name="A2854.Settings.UseMeasuredAxes" xml:space="preserve"><value>실측 5점 좌표를 Windows 커서에 적용</value></data>
+  <data name="A2854.Settings.AxesHint" xml:space="preserve"><value>기본값은 꺼짐입니다. 유효한 5점 보정값과 별도 마우스 설정이 필요합니다. 다시 읽으려면 껐다 켜세요.</value></data>
+  <data name="A2854.Settings.Sensitivity" xml:space="preserve"><value>커서 감도</value></data>
+  <data name="A2854.Cal.Title" xml:space="preserve"><value>A2854 터치패드 보정</value></data>
+  <data name="A2854.Cal.Instructions" xml:space="preserve"><value>실제 중앙과 상하좌우 가장자리의 손가락 중심을 지정하세요. 손가락 하나를 고정하고 측정합니다. 기존 유효 보정값은 백업되며 재연결 후에도 이어서 측정할 수 있습니다.</value></data>
+  <data name="A2854.Cal.Capture" xml:space="preserve"><value>기준점 측정</value></data>
+  <data name="A2854.Cal.Copy" xml:space="preserve"><value>측정값 복사</value></data>
+  <data name="A2854.Cal.PreviewOn" xml:space="preserve"><value>보정된 터치 표시 사용 중</value></data>
+  <data name="A2854.Cal.PreviewInfo" xml:space="preserve"><value>유효한 5점 보정값은 표시용 마커에 자동 적용됩니다. 원시 좌표와 비교할 수 있으며 실제 Windows 마우스 입력은 바뀌지 않습니다.</value></data>
+  <data name="A2854.Tooltip.Power" xml:space="preserve"><value>전원</value></data>
+  <data name="A2854.Tooltip.Center" xml:space="preserve"><value>클릭패드 중앙</value></data>
+  <data name="A2854.Tooltip.Up" xml:space="preserve"><value>위</value></data>
+  <data name="A2854.Tooltip.Down" xml:space="preserve"><value>아래</value></data>
+  <data name="A2854.Tooltip.Left" xml:space="preserve"><value>왼쪽</value></data>
+  <data name="A2854.Tooltip.Right" xml:space="preserve"><value>오른쪽</value></data>
+  <data name="A2854.Tooltip.Siri" xml:space="preserve"><value>Siri(측면)</value></data>
+  <data name="A2854.Tooltip.Back" xml:space="preserve"><value>뒤로</value></data>
+  <data name="A2854.Tooltip.TV" xml:space="preserve"><value>TV / 홈</value></data>
+  <data name="A2854.Tooltip.PlayPause" xml:space="preserve"><value>재생 / 일시정지</value></data>
+  <data name="A2854.Tooltip.Mute" xml:space="preserve"><value>음소거</value></data>
+  <data name="A2854.Tooltip.VolUp" xml:space="preserve"><value>음량 높이기</value></data>
+  <data name="A2854.Tooltip.VolDown" xml:space="preserve"><value>음량 낮추기</value></data>
+  <data name="A2854.Preview.CompareRaw" xml:space="preserve"><value>원시 좌표 비교</value></data>
+  <data name="A2854.Preview.UseSaved" xml:space="preserve"><value>저장된 보정값 사용</value></data>
+  <data name="A2854.Preview.NoValid" xml:space="preserve"><value>유효한 5점 보정값이 없어 원시 좌표를 표시합니다.</value></data>
+  <data name="A2854.Preview.Active" xml:space="preserve"><value>실측 보정 적용 중(표시 전용)</value></data>
+  <data name="A2854.Preview.Raw" xml:space="preserve"><value>12비트 원시 좌표 비교 중</value></data>
+  <data name="A2854.Touch.Initial" xml:space="preserve"><value>측정한 기준점 0 / 5개</value></data>
+  <data name="A2854.Touch.None" xml:space="preserve"><value>터치 입력 없음</value></data>
+  <data name="A2854.Link.None" xml:space="preserve"><value>A2854 연결 결과가 없습니다.</value></data>
+  <data name="A2854.Link.Connecting" xml:space="preserve"><value>기존 보호된 연결 정보로 연결 중…</value></data>
+  <data name="A2854.Link.EventsInitial" xml:space="preserve"><value>진단 이벤트 0개</value></data>
+  <data name="A2854.Link.EventsCount" xml:space="preserve"><value>진단 이벤트 {0}개(최대 48개)</value></data>
+  <data name="A2854.Link.Fallback" xml:space="preserve"><value>연결 이벤트(세부 정보 비공개)</value></data>
+  <data name="A2854.Cal.LoadFailed" xml:space="preserve"><value>보정값을 불러오지 못했습니다. 미리보기가 비활성화됐습니다.</value></data>
+  <data name="A2854.Cal.ModeRequired" xml:space="preserve"><value>터치 좌표를 기록하기 전에 A2854 모드를 선택하세요.</value></data>
+  <data name="A2854.Cal.Hold" xml:space="preserve"><value>기준점에 손가락 하나를 0.1초 이상 고정하세요. 움직이거나 뗀 손가락은 측정할 수 없습니다.</value></data>
+  <data name="A2854.Cal.SaveFailed" xml:space="preserve"><value>기준점을 저장하지 못했습니다({0}). 기존 측정값은 유지됩니다.</value></data>
+  <data name="A2854.Cal.CopyFailed" xml:space="preserve"><value>측정값 복사 실패({0}).</value></data>
+  <data name="A2854.Cal.Summary" xml:space="preserve"><value>저장된 기준점 {0} / 5개: {1}{2}</value></data>
+  <data name="A2854.Cal.Missing" xml:space="preserve"><value>(미측정)</value></data>
+  <data name="A2854.Cal.Invalid" xml:space="preserve"><value> — 유효한 보정값이 있어야 적용됩니다.</value></data>
+  <data name="A2854.Cal.Valid" xml:space="preserve"><value> — 보정값 적용 준비 완료.</value></data>
+  <data name="A2854.Cal.ExportTitle" xml:space="preserve"><value>A2854 클릭패드 실측 기준점(부호 있는 X/Y):</value></data>
+  <data name="A2854.Cal.NotCaptured" xml:space="preserve"><value>미측정</value></data>
+  <data name="A2854.Cal.Center" xml:space="preserve"><value>중앙</value></data>
+  <data name="A2854.Cal.Left" xml:space="preserve"><value>왼쪽</value></data>
+  <data name="A2854.Cal.Right" xml:space="preserve"><value>오른쪽</value></data>
+  <data name="A2854.Cal.Top" xml:space="preserve"><value>위쪽</value></data>
+  <data name="A2854.Cal.Bottom" xml:space="preserve"><value>아래쪽</value></data>
+  <data name="A2854.Touch.Live" xml:space="preserve"><value>실시간 0xFC: X={0}, Y={1}</value></data>
+</root>

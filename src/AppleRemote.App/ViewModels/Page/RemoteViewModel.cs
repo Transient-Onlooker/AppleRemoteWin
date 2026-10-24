@@ -54,16 +54,15 @@ public sealed partial class RemoteViewModel : ObservableObject, IDisposable
         "AppleRemote", "A2854-touch-calibration.json");
     public string[] CalibrationTargets { get; } = ["center", "left", "right", "top", "bottom"];
     [ObservableProperty] string _selectedCalibrationTarget = "center";
-    [ObservableProperty] string _touchCalibrationSummary = "0 / 5 reference points collected";
-    [ObservableProperty] string _liveTouchCoordinates = "No active touch";
+    [ObservableProperty] string _touchCalibrationSummary = Loc.T("A2854.Touch.Initial");
+    [ObservableProperty] string _liveTouchCoordinates = Loc.T("A2854.Touch.None");
     [ObservableProperty] bool _touchCalibrationPreviewEnabled;
-    public string TouchPreviewActionText => TouchCalibrationPreviewEnabled
-        ? "Compare raw" : "Use saved calibration";
-    public string TouchDisplayModeText => _calibratedProjection is null
-        ? "No valid five-point profile. Raw display in use."
+    public string TouchPreviewActionText => Loc.T(TouchCalibrationPreviewEnabled
+        ? "A2854.Preview.CompareRaw" : "A2854.Preview.UseSaved");
+    public string TouchDisplayModeText => Loc.T(_calibratedProjection is null
+        ? "A2854.Preview.NoValid"
         : TouchCalibrationPreviewEnabled
-            ? "Measured calibration active (display only)"
-            : "Raw signed-12-bit comparison active";
+            ? "A2854.Preview.Active" : "A2854.Preview.Raw");
     partial void OnTouchCalibrationPreviewEnabledChanged(bool value)
     {
         OnPropertyChanged(nameof(TouchPreviewActionText));
@@ -93,9 +92,9 @@ public sealed partial class RemoteViewModel : ObservableObject, IDisposable
 
     // Generated only from our own status strings; never store peer addresses,
     // raw HCI/ATT frames, cryptographic keys or the protected bond in the UI.
-    [ObservableProperty] string _a2854LastLinkSummary = "No A2854 session result yet.";
+    [ObservableProperty] string _a2854LastLinkSummary = Loc.T("A2854.Link.None");
     readonly A2854SessionTimeline _sessionTimeline = new();
-    [ObservableProperty] string _a2854TimelineCount = "0 diagnostic events";
+    [ObservableProperty] string _a2854TimelineCount = Loc.T("A2854.Link.EventsInitial");
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(StatusTitle))]
     StatusLevel _statusLevel;
@@ -284,7 +283,7 @@ public sealed partial class RemoteViewModel : ObservableObject, IDisposable
         // A preceding model's button/touch highlights must not leak through.
         OnPropertyChanged(nameof(IsA2854Mode));
         BatteryLevel = null;
-        A2854LastLinkSummary = "No A2854 session result yet.";
+        A2854LastLinkSummary = Loc.T("A2854.Link.None");
         StatusText = Loc.T("Status.Stopped");
         StatusLevel = StatusLevel.Idle;
         ShowButtons(0);
@@ -296,7 +295,7 @@ public sealed partial class RemoteViewModel : ObservableObject, IDisposable
         ClearA2854VisualContacts();
         _calibrationWindow.Clear();
         _calibrationFingerDown = false;
-        LiveTouchCoordinates = "No active touch";
+        LiveTouchCoordinates = Loc.T("A2854.Touch.None");
         // Valid saved physical landmarks auto-apply when returning to A2854.
         // Switching to first generation never inherits the A2854 projection.
         TouchCalibrationPreviewEnabled = a2854Mode && _calibratedProjection is not null;
@@ -310,7 +309,16 @@ public sealed partial class RemoteViewModel : ObservableObject, IDisposable
     }
 
     /// <summary>The language changed: texts computed here are re-read.</summary>
-    public void RefreshTexts() => OnPropertyChanged(string.Empty);
+    public void RefreshTexts()
+    {
+        OnPropertyChanged(string.Empty);
+        // Never reset the saved profile or visual preview on language switch.
+        if (_touchReferences.Count > 0)
+            TouchCalibrationSummary = BuildCalibrationSummary();
+        A2854TimelineCount = Loc.T("A2854.Link.EventsCount", _sessionTimeline.Snapshot().Count);
+        if (_sessionTimeline.Snapshot().Count == 0)
+            A2854LastLinkSummary = Loc.T("A2854.Link.None");
+    }
 
     /// <summary>Empties the nearby list (adapters changed, new session): devices seen before are no longer meaningful.</summary>
     public void ClearNearby()
@@ -325,12 +333,12 @@ public sealed partial class RemoteViewModel : ObservableObject, IDisposable
         ClearA2854VisualContacts();
         _calibrationWindow.Clear();
         _calibrationFingerDown = false;
-        LiveTouchCoordinates = "No active touch";
+        LiveTouchCoordinates = Loc.T("A2854.Touch.None");
         if (_session.A2854Mode)
         {
-            A2854LastLinkSummary = "Connecting to remote with existing protected bond…";
+            A2854LastLinkSummary = Loc.T("A2854.Link.Connecting");
             _sessionTimeline.Reset();
-            A2854TimelineCount = "0 diagnostic events";
+            A2854TimelineCount = Loc.T("A2854.Link.EventsInitial");
         }
         ClearNearby();
         _session.Start();
@@ -356,7 +364,7 @@ public sealed partial class RemoteViewModel : ObservableObject, IDisposable
         ClearA2854VisualContacts();
         _calibrationWindow.Clear();
         _calibrationFingerDown = false;
-        LiveTouchCoordinates = "No active touch";
+        LiveTouchCoordinates = Loc.T("A2854.Touch.None");
         RefreshButtons();
     }
 
@@ -428,13 +436,13 @@ public sealed partial class RemoteViewModel : ObservableObject, IDisposable
                 if (!_calibrationFingerDown) _calibrationWindow.Clear();
                 _calibrationFingerDown = true;
                 _calibrationWindow.Add(t.X, t.Y, Environment.TickCount64);
-                LiveTouchCoordinates = $"Live 0xFC: X={t.X}, Y={t.Y}";
+                LiveTouchCoordinates = Loc.T("A2854.Touch.Live", t.X, t.Y);
             }
             else
             {
                 _calibrationFingerDown = false;
                 _calibrationWindow.Clear();
-                LiveTouchCoordinates = "No active touch";
+                LiveTouchCoordinates = Loc.T("A2854.Touch.None");
             }
         }
         if (_session.A2854Mode)
@@ -607,14 +615,14 @@ public sealed partial class RemoteViewModel : ObservableObject, IDisposable
         if (Loc.StartsWith(message, "Status.BatteryUnreadable")) { _log(message); return; }
         StatusText = message;
         if (_session.A2854Mode && _sessionTimeline.Record(message))
-            A2854TimelineCount = $"{_sessionTimeline.Snapshot().Count} diagnostic events (max 48)";
+            A2854TimelineCount = Loc.T("A2854.Link.EventsCount", _sessionTimeline.Snapshot().Count);
         if (_session.A2854Mode && IsA2854OutcomeMessage(message))
         {
             // Copy result and the on-screen outcome use exactly the same
             // allowlisted redaction as Copy timeline. Never cache/export raw
             // callback messages with an untrusted suffix or a device address.
             A2854LastLinkSummary = A2854SessionTimeline.Redact(message)
-                ?? "Connection event (details withheld)";
+                ?? Loc.T("A2854.Link.Fallback");
         }
         bool ok = new[] { "Status.ConnectedHid", "Status.ConnectedDirect", "Status.ConnectedDongle" }.Any(k => Loc.StartsWith(message, k));
         bool warn = new[] { "Status.WaitHid", "Status.WaitBonded", "Status.WaitPairing", "Status.Unreachable", "Status.Disconnected", "Status.DisconnectedReason", "Status.WaitDongle", "Status.DongleIdle" }
@@ -654,7 +662,7 @@ public sealed partial class RemoteViewModel : ObservableObject, IDisposable
         }
         catch (Exception)
         {
-            TouchCalibrationSummary = "Could not load calibration points; no preview applied.";
+            TouchCalibrationSummary = Loc.T("A2854.Cal.LoadFailed");
         }
     }
 
@@ -662,17 +670,32 @@ public sealed partial class RemoteViewModel : ObservableObject, IDisposable
     {
         _calibratedProjection = A2854TouchCalibration.TryCreate(
             _touchReferences, out var calibrated) ? calibrated : null;
-        TouchCalibrationSummary =
-            $"Saved {_touchReferences.Count} / 5 references: " +
-            string.Join(", ", CalibrationTargets.Select(name =>
-                _touchReferences.TryGetValue(name, out var point)
-                    ? $"{name} ({point.X}, {point.Y})" : $"{name} (—)")) +
-            (_calibratedProjection is null ? " — preview unavailable until valid." :
-                " — ready for optional visual preview.");
+        TouchCalibrationSummary = BuildCalibrationSummary();
         // A complete valid user-measured profile is the display default.
         // The Toggle preview control still allows a temporary comparison with
         // the original raw signed-12-bit fallback, but never affects SendInput.
         TouchCalibrationPreviewEnabled = _session.A2854Mode && _calibratedProjection is not null;
+    }
+
+    string BuildCalibrationSummary()
+    {
+        string landmarks = string.Join(", ", CalibrationTargets.Select(name =>
+        {
+            string label = Loc.T(name switch
+            {
+                "center" => "A2854.Cal.Center",
+                "left" => "A2854.Cal.Left",
+                "right" => "A2854.Cal.Right",
+                "top" => "A2854.Cal.Top",
+                _ => "A2854.Cal.Bottom"
+            });
+            return _touchReferences.TryGetValue(name, out var point)
+                ? $"{label} ({point.X}, {point.Y})"
+                : $"{label} {Loc.T("A2854.Cal.Missing")}";
+        }));
+        return Loc.T("A2854.Cal.Summary", _touchReferences.Count, landmarks,
+            Loc.T(_calibratedProjection is null
+                ? "A2854.Cal.Invalid" : "A2854.Cal.Valid"));
     }
 
     [RelayCommand]
@@ -680,15 +703,13 @@ public sealed partial class RemoteViewModel : ObservableObject, IDisposable
     {
         if (!_session.A2854Mode)
         {
-            TouchCalibrationSummary = "Select A2854 mode before recording touch geometry.";
+            TouchCalibrationSummary = Loc.T("A2854.Cal.ModeRequired");
             return;
         }
         if (!_calibrationFingerDown ||
             !_calibrationWindow.TryReadStable(Environment.TickCount64, out var point))
         {
-            TouchCalibrationSummary =
-                "Keep one finger on the chosen landmark, steady for at least 0.1 s; " +
-                "moving or released touches are not captured.";
+            TouchCalibrationSummary = Loc.T("A2854.Cal.Hold");
             return;
         }
         if (!CalibrationTargets.Contains(SelectedCalibrationTarget)) return;
@@ -705,7 +726,7 @@ public sealed partial class RemoteViewModel : ObservableObject, IDisposable
         }
         catch (Exception e)
         {
-            TouchCalibrationSummary = $"Could not save reference ({e.GetType().Name}); previous points preserved.";
+            TouchCalibrationSummary = Loc.T("A2854.Cal.SaveFailed", e.GetType().Name);
         }
     }
 
@@ -739,17 +760,17 @@ public sealed partial class RemoteViewModel : ObservableObject, IDisposable
     {
         try
         {
-            string formatted = "A2854 measured clickpad landmarks (signed X/Y):" +
+            string formatted = Loc.T("A2854.Cal.ExportTitle") +
                 Environment.NewLine +
                 string.Join(Environment.NewLine, CalibrationTargets.Select(name =>
                     _touchReferences.TryGetValue(name, out var p)
-                        ? $"{name}: X={p.X}, Y={p.Y}" : $"{name}: not captured"));
+                        ? $"{name}: X={p.X}, Y={p.Y}" : $"{name}: {Loc.T("A2854.Cal.NotCaptured")}"));
             Clipboard.SetText(formatted);
         }
         catch (Exception e)
         {
             TouchCalibrationSummary =
-                $"Could not copy touch landmarks ({e.GetType().Name}).";
+                Loc.T("A2854.Cal.CopyFailed", e.GetType().Name);
         }
     }
 
@@ -769,7 +790,7 @@ public sealed partial class RemoteViewModel : ObservableObject, IDisposable
         _wasDown = false;
         _calibrationWindow.Clear();
         _calibrationFingerDown = false;
-        LiveTouchCoordinates = "No active touch";
+        LiveTouchCoordinates = Loc.T("A2854.Touch.None");
     }
 
     // ---- commands -----------------------------------------------------------------------
