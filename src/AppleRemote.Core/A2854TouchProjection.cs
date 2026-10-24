@@ -13,11 +13,13 @@ public static class A2854TouchProjection
 {
     public const double PadSize = 360;
     public const double DotSize = 30;
-    // The WPF ellipse clips at radius 165 px (center 180). Its 30 px
-    // contact marker must fit fully inside that clip, not just its center.
-    // The display space is 360 x 360; usable center radius is 165 - 15.
-    public const double VisualClipRadius = 165;
-    public const double ContactCenterRadius = VisualClipRadius - DotSize / 2;
+    // The WPF clickpad clip is radius 163 DIP, not the old 165 DIP.
+    // Its 30-DIP contact markers need another 1-DIP safety margin.
+    public const double VisualClipRadius = 163;
+    // Extra pixel for anti-aliasing beyond the marker's 15-DIP radius.
+    public const double MarkerEdgeSafetyGap = 1;
+    public const double ContactCenterRadius =
+        VisualClipRadius - DotSize / 2 - MarkerEdgeSafetyGap;
     const int Min = -2048, Max = 2047;
 
     public static (double X, double Y) Map(int x, int y)

@@ -29,10 +29,10 @@ public sealed class A2854TouchCalibrationTests
     {
         Assert.True(A2854TouchCalibration.TryCreate(Samples, out var profile));
         var p = profile!;
-        Assert.Equal(30, p.Map(-1750, -410).X, 6);
-        Assert.Equal(330, p.Map(240, -410).X, 6);
-        Assert.Equal(30, p.Map(-730, 780).Y, 6);
-        Assert.Equal(330, p.Map(-730, -1020).Y, 6);
+        Assert.Equal(33, p.Map(-1750, -410).X, 6);
+        Assert.Equal(327, p.Map(240, -410).X, 6);
+        Assert.Equal(33, p.Map(-730, 780).Y, 6);
+        Assert.Equal(327, p.Map(-730, -1020).Y, 6);
     }
 
     [Fact]
@@ -47,10 +47,10 @@ public sealed class A2854TouchCalibrationTests
             ["bottom"] = new(300, 1300),
         };
         Assert.True(A2854TouchCalibration.TryCreate(inverted, out var model));
-        Assert.Equal(30, model!.Map(1200, 250).X, 6);
-        Assert.Equal(330, model.Map(-900, 250).X, 6);
-        Assert.Equal(30, model.Map(300, -700).Y, 6);
-        Assert.Equal(330, model.Map(300, 1300).Y, 6);
+        Assert.Equal(33, model!.Map(1200, 250).X, 6);
+        Assert.Equal(327, model.Map(-900, 250).X, 6);
+        Assert.Equal(33, model.Map(300, -700).Y, 6);
+        Assert.Equal(327, model.Map(300, 1300).Y, 6);
     }
 
     [Fact]
@@ -62,7 +62,30 @@ public sealed class A2854TouchCalibrationTests
             var v = profile!.Map(pt.Item1, pt.Item2);
             var dx = v.X - 180;
             var dy = v.Y - 180;
-            Assert.True(Math.Sqrt(dx * dx + dy * dy) <= 150.000001);
+            Assert.True(Math.Sqrt(dx * dx + dy * dy) <= A2854TouchProjection.ContactCenterRadius + 1e-6);
+        }
+    }
+
+    [Fact]
+    public void User_measured_cardinal_and_diagonal_contacts_fit_inside_actual_WPF_clip()
+    {
+        Assert.True(A2854TouchCalibration.TryCreate(Samples, out var profile));
+        var candidates = new[] {
+            Samples["center"], Samples["left"], Samples["right"],
+            Samples["top"], Samples["bottom"],
+            new A2854TouchReference(-2048, -2048),
+            new A2854TouchReference(2047, 2047)
+        };
+        foreach (var contact in candidates)
+        {
+            var projected = profile!.Map(contact.X, contact.Y);
+            double dx = projected.X - A2854TouchProjection.PadSize / 2;
+            double dy = projected.Y - A2854TouchProjection.PadSize / 2;
+            double markerOuterEdge = Math.Sqrt(dx * dx + dy * dy)
+                + A2854TouchProjection.DotSize / 2;
+            Assert.True(markerOuterEdge +
+                A2854TouchProjection.MarkerEdgeSafetyGap <=
+                A2854TouchProjection.VisualClipRadius + 1e-6);
         }
     }
 

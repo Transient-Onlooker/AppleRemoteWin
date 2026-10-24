@@ -17,8 +17,24 @@ public sealed class A2854TouchProjectionTests
     [Fact]
     public void Contact_center_radius_accounts_for_the_visible_dot()
     {
-        Assert.Equal(150, A2854TouchProjection.ContactCenterRadius);
-        Assert.Equal(165, A2854TouchProjection.VisualClipRadius);
+        Assert.Equal(147, A2854TouchProjection.ContactCenterRadius);
+        Assert.Equal(163, A2854TouchProjection.VisualClipRadius);
+        Assert.Equal(1, A2854TouchProjection.MarkerEdgeSafetyGap);
+    }
+
+    [Theory]
+    [InlineData(-2048, 0)]
+    [InlineData(2047, 0)]
+    [InlineData(0, -2048)]
+    [InlineData(0, 2047)]
+    public void Cardinal_extrema_retain_one_DIP_antialias_gap(int x, int y)
+    {
+        var p = A2854TouchProjection.Map(x, y);
+        var dx = p.X - 180;
+        var dy = p.Y - 180;
+        var drawnEdge = Math.Sqrt(dx * dx + dy * dy) + A2854TouchProjection.DotSize / 2;
+        Assert.True(drawnEdge <= A2854TouchProjection.VisualClipRadius
+            - A2854TouchProjection.MarkerEdgeSafetyGap + 1e-6);
     }
 
     [Fact]
@@ -59,7 +75,8 @@ public sealed class A2854TouchProjectionTests
         Assert.True(dx * dx + dy * dy <= radius * radius + 1e-6);
         // The entire drawn 30px contact disk must stay inside the WPF clip.
         Assert.True(Math.Sqrt(dx * dx + dy * dy) +
-                    A2854TouchProjection.DotSize / 2 <=
+                    A2854TouchProjection.DotSize / 2 +
+                    A2854TouchProjection.MarkerEdgeSafetyGap <=
                     A2854TouchProjection.VisualClipRadius + 1e-6);
         Assert.InRange(p.X, 0, A2854TouchProjection.PadSize);
         Assert.InRange(p.Y, 0, A2854TouchProjection.PadSize);

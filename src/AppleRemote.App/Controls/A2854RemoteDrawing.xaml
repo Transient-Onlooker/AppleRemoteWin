@@ -238,22 +238,32 @@
             <Border Canvas.Left="36" Canvas.Top="624" Width="128" Height="128"
                     CornerRadius="64" Tag="{Binding PlayPressed}"
                     Style="{StaticResource A2854Button}" ToolTip="Play / Pause">
-                <Canvas Width="60" Height="56" HorizontalAlignment="Center" VerticalAlignment="Center">
-                    <Path Data="M 6,9 L 6,47 L 37,28 Z"
-                          Stroke="#EDEFF1" Fill="Transparent" StrokeThickness="3.2"
+                <!-- Match the smaller compact play/pause mark in the photo: keep
+                     the entire glyph centered without oversized tall bars. -->
+                <Canvas Width="46" Height="46" HorizontalAlignment="Center" VerticalAlignment="Center">
+                    <Path Data="M 4,10 L 4,36 L 24,23 Z"
+                          Stroke="#F0F0F0" Fill="Transparent" StrokeThickness="2.8"
                           StrokeLineJoin="Round" />
-                    <Rectangle Canvas.Left="44" Canvas.Top="12" Width="4" Height="32" Fill="#EDEFF1" RadiusX="1" />
-                    <Rectangle Canvas.Left="53" Canvas.Top="12" Width="4" Height="32" Fill="#EDEFF1" RadiusX="1" />
+                    <Rectangle Canvas.Left="31" Canvas.Top="11" Width="3" Height="24"
+                               Fill="#F0F0F0" RadiusX="0.7" />
+                    <Rectangle Canvas.Left="39" Canvas.Top="11" Width="3" Height="24"
+                               Fill="#F0F0F0" RadiusX="0.7" />
                 </Canvas>
             </Border>
             <Border Canvas.Left="36" Canvas.Top="778" Width="128" Height="128"
                     CornerRadius="64" Tag="{Binding MutePressed}"
                     Style="{StaticResource A2854Button}" ToolTip="Mute">
+                <!-- Speaker and diagonal slash must overlap as on the physical
+                     mute key, rather than a separate slash to its right. -->
                 <Grid Width="54" Height="54" HorizontalAlignment="Center"
                       VerticalAlignment="Center">
-                    <Path Stroke="#EDEFF1" StrokeThickness="3.0"
-                          StrokeLineJoin="Round" StrokeStartLineCap="Round" StrokeEndLineCap="Round"
-                          Data="M 8,23 L 17,23 L 28,14 L 28,40 L 17,31 L 8,31 Z M 36,18 L 46,38" />
+                    <Path Data="M 8,23 L 18,23 L 29,14 L 29,40 L 18,31 L 8,31 Z"
+                          Stroke="#F0F0F0" StrokeThickness="2.8"
+                          StrokeLineJoin="Round" StrokeStartLineCap="Round"
+                          StrokeEndLineCap="Round" Fill="Transparent" />
+                    <Path Data="M 12,10 L 43,44" Stroke="#F0F0F0"
+                          StrokeThickness="3.0" StrokeStartLineCap="Round"
+                          StrokeEndLineCap="Round" />
                 </Grid>
             </Border>
 

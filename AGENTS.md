@@ -21,6 +21,8 @@ Repository: `Transient-Onlooker/AppleRemoteWin`. Working branch: `feat/a2854-sup
 
 ### Current validated baseline and next gate
 
+- **2026-10-24 UI QA @ `a3bbc4b`:** 346/346 PASS, clean Release build, 13 press states and two-finger/fading trails/legacy UI render confirmed. Follow-up UI source repairs **2-DIP marker crop** (163-DIP clip, 147-DIP center max with 1-DIP buffer), **1024px Settings right-pane cutoff** (stacked at page width <1160 DIP), and mute/play icon placement. 5 new boundary checks. **This follow-up awaits independent Windows build/offscreen rendering QA; no BLE change.**
+
 - **2026-10-24 independent QA @ `71733be`:** Release 0 errors/warnings, **342/342** tests, external mock **98/98**, Reconnect blocked after failed encrypted HID and redaction verified. One physical connect failed encrypt opcode `0x2019` status `0x3E` after LE establishment (~0.17s); unrelated 70s successful link at earlier `dd06b2f` does not prove every reconnect works. User's local files, bond and five-point calibration unchanged.
 - **New photo-guided A2854 skin (requires new Windows QA):** user's screenshot material and physical proportions mirrored in WPF vector: 360×1410 aluminum body with light-to-gray diffuse gradient, dark soft radial matte keys/one-ring clickpad, true round hardware keys at corrected y positions and lower blank metal, power/side buttons; separate battery status in card. Finger trails now smoothly fade for 1s after lift (four pure theory checks), while markers still hide immediately. No BLE, USB, pointer, keymap, DPAPI changes.
 

@@ -54,12 +54,21 @@
         <RowDefinition Height="*" />
         <RowDefinition Height="Auto" />
     </Grid.RowDefinitions>
-    <Grid Margin="18,6,18,18">
+    <!-- At narrow widths move the mapping diagram above settings rather than
+         leaving the right pane clipped off-screen. The outer viewer scrolls
+         vertically; horizontal scroll is a fallback for tiny windows. -->
+    <ScrollViewer Grid.Row="0" VerticalScrollBarVisibility="Auto"
+                  HorizontalScrollBarVisibility="Auto">
+    <Grid x:Name="ResponsiveSettingsGrid" Margin="18,6,18,18">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="Auto" />
             <ColumnDefinition Width="*" />
         </Grid.ColumnDefinitions>
-        <StackPanel Grid.Column="0" Margin="0,0,32,0">
+        <StackPanel x:Name="RemoteMappingPanel" Grid.Column="0" Margin="0,0,32,0">
         <TextBlock Text="{l:T Settings.RemoteKeys}" Style="{StaticResource Section}" />
         <!-- Gen-1 mapping diagram stays identical, shown only for gen-1. -->
         <Grid Width="690" Height="500" HorizontalAlignment="Center" Margin="0,0,0,14">
@@ -174,7 +183,8 @@
                        Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
         </Grid>
         </StackPanel>
-        <ScrollViewer Grid.Column="1" VerticalScrollBarVisibility="Auto"
+        <ScrollViewer x:Name="RightSettingsScroller" Grid.Column="1"
+                      VerticalScrollBarVisibility="Disabled"
                       HorizontalScrollBarVisibility="Disabled">
         <StackPanel MinWidth="340" Margin="0,0,6,0">
         <StackPanel.Resources>
@@ -246,14 +256,14 @@
                 <ComboBox ItemsSource="{Binding CalibrationTargets}"
                           SelectedItem="{Binding SelectedCalibrationTarget, Mode=TwoWay}"
                           Margin="0,0,0,8" />
-                <StackPanel Orientation="Horizontal">
+                <WrapPanel>
                     <ui:Button Content="Capture point" Command="{Binding CaptureCalibrationPointCommand}"
                                Margin="0,0,8,8" />
                     <ui:Button Content="{Binding TouchPreviewActionText}" Command="{Binding ToggleTouchCalibrationPreviewCommand}"
                                Margin="0,0,8,8" />
                     <ui:Button Content="Copy points" Command="{Binding CopyTouchCalibrationPointsCommand}"
                                Margin="0,0,0,8" />
-                </StackPanel>
+                </WrapPanel>
                 <TextBlock Text="{Binding TouchDisplayModeText}" FontWeight="SemiBold"
                            FontSize="12" TextWrapping="Wrap" Margin="0,0,0,6"
                            Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
@@ -384,11 +394,12 @@
         </StackPanel>
         </ScrollViewer>
     </Grid>
+    </ScrollViewer>
 
     <!-- Footer banner: build, repository, license -->
     <Border Grid.Row="1" Padding="18,8" Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
             BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}" BorderThickness="0,1,0,0">
-        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" TextElement.Foreground="{DynamicResource TextFillColorSecondaryBrush}">
+        <WrapPanel HorizontalAlignment="Center" TextElement.Foreground="{DynamicResource TextFillColorSecondaryBrush}">
             <TextBlock VerticalAlignment="Center"><Run Text="{l:T Settings.Version}" /> <Run Text="{Binding AppVersion, Mode=OneWay}" /></TextBlock>
             <TextBlock Text="·" Margin="12,0" VerticalAlignment="Center" />
             <ui:HyperlinkButton Content="github.com/Transient-Onlooker/AppleRemoteWin" NavigateUri="https://github.com/Transient-Onlooker/AppleRemoteWin" Padding="0" />
@@ -396,7 +407,7 @@
             <TextBlock VerticalAlignment="Center"><Run Text="{l:T Settings.License}" /> AGPL-3.0-or-later</TextBlock>
             <TextBlock Text="·" Margin="12,0" VerticalAlignment="Center" />
             <ui:HyperlinkButton Content="{l:T Settings.Components}" Command="{Binding ShowComponentsCommand}" Padding="0" />
-        </StackPanel>
+        </WrapPanel>
     </Border>
     </Grid>
 </Page>
