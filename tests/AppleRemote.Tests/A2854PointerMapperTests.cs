@@ -115,6 +115,36 @@ public sealed class A2854PointerMapperTests
     }
 
     [Fact]
+    public void Diagonal_swipe_above_radial_threshold_ignores_pressure_spike()
+    {
+        var sink = new FakePointer();
+        var pointer = new A2854PointerMapper(sink, 0.2);
+        pointer.OnEvent(TouchWithPressure(0, 0, 9));
+        pointer.OnEvent(TouchWithPressure(70, 70, 50)); // diagonal distance > 90
+        Assert.Equal((14, -14), Assert.Single(sink.Moves));
+        pointer.OnEvent(TouchWithPressure(140, 140, 49));
+        Assert.Equal(2, sink.Moves.Count); // no hidden pressure guard from first swipe
+        Assert.Equal((14, -14), sink.Moves[^1]);
+        Assert.Empty(sink.Clicks);
+    }
+
+    [Fact]
+    public void Deliberate_diagonal_swipe_cancels_prior_pressure_guard()
+    {
+        var sink = new FakePointer();
+        var pointer = new A2854PointerMapper(sink, 0.2);
+        pointer.OnEvent(TouchWithPressure(0, 0, 9));
+        pointer.OnEvent(TouchWithPressure(15, 15, 40)); // short spike: suppressed
+        Assert.Empty(sink.Moves);
+        pointer.OnEvent(TouchWithPressure(85, 85, 39)); // diagonal distance > 90
+        Assert.Equal((14, -14), Assert.Single(sink.Moves));
+        pointer.OnEvent(TouchWithPressure(100, 100, 38));
+        Assert.Equal((3, -3), sink.Moves[^1]); // guard has been cancelled
+        Assert.Equal(2, sink.Moves.Count);
+        Assert.Empty(sink.Clicks);
+    }
+
+    [Fact]
     public void Rejected_mouse_down_does_not_freeze_normal_pointer_input()
     {
         var sink = new FakePointer { FailedPresses = 1 };

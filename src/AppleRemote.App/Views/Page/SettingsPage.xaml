@@ -185,9 +185,9 @@
                        Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
         </Grid>
         </StackPanel>
-        <ScrollViewer x:Name="RightSettingsScroller" Grid.Column="1"
-                      VerticalScrollBarVisibility="Disabled"
-                      HorizontalScrollBarVisibility="Disabled">
+        <!-- Only SettingsViewport owns scrolling; a nested disabled viewer
+             can consume mouse-wheel input over the settings controls. -->
+        <Grid x:Name="RightSettingsPanel" Grid.Column="1">
         <StackPanel MinWidth="340" Margin="0,0,6,0"
                     TextElement.Foreground="#ECF1F7">
         <StackPanel.Resources>
@@ -412,7 +412,7 @@
             </StackPanel>
         </ui:CardExpander>
         </StackPanel>
-        </ScrollViewer>
+        </Grid>
     </Grid>
     </ScrollViewer>
 

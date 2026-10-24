@@ -249,6 +249,10 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
         _session.A2854PointerUseCalibration = _a2854PointerUseCalibration;
         _session.A2854PointerEnabled = _a2854PointerEnabled;
         _session.AdapterId = _settings.Adapter;
+        // The remote VM loaded the saved five-point profile before we restored
+        // the persisted model. Synchronize the visual projection for cold start.
+        // This is passive: no BLE Start or Windows pointer injection.
+        Remote.OnRemoteModeChanged(_a2854Mode);
         _ = RefreshDriver();
     }
 

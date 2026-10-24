@@ -135,18 +135,20 @@ public sealed class A2854PointerMapper(IRelativePointerSink sink, double sensiti
                 return; // never move on first touch
             }
 
-            bool pressureRising = !_held && pressure.HasValue &&
-                _previousPressure.HasValue &&
-                pressure.Value - _previousPressure.Value >= PressureSpikeDelta &&
-                // A deliberate swipe must never be paused solely because the
-                // empirical contact value varies with finger area or angle.
-                Math.Abs(touch.X - _previousX) < ClickDragDistance &&
-                Math.Abs(touch.Y - _previousY) < ClickDragDistance;
-            _previousPressure = pressure;
-            if (pressureRising) _pressureGuardRemaining = PressureGuardFrames;
-
             int previousX = _previousX, previousY = _previousY;
             int dx = touch.X - previousX, dy = touch.Y - previousY;
+            // Use radial travel, not per-axis limits: a 70/70 diagonal is
+            // already a deliberate ~99-unit swipe. A new deliberate move also
+            // cancels a preceding pressure spike's remaining suppression.
+            bool deliberateMove = (long)dx * dx + (long)dy * dy >=
+                (long)ClickDragDistance * ClickDragDistance;
+            bool pressureRising = !_held && !deliberateMove && pressure.HasValue &&
+                _previousPressure.HasValue &&
+                pressure.Value - _previousPressure.Value >= PressureSpikeDelta;
+            _previousPressure = pressure;
+            if (deliberateMove) _pressureGuardRemaining = 0;
+            else if (pressureRising) _pressureGuardRemaining = PressureGuardFrames;
+
             _previousX = touch.X;
             _previousY = touch.Y;
             if (Math.Abs(dx) > JumpThreshold || Math.Abs(dy) > JumpThreshold)

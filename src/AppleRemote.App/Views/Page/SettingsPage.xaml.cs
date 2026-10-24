@@ -49,8 +49,8 @@ public partial class SettingsPage
                 new GridLength(1, GridUnitType.Star);
             ResponsiveSettingsGrid.ColumnDefinitions[1].Width =
                 new GridLength(0);
-            Grid.SetColumn(RightSettingsScroller, 0);
-            Grid.SetRow(RightSettingsScroller, 1);
+            Grid.SetColumn(RightSettingsPanel, 0);
+            Grid.SetRow(RightSettingsPanel, 1);
             RemoteMappingPanel.Margin = new Thickness(0, 0, 0, 18);
         }
         else
@@ -58,8 +58,8 @@ public partial class SettingsPage
             ResponsiveSettingsGrid.ColumnDefinitions[0].Width = GridLength.Auto;
             ResponsiveSettingsGrid.ColumnDefinitions[1].Width =
                 new GridLength(1, GridUnitType.Star);
-            Grid.SetColumn(RightSettingsScroller, 1);
-            Grid.SetRow(RightSettingsScroller, 0);
+            Grid.SetColumn(RightSettingsPanel, 1);
+            Grid.SetRow(RightSettingsPanel, 0);
             RemoteMappingPanel.Margin = new Thickness(0, 0, 32, 0);
         }
     }
