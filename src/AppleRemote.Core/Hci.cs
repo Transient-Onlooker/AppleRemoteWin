@@ -63,7 +63,7 @@ public sealed class HciException(ushort opcode, byte status,
 {
     public ushort Opcode { get; } = opcode;
     public byte Status { get; } = status;
-    public HciFailureSource Source { get; } = source;
+    public HciFailureSource FailureSource { get; } = source;
 }
 
 /// <summary>
@@ -92,7 +92,21 @@ public sealed class HciHost(Action<byte[]> sendCommand, Action<byte[]> sendAcl)
     /// Sends a command and awaits its response. Command Complete: returns the return parameters (status first).
     /// Command Status: returns an empty array, the rest arrives through <see cref="Event"/>. Non-zero status: <see cref="HciException"/>.
     /// </summary>
-    public async Task<byte[]> CommandAsync(ushort opcode, params byte[] parameters)
+    public Task<byte[]> CommandAsync(ushort opcode, params byte[] parameters) =>
+        CommandCoreAsync(opcode, parameters, null, null);
+
+    /// <summary>
+    /// Gate a command at the *actual* transport send boundary. The predicate
+    /// and the controller send share a lock with the link-disconnect handler;
+    /// a disconnected link cannot be dispatched later from the HCI queue.
+    /// Ordinary commands and legacy remote paths remain unchanged.
+    /// </summary>
+    public Task<byte[]> CommandIfAsync(ushort opcode, object synchronization,
+        Func<bool> maySend, params byte[] parameters) =>
+        CommandCoreAsync(opcode, parameters, synchronization, maySend);
+
+    async Task<byte[]> CommandCoreAsync(ushort opcode, byte[] parameters,
+        object? synchronization, Func<bool>? maySend)
     {
         if (parameters.Length > 255) throw new ArgumentException("HCI parameters limited to 255 bytes.", nameof(parameters));
         await _commandGate.WaitAsync();
@@ -100,7 +114,17 @@ public sealed class HciHost(Action<byte[]> sendCommand, Action<byte[]> sendAcl)
         {
             var done = new TaskCompletionSource<byte[]>(TaskCreationOptions.RunContinuationsAsynchronously);
             _pending = (opcode, done);
-            sendCommand([(byte)opcode, (byte)(opcode >> 8), (byte)parameters.Length, .. parameters]);
+            byte[] packet = [(byte)opcode, (byte)(opcode >> 8), (byte)parameters.Length, .. parameters];
+            if (synchronization is not null)
+            {
+                lock (synchronization)
+                {
+                    if (maySend is not null && !maySend())
+                        throw new InvalidOperationException("LE link closed before HCI command dispatch.");
+                    sendCommand(packet);
+                }
+            }
+            else sendCommand(packet);
             return await done.Task.WaitAsync(CommandTimeout);
         }
         finally

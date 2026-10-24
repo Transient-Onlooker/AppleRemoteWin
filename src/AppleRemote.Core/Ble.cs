@@ -82,6 +82,8 @@ public sealed class LeCentral
     public const ushort CidAtt = 0x0004, CidSignaling = 0x0005, CidSmp = 0x0006;
 
     readonly HciHost _hci;
+    readonly object _connectionGate = new();
+    readonly HashSet<ushort> _liveHandles = new();
     readonly bool _respondToSignaling;
     readonly List<byte> _rx = new();   // trame L2CAP en cours de reconstitution
     TaskCompletionSource<ushort>? _connecting;
@@ -288,16 +290,33 @@ public sealed class LeCentral
         }
     }
 
-    /// <summary>Encrypts the link with the pairing LTK; fails if the remote no longer recognises it.</summary>
-    public async Task EncryptAsync(ushort handle, BondKeys keys, CancellationToken cancellationToken = default)
+    /// <summary>Original gen-1 encryption flow. Protocol and behavior unchanged.</summary>
+    public Task EncryptAsync(ushort handle, BondKeys keys, CancellationToken cancellationToken = default) =>
+        EncryptCoreAsync(handle, keys, requireActiveLink: false, cancellationToken);
+
+    /// <summary>
+    /// A2854-safe encryption: check liveness atomically with HCI dispatch,
+    /// even if CommandAsync was queued behind another controller command.
+    /// </summary>
+    public Task EncryptIfConnectedAsync(ushort handle, BondKeys keys, CancellationToken cancellationToken = default) =>
+        EncryptCoreAsync(handle, keys, requireActiveLink: true, cancellationToken);
+
+    async Task EncryptCoreAsync(ushort handle, BondKeys keys, bool requireActiveLink,
+        CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
         var encrypting = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         _encrypting = (handle, encrypting);
         try
         {
-            await _hci.CommandAsync(HciOpcode.LeEnableEncryption,
-                [(byte)handle, (byte)(handle >> 8), .. keys.Rand, (byte)keys.Ediv, (byte)(keys.Ediv >> 8), .. keys.Ltk]);
+            byte[] parameters =
+                [(byte)handle, (byte)(handle >> 8), .. keys.Rand, (byte)keys.Ediv, (byte)(keys.Ediv >> 8), .. keys.Ltk];
+            if (requireActiveLink)
+                await _hci.CommandIfAsync(HciOpcode.LeEnableEncryption, _connectionGate,
+                    () => _liveHandles.Contains(handle) && !cancellationToken.IsCancellationRequested,
+                    parameters);
+            else
+                await _hci.CommandAsync(HciOpcode.LeEnableEncryption, parameters);
             await encrypting.Task.WaitAsync(TimeSpan.FromSeconds(10), cancellationToken);
         }
         finally
@@ -438,9 +457,11 @@ public sealed class LeCentral
                 else encryption.Done.TrySetResult();
                 break;
             case EvtDisconnectionComplete when p.Length >= 4 && p[0] == 0:
-                if (_encrypting is { } pendingEncryption && pendingEncryption.Handle == (ushort)(p[1] | p[2] << 8))
+                ushort endedHandle = (ushort)(p[1] | p[2] << 8);
+                lock (_connectionGate) _liveHandles.Remove(endedHandle);
+                if (_encrypting is { } pendingEncryption && pendingEncryption.Handle == endedHandle)
                     pendingEncryption.Done.TrySetException(new InvalidOperationException($"Disconnected during encryption (reason 0x{p[3]:X2})."));
-                Disconnected?.Invoke((ushort)(p[1] | p[2] << 8), p[3]);
+                Disconnected?.Invoke(endedHandle, p[3]);
                 break;
         }
     }
@@ -468,6 +489,7 @@ public sealed class LeCentral
         }
 
         ushort handle = (ushort)(p[2] | p[3] << 8);
+        lock (_connectionGate) _liveHandles.Add(handle);
         // Initial LE Connection Complete contains the controller-accepted
         // interval, latency and supervision timeout. Preserve these numerical
         // timings without logging the peer address, RPA or encryption data.

@@ -45,7 +45,7 @@ public class HciTests
         _host.ReceiveEventBytes(new byte[] { 0x0F, 0x04, 0x12, 0x01, 0x03, 0x0C });    // Command Status, 0x12
         var e = await Assert.ThrowsAsync<HciException>(() => pending);
         Assert.Equal(0x12, e.Status);
-        Assert.Equal(HciFailureSource.CommandStatus, e.Source);
+        Assert.Equal(HciFailureSource.CommandStatus, e.FailureSource);
     }
 
     [Fact]
@@ -54,7 +54,7 @@ public class HciTests
         var command = _host.CommandAsync(HciOpcode.Reset);
         _host.ReceiveEventBytes([0x0E, 0x04, 0x01, 0x03, 0x0C, 0x3E]);
         var error = await Assert.ThrowsAsync<HciException>(() => command);
-        Assert.Equal(HciFailureSource.CommandComplete, error.Source);
+        Assert.Equal(HciFailureSource.CommandComplete, error.FailureSource);
         Assert.Equal(0x3E, error.Status);
     }
 

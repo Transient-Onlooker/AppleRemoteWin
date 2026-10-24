@@ -141,7 +141,7 @@ public sealed class A2854RemoteBle(
             {
                 encryptWindow.CancelAfter(TimeSpan.FromSeconds(12));
                 phase = "encrypt";
-                await central.EncryptAsync(handle.Value, saved.Value.Keys, encryptWindow.Token);
+                await central.EncryptIfConnectedAsync(handle.Value, saved.Value.Keys, encryptWindow.Token);
             }
             cancellationToken.ThrowIfCancellationRequested();
             Volatile.Write(ref encryptionCompleted, 1);
@@ -234,7 +234,7 @@ public sealed class A2854RemoteBle(
             // Distinguish controller Command Status/Complete rejection from
             // Encryption Change failure. All fields are fixed enum values;
             // do not expose any peer address, LTK or raw HCI payload.
-            onStatus($"A2854: HCI failure source={e.Source}.");
+            onStatus($"A2854: HCI failure source={e.FailureSource}.");
             onStatus(Loc.T("Status.Unreachable"));
             onStatus($"A2854: HCI error phase={phase} opcode=0x{e.Opcode:X4} " +
                 $"status=0x{e.Status:X2}; bond unchanged.");

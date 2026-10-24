@@ -191,6 +191,69 @@ public class BleTests
     }
 
     [Fact]
+    public async Task A2854_encrypt_must_not_send_after_early_link_disconnect()
+    {
+        var connecting = _central.ConnectAsync("14:9D:99:26:BF:CC");
+        CommandStatusOk(HciOpcode.LeCreateConnection);
+        _hci.ReceiveEventBytes([
+            0x3E, 0x13, 0x01, 0x00, 0x40, 0x00, 0x00, 0x00,
+            0xCC, 0xBF, 0x26, 0x99, 0x9D, 0x14,
+            0x18, 0x00, 0x00, 0x00, 0xC8, 0x00, 0x00
+        ]);
+        Assert.Equal((ushort)0x0040, await connecting);
+        _hci.ReceiveEventBytes([0x05, 0x04, 0x00, 0x40, 0x00, 0x3E]);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            _central.EncryptIfConnectedAsync(0x0040,
+                new BondKeys(new byte[16], 0, new byte[8])));
+        Assert.DoesNotContain(_sent, cmd => cmd[0] == 0x19 && cmd[1] == 0x20);
+    }
+
+    [Fact]
+    public async Task A2854_encrypt_queue_rechecks_live_link_at_actual_HCI_send()
+    {
+        var connecting = _central.ConnectAsync("14:9D:99:26:BF:CC");
+        CommandStatusOk(HciOpcode.LeCreateConnection);
+        _hci.ReceiveEventBytes([
+            0x3E, 0x13, 0x01, 0x00, 0x40, 0x00, 0x00, 0x00,
+            0xCC, 0xBF, 0x26, 0x99, 0x9D, 0x14,
+            0x18, 0x00, 0x00, 0x00, 0xC8, 0x00, 0x00
+        ]);
+        await connecting;
+
+        // Hold the HCI command serializer while encryption queues. Disconnect
+        // happens after the caller's precheck but BEFORE native HCI dispatch.
+        Task reset = _hci.CommandAsync(HciOpcode.Reset);
+        Task encryption = _central.EncryptIfConnectedAsync(0x0040,
+            new BondKeys(new byte[16], 0, new byte[8]));
+        Assert.DoesNotContain(_sent, cmd => cmd[0] == 0x19 && cmd[1] == 0x20);
+        _hci.ReceiveEventBytes([0x05, 0x04, 0x00, 0x40, 0x00, 0x3E]);
+        _hci.ReceiveEventBytes([0x0E, 0x04, 0x01, 0x03, 0x0C, 0x00]);
+        await reset;
+        await Assert.ThrowsAsync<InvalidOperationException>(() => encryption);
+        Assert.DoesNotContain(_sent, cmd => cmd[0] == 0x19 && cmd[1] == 0x20);
+    }
+
+    [Fact]
+    public async Task A2854_live_link_dispatches_encryption_and_receives_HCI_encrypted()
+    {
+        var connecting = _central.ConnectAsync("14:9D:99:26:BF:CC");
+        CommandStatusOk(HciOpcode.LeCreateConnection);
+        _hci.ReceiveEventBytes([
+            0x3E, 0x13, 0x01, 0x00, 0x40, 0x00, 0x00, 0x00,
+            0xCC, 0xBF, 0x26, 0x99, 0x9D, 0x14,
+            0x18, 0x00, 0x00, 0x00, 0xC8, 0x00, 0x00
+        ]);
+        await connecting;
+        Task encryption = _central.EncryptIfConnectedAsync(0x0040,
+            new BondKeys(new byte[16], 0, new byte[8]));
+        Assert.Contains(_sent, cmd => cmd[0] == 0x19 && cmd[1] == 0x20);
+        CommandStatusOk(HciOpcode.LeEnableEncryption);
+        _hci.ReceiveEventBytes([0x08, 0x04, 0x00, 0x40, 0x00, 0x01]);
+        await encryption;
+    }
+
+    [Fact]
     public async Task Encrypt_sends_the_bond_keys_and_waits_for_the_encryption_change()
     {
         var keys = new BondKeys(Enumerable.Range(1, 16).Select(i => (byte)i).ToArray(), 0x4D3E, [9, 8, 7, 6, 5, 4, 3, 2]);
@@ -214,7 +277,7 @@ public class BleTests
 
         var error = await Assert.ThrowsAsync<HciException>(() => encryption);
         Assert.Equal(HciOpcode.LeEnableEncryption, error.Opcode);
-        Assert.Equal(HciFailureSource.EncryptionChange, error.Source);
+        Assert.Equal(HciFailureSource.EncryptionChange, error.FailureSource);
         Assert.Equal(0x3E, error.Status);
     }
 
@@ -225,7 +288,7 @@ public class BleTests
             0x0040, new BondKeys(new byte[16], 0, new byte[8]));
         _hci.ReceiveEventBytes([0x0F, 0x04, 0x3E, 0x01, 0x19, 0x20]);
         var error = await Assert.ThrowsAsync<HciException>(() => encryption);
-        Assert.Equal(HciFailureSource.CommandStatus, error.Source);
+        Assert.Equal(HciFailureSource.CommandStatus, error.FailureSource);
         Assert.Equal(0x3E, error.Status);
     }
 
