@@ -21,6 +21,8 @@ Repository: `Transient-Onlooker/AppleRemoteWin`. Working branch: `feat/a2854-sup
 
 ### Current validated baseline and next gate
 
+- **New A2854 UI follow-up while dd06b2f QA runs:** matte-black hardware buttons on brushed-silver face, true vector hardware glyphs, numbered 1/2 contacts with two separate trails, stable nearest-distance slot matching for incoming contact order changes. Five new pure Core tracking tests; no BLE/USB/SendInput/protected bond changes. **Windows WPF build and live visualization still pending independent verification.**
+
 - **Further pointer feature awaiting Windows QA:** opt-in `A2854PointerUseCalibration` (default OFF), physically measured signed coordinate axes used in real cursor mapping only if separately enabled with the original pointer switch. Missing/invalid measured profile keeps raw pointer behavior; first touch re-anchors on changes. Test with fake sink first, physical OS mouse only on a controlled desktop.
 
 - **New diagnostics source (await Windows QA):** model-specific A2854 Copy timeline, max 48 relative-time redacted whitelisted HCI/ATT/BLE events, reset per explicit Start. No automatic reconnection or raw packet export; do not confuse it with a 30s-disconnect fix.

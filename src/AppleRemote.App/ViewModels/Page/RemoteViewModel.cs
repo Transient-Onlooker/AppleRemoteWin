@@ -36,6 +36,8 @@ public sealed partial class RemoteViewModel : ObservableObject, IDisposable
     readonly Action<string> _runBound;
     readonly Dispatcher _ui = Dispatcher.CurrentDispatcher;
     readonly List<(Point Point, long Time)> _trail = new();
+    readonly A2854VisualContactTracker _a2854ContactTracker = new();
+    readonly List<(Point Point, long Time)>[] _a2854Trails = [new(), new()];
     readonly BleScanner _scanner = new();
     readonly IDialogs _dialogs;
     readonly DispatcherTimer _scanTimer = new() { Interval = TimeSpan.FromSeconds(1) };
@@ -100,6 +102,8 @@ public sealed partial class RemoteViewModel : ObservableObject, IDisposable
 
     public string StatusTitle => Loc.T("Remote.Level." + StatusLevel);
     [ObservableProperty] PointCollection _trailPoints = new();
+    [ObservableProperty] PointCollection _a2854TrailOnePoints = new();
+    [ObservableProperty] PointCollection _a2854TrailTwoPoints = new();
     [ObservableProperty] double _tileShiftX;
     [ObservableProperty] double _tileShiftY;
     [ObservableProperty] string _moveArrow = "·";
@@ -287,6 +291,7 @@ public sealed partial class RemoteViewModel : ObservableObject, IDisposable
         TrailPoints = new PointCollection();
         _trailTimer.Stop();
         _wasDown = false;
+        ClearA2854VisualContacts();
         _calibrationWindow.Clear();
         _calibrationFingerDown = false;
         LiveTouchCoordinates = "No active touch";
@@ -315,6 +320,7 @@ public sealed partial class RemoteViewModel : ObservableObject, IDisposable
     public void StartSession()
     {
         Interlocked.Increment(ref _visualEpoch);
+        ClearA2854VisualContacts();
         _calibrationWindow.Clear();
         _calibrationFingerDown = false;
         LiveTouchCoordinates = "No active touch";
@@ -345,6 +351,7 @@ public sealed partial class RemoteViewModel : ObservableObject, IDisposable
         TrailPoints = new PointCollection();
         _trailTimer.Stop();
         _wasDown = false;
+        ClearA2854VisualContacts();
         _calibrationWindow.Clear();
         _calibrationFingerDown = false;
         LiveTouchCoordinates = "No active touch";
@@ -428,6 +435,12 @@ public sealed partial class RemoteViewModel : ObservableObject, IDisposable
                 LiveTouchCoordinates = "No active touch";
             }
         }
+        if (_session.A2854Mode)
+        {
+            ShowA2854Contacts(t);
+            return;
+        }
+
         bool anyDown = false;
         for (int i = 0; i < Fingers.Length; i++)
         {
@@ -452,16 +465,74 @@ public sealed partial class RemoteViewModel : ObservableObject, IDisposable
         _wasDown = anyDown;
     }
 
-    /// <summary>Trail: each point fades <see cref="TrailLifeMs"/> after being drawn, so the tail shortens by itself.</summary>
+    /// <summary>
+    /// A2854 contacts lack persistent IDs in TouchEvent.Fingers and decoder
+    /// packet-slot ordering is not a finger identity. Keep two independent
+    /// markers/trails by nearest-position matching. Legacy rendering above
+    /// retains its existing single-primary-contact semantics.
+    /// </summary>
+    void ShowA2854Contacts(TouchEvent t)
+    {
+        List<A2854VisualContact> contacts = [];
+        if (t.Down)
+            foreach (var finger in t.Fingers)
+                if (finger.State is >= 3 and <= 6)
+                    contacts.Add(new A2854VisualContact(finger.X, finger.Y));
+
+        var previous = _a2854ContactTracker.Slots;
+        var assigned = _a2854ContactTracker.Update(contacts);
+        long now = Environment.TickCount64;
+        for (int i = 0; i < Fingers.Length; i++)
+        {
+            if (assigned[i] is not { } contact)
+            {
+                Fingers[i].IsVisible = false;
+                _a2854Trails[i].Clear();
+                continue;
+            }
+            var pos = ProjectTouch(contact.X, contact.Y);
+            Fingers[i].Left = pos.X - DotSize / 2;
+            Fingers[i].Top = pos.Y - DotSize / 2;
+            Fingers[i].IsVisible = true;
+            if (previous[i] is null) _a2854Trails[i].Clear();
+            _a2854Trails[i].Add((new Point(pos.X, pos.Y), now));
+        }
+        A2854TrailOnePoints = new PointCollection(_a2854Trails[0].Select(p => p.Point));
+        A2854TrailTwoPoints = new PointCollection(_a2854Trails[1].Select(p => p.Point));
+        if (_a2854Trails.Any(x => x.Count > 0)) _trailTimer.Start();
+        else if (_trail.Count == 0) _trailTimer.Stop();
+    }
+
+    void ClearA2854VisualContacts()
+    {
+        _a2854ContactTracker.Reset();
+        foreach (var finger in Fingers) finger.IsVisible = false;
+        foreach (var trail in _a2854Trails) trail.Clear();
+        A2854TrailOnePoints = new PointCollection();
+        A2854TrailTwoPoints = new PointCollection();
+    }
+
+    /// <summary>Each finger's trail fades independently; no cross-finger line.</summary>
     void FadeTrail()
     {
         long limit = Environment.TickCount64 - TrailLifeMs;
-        int expired = _trail.FindIndex(p => p.Time > limit);
-        if (expired < 0) expired = _trail.Count;
-        if (expired == 0) return;
-        _trail.RemoveRange(0, expired);
-        TrailPoints = new PointCollection(_trail.Select(p => p.Point));
-        if (_trail.Count == 0) _trailTimer.Stop();
+        if (TrimTrail(_trail, limit))
+            TrailPoints = new PointCollection(_trail.Select(p => p.Point));
+        if (TrimTrail(_a2854Trails[0], limit))
+            A2854TrailOnePoints = new PointCollection(_a2854Trails[0].Select(p => p.Point));
+        if (TrimTrail(_a2854Trails[1], limit))
+            A2854TrailTwoPoints = new PointCollection(_a2854Trails[1].Select(p => p.Point));
+        if (_trail.Count == 0 && _a2854Trails.All(x => x.Count == 0))
+            _trailTimer.Stop();
+    }
+
+    static bool TrimTrail(List<(Point Point, long Time)> trail, long limit)
+    {
+        int firstRecent = trail.FindIndex(p => p.Time > limit);
+        if (firstRecent < 0) firstRecent = trail.Count;
+        if (firstRecent == 0) return false;
+        trail.RemoveRange(0, firstRecent);
+        return true;
     }
 
     // The existing first-gen range is retained only for first-gen input.
@@ -668,6 +739,7 @@ public sealed partial class RemoteViewModel : ObservableObject, IDisposable
             return;
         }
         TouchCalibrationPreviewEnabled = !TouchCalibrationPreviewEnabled;
+        ClearA2854VisualContacts();
         foreach (var finger in Fingers) finger.IsVisible = false;
         _trail.Clear();
         TrailPoints = new PointCollection();

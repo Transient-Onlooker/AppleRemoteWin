@@ -13,28 +13,36 @@
             <ResourceDictionary.MergedDictionaries>
                 <ResourceDictionary Source="/Styles/Styles.xaml" />
             </ResourceDictionary.MergedDictionaries>
-            <SolidColorBrush x:Key="A2854ActiveBrush" Color="#4C8DFF" />
+            <!-- Brushed silver aluminum and matte charcoal: no glossy black buttons. -->
+            <SolidColorBrush x:Key="A2854ActiveBrush" Color="#394049" />
+            <SolidColorBrush x:Key="A2854MatteBlack" Color="#191A1C" />
             <Style x:Key="A2854Button" TargetType="Border">
-                <Setter Property="Background">
-                    <Setter.Value>
-                        <RadialGradientBrush GradientOrigin="0.35,0.3">
-                            <GradientStop Color="#363A3F" Offset="0" />
-                            <GradientStop Color="#121416" Offset="1" />
-                        </RadialGradientBrush>
-                    </Setter.Value>
-                </Setter>
+                <Setter Property="Background" Value="{StaticResource A2854MatteBlack}" />
+                <Setter Property="BorderBrush" Value="#34373B" />
+                <Setter Property="BorderThickness" Value="1" />
                 <Style.Triggers>
                     <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}" Value="True">
                         <Setter Property="Background" Value="{StaticResource A2854ActiveBrush}" />
+                        <Setter Property="BorderBrush" Value="#9099A2" />
+                    </DataTrigger>
+                </Style.Triggers>
+            </Style>
+            <Style x:Key="A2854PowerKey" TargetType="Border">
+                <Setter Property="Background" Value="Transparent" />
+                <Setter Property="BorderBrush" Value="#72777E" />
+                <Setter Property="BorderThickness" Value="1.3" />
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}" Value="True">
+                        <Setter Property="Background" Value="#CED5DB" />
+                        <Setter Property="BorderBrush" Value="#535A64" />
                     </DataTrigger>
                 </Style.Triggers>
             </Style>
             <Style x:Key="A2854RingKey" TargetType="Border">
-                <Setter Property="Background" Value="#60656A" />
+                <Setter Property="Background" Value="#BABFC4" />
                 <Style.Triggers>
                     <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}" Value="True">
-                        <Setter Property="Background" Value="{StaticResource A2854ActiveBrush}" />
-                        <Setter Property="Opacity" Value="1" />
+                        <Setter Property="Background" Value="#E7EBEF" />
                     </DataTrigger>
                 </Style.Triggers>
             </Style>
@@ -42,13 +50,13 @@
                 <Setter Property="Background" Value="Transparent" />
                 <Style.Triggers>
                     <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}" Value="True">
-                        <Setter Property="Background" Value="{StaticResource A2854ActiveBrush}" />
+                        <Setter Property="Background" Value="#394049" />
                     </DataTrigger>
                 </Style.Triggers>
             </Style>
             <Style x:Key="A2854Glyph" TargetType="TextBlock">
-                <Setter Property="FontFamily" Value="Segoe UI Symbol, Segoe Fluent Icons, Segoe MDL2 Assets" />
-                <Setter Property="Foreground" Value="#F4F6FA" />
+                <Setter Property="FontFamily" Value="Segoe UI Symbol" />
+                <Setter Property="Foreground" Value="#EDEFF1" />
                 <Setter Property="HorizontalAlignment" Value="Center" />
                 <Setter Property="VerticalAlignment" Value="Center" />
                 <Setter Property="FontSize" Value="46" />
@@ -57,13 +65,13 @@
     </UserControl.Resources>
 
     <Border Width="360" Height="1320" CornerRadius="46"
-            BorderBrush="#7F858D" BorderThickness="3">
+            BorderBrush="#8F969E" BorderThickness="2.5">
         <Border.Background>
             <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
-                <GradientStop Color="#E5E8EB" Offset="0" />
-                <GradientStop Color="#B5BAC0" Offset="0.45" />
-                <GradientStop Color="#969DA5" Offset="0.8" />
-                <GradientStop Color="#CED3D9" Offset="1" />
+                <GradientStop Color="#D4D8DC" Offset="0" />
+                <GradientStop Color="#BCC2C8" Offset="0.28" />
+                <GradientStop Color="#AEB5BC" Offset="0.76" />
+                <GradientStop Color="#BFC5CB" Offset="1" />
             </LinearGradientBrush>
         </Border.Background>
         <Canvas>
@@ -71,29 +79,31 @@
             <Rectangle Canvas.Left="173" Canvas.Top="53" Width="14" Height="5"
                        RadiusX="2.5" RadiusY="2.5" Fill="#474C52" />
             <Border Canvas.Left="272" Canvas.Top="27" Width="57" Height="57" CornerRadius="29"
-                    Tag="{Binding PowerPressed}" Style="{StaticResource A2854Button}"
+                    Tag="{Binding PowerPressed}" Style="{StaticResource A2854PowerKey}"
                     ToolTip="Power">
-                <TextBlock Text="⏻" Style="{StaticResource A2854Glyph}" FontSize="33" />
+                <TextBlock Text="⏻" FontFamily="Segoe UI Symbol" FontSize="32"
+                           Foreground="#30343A" HorizontalAlignment="Center"
+                           VerticalAlignment="Center" />
             </Border>
 
             <!-- A2854 circular clickpad: physical four-way ring and central click. -->
             <Ellipse Canvas.Left="12" Canvas.Top="123" Width="330" Height="330"
-                     Fill="#191B1E" Stroke="#51565D" StrokeThickness="3" />
+                     Fill="#18191B" Stroke="#34373B" StrokeThickness="1.5" />
             <Ellipse Canvas.Left="32" Canvas.Top="143" Width="290" Height="290"
-                     Stroke="#303439" StrokeThickness="2" Fill="Transparent" />
+                     Stroke="#292B2E" StrokeThickness="1.4" Fill="Transparent" />
             <Border Canvas.Left="91" Canvas.Top="202" Width="172" Height="172"
-                    CornerRadius="86" BorderBrush="#41474E" BorderThickness="2"
+                    CornerRadius="86" BorderBrush="#292B2E" BorderThickness="1.5"
                     Tag="{Binding TouchPressed}" Style="{StaticResource A2854Button}"
                     ToolTip="Clickpad center" />
 
             <!-- Direction indicators follow actual A2854 0xFB button bits. -->
-            <Border Canvas.Left="162" Canvas.Top="135" Width="30" Height="18" CornerRadius="9"
+            <Border Canvas.Left="170" Canvas.Top="137" Width="14" Height="7" CornerRadius="4"
                     Tag="{Binding UpPressed}" Style="{StaticResource A2854RingKey}" ToolTip="Up"/>
-            <Border Canvas.Left="162" Canvas.Top="421" Width="30" Height="18" CornerRadius="9"
+            <Border Canvas.Left="170" Canvas.Top="432" Width="14" Height="7" CornerRadius="4"
                     Tag="{Binding DownPressed}" Style="{StaticResource A2854RingKey}" ToolTip="Down"/>
-            <Border Canvas.Left="25" Canvas.Top="274" Width="18" Height="30" CornerRadius="9"
+            <Border Canvas.Left="24" Canvas.Top="281" Width="7" Height="14" CornerRadius="4"
                     Tag="{Binding LeftPressed}" Style="{StaticResource A2854RingKey}" ToolTip="Left"/>
-            <Border Canvas.Left="311" Canvas.Top="274" Width="18" Height="30" CornerRadius="9"
+            <Border Canvas.Left="323" Canvas.Top="281" Width="7" Height="14" CornerRadius="4"
                     Tag="{Binding RightPressed}" Style="{StaticResource A2854RingKey}" ToolTip="Right"/>
 
             <!-- Live 0xFC touch contacts drawn over the 360-square ring.
@@ -104,8 +114,10 @@
                     <EllipseGeometry Center="180,180" RadiusX="165" RadiusY="165" />
                 </Grid.Clip>
                 <Canvas>
-                    <Polyline Points="{Binding TrailPoints}" Stroke="#7FB6FF"
-                              StrokeThickness="3" StrokeLineJoin="Round" Opacity="0.8" />
+                    <Polyline Points="{Binding A2854TrailOnePoints}" Stroke="#CEDFEA"
+                              StrokeThickness="2.6" StrokeLineJoin="Round" Opacity="0.85" />
+                    <Polyline Points="{Binding A2854TrailTwoPoints}" Stroke="#E5C9B5"
+                              StrokeThickness="2.6" StrokeLineJoin="Round" Opacity="0.85" />
                 </Canvas>
                 <ItemsControl ItemsSource="{Binding Fingers}" IsHitTestVisible="False">
                     <ItemsControl.ItemsPanel>
@@ -121,18 +133,32 @@
                     </ItemsControl.ItemContainerStyle>
                     <ItemsControl.ItemTemplate>
                         <DataTemplate>
-                            <Ellipse Width="30" Height="30" Opacity="0.9">
-                                <Ellipse.Style>
-                                    <Style TargetType="Ellipse">
-                                        <Setter Property="Fill" Value="#F2F4F8" />
+                            <Border Width="30" Height="30" CornerRadius="15"
+                                    BorderBrush="#FFFFFF" BorderThickness="2">
+                                <Border.Style>
+                                    <Style TargetType="Border">
+                                        <Setter Property="Background" Value="#C9DCE9" />
                                         <Style.Triggers>
                                             <DataTrigger Binding="{Binding Index}" Value="1">
-                                                <Setter Property="Fill" Value="#FFB454" />
+                                                <Setter Property="Background" Value="#E7C5A9" />
                                             </DataTrigger>
                                         </Style.Triggers>
                                     </Style>
-                                </Ellipse.Style>
-                            </Ellipse>
+                                </Border.Style>
+                                <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center"
+                                           Foreground="#23262A" FontSize="13" FontWeight="Bold">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Text" Value="1" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding Index}" Value="1">
+                                                    <Setter Property="Text" Value="2" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                            </Border>
                         </DataTemplate>
                     </ItemsControl.ItemTemplate>
                 </ItemsControl>
@@ -141,42 +167,57 @@
             <!-- Right-side Siri key is drawn as a slim side switch. -->
             <Border Canvas.Left="347" Canvas.Top="170" Width="9" Height="130"
                     CornerRadius="4" Tag="{Binding SiriPressed}"
-                    Style="{StaticResource A2854Button}" ToolTip="Siri (side)"/>
+                    Style="{StaticResource A2854PowerKey}" ToolTip="Siri (side)"/>
 
             <!-- Back / TV -->
             <Border Canvas.Left="32" Canvas.Top="503" Width="128" Height="120"
                     CornerRadius="60" Tag="{Binding MenuPressed}"
                     Style="{StaticResource A2854Button}" ToolTip="Back">
-                <TextBlock Text="‹" Style="{StaticResource A2854Glyph}" FontSize="70" />
+                <Canvas Width="55" Height="56" HorizontalAlignment="Center" VerticalAlignment="Center">
+                    <Path Data="M 34,9 L 15,28 L 34,47"
+                          Stroke="#EDEFF1" StrokeThickness="4.5"
+                          StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round" />
+                </Canvas>
             </Border>
             <Border Canvas.Left="196" Canvas.Top="503" Width="128" Height="120"
                     CornerRadius="60" Tag="{Binding TvPressed}"
                     Style="{StaticResource A2854Button}" ToolTip="TV / Home">
-                <TextBlock Text="▣" Style="{StaticResource A2854Glyph}" FontSize="45" />
+                <Canvas Width="62" Height="54" HorizontalAlignment="Center" VerticalAlignment="Center">
+                    <Path Data="M 8,6 L 54,6 L 54,36 L 8,36 Z M 22,47 L 40,47"
+                          Stroke="#EDEFF1" StrokeThickness="3.2"
+                          StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round" />
+                </Canvas>
             </Border>
 
             <!-- Play/Pause and Mute on the left, two-part volume pill on the right. -->
             <Border Canvas.Left="32" Canvas.Top="650" Width="128" Height="120"
                     CornerRadius="60" Tag="{Binding PlayPressed}"
                     Style="{StaticResource A2854Button}" ToolTip="Play / Pause">
-                <TextBlock Text="▶Ⅱ" Style="{StaticResource A2854Glyph}" FontSize="33" />
+                <Canvas Width="60" Height="56" HorizontalAlignment="Center" VerticalAlignment="Center">
+                    <Path Data="M 6,9 L 6,47 L 37,28 Z"
+                          Stroke="#EDEFF1" Fill="Transparent" StrokeThickness="3.2"
+                          StrokeLineJoin="Round" />
+                    <Rectangle Canvas.Left="44" Canvas.Top="12" Width="4" Height="32" Fill="#EDEFF1" RadiusX="1" />
+                    <Rectangle Canvas.Left="53" Canvas.Top="12" Width="4" Height="32" Fill="#EDEFF1" RadiusX="1" />
+                </Canvas>
             </Border>
             <Border Canvas.Left="32" Canvas.Top="797" Width="128" Height="120"
                     CornerRadius="60" Tag="{Binding MutePressed}"
                     Style="{StaticResource A2854Button}" ToolTip="Mute">
-                <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
-                    <TextBlock Text="◀" FontSize="26" Foreground="#F4F6FA"
-                               HorizontalAlignment="Center" />
-                    <TextBlock Text="MUTE" FontSize="18" Foreground="#F4F6FA"
-                               FontWeight="SemiBold" HorizontalAlignment="Center" />
-                </StackPanel>
+                <Grid Width="66" Height="66" HorizontalAlignment="Center"
+                      VerticalAlignment="Center">
+                    <Path Stroke="#EDEFF1" StrokeThickness="3.3"
+                          StrokeLineJoin="Round" StrokeStartLineCap="Round" StrokeEndLineCap="Round"
+                          Data="M 8,27 L 19,27 L 34,15 L 34,51 L 19,39 L 8,39 Z M 43,20 L 58,47" />
+                </Grid>
             </Border>
 
             <Grid Canvas.Left="207" Canvas.Top="650" Width="112" Height="267">
                 <Grid.RowDefinitions>
                     <RowDefinition /><RowDefinition />
                 </Grid.RowDefinitions>
-                <Border Grid.RowSpan="2" CornerRadius="56" Background="#17191C" />
+                <Border Grid.RowSpan="2" CornerRadius="56" Background="#191A1C"
+                        BorderBrush="#34373B" BorderThickness="1" />
                 <Border Grid.Row="0" CornerRadius="56,56,0,0"
                         Tag="{Binding VolUpPressed}" Style="{StaticResource A2854VolumeHalf}"
                         ToolTip="Volume up">
@@ -189,8 +230,7 @@
                 </Border>
             </Grid>
 
-            <TextBlock Canvas.Left="122" Canvas.Top="1025" Text="SIRI REMOTE"
-                       FontSize="16" FontWeight="SemiBold" Foreground="#454B52" />
+            <!-- Real aluminum face has no printed SIRI REMOTE branding. -->
             <StackPanel Canvas.Left="108" Canvas.Top="1163" Orientation="Horizontal">
                 <TextBlock Text="{Binding BatteryGlyph}"
                            FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
