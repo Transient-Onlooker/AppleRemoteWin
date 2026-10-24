@@ -1,5 +1,7 @@
 # A2854 physical clickpad calibration — user-guided measurements
 
+> **HISTORICAL CALIBRATION DESIGN NOTE (2026-10-24):** This document's original pre-QA statements and radius-165 examples describe an older source revision. Latest live user-measured five-point profile exists and must **not** be reset; modern visual marker clipping uses radius **163 DIP** and a **1-DIP safety margin**. Read the [2026-10-25 current handoff](../HANDOFF_2026-10-25_A2854_CURRENT.md) for source/QA status. Optional Windows cursor calibration and display-only mapping remain separate. Real calibrated coordinates are intentionally not committed.
+
 **Status: feature committed as source, but no independent Windows build or physical measurements have been made on this revision.**
 
 ## Why the original display does not line up

@@ -1,5 +1,7 @@
 # Siri Remote A2854 (third generation) — development branch
 
+> **2026-10-25 CURRENT HANDOFF:** [A2854 CURRENT STATUS](HANDOFF_2026-10-25_A2854_CURRENT.md). This page preserves the *historical* chronological port log. The 'latest' 2026-10-23 claims below were true for older checkpoints only. The actual `abd69aa` independent QA passed 381/381 with clean real window-close 0x16; later source `85f20a7` implements pressure-aware pointer click stabilization but has **not** been built/checked on Windows independently.
+
 > **Latest verified checkpoint (2026-10-23):** the separately approved [eight-second physical HID trial](a2854/HID_INPUT_HARDWARE_2026-10-23.md#third-approved-trial-eight-second-capture-and-normal-cleanup) at `a40c25c` received **33 FB / 360 FC frames**, zero malformed. **Both CCCD disable Write Responses, HCI Disconnect Command Status OK and Disconnection Complete 0x16** were verified; exit **0**. The unchanged source passed **218/218 Release tests**, full solution and Probe builds **0 warnings/errors**. No re-pairing, bond/driver/certificate changes, microphone collection or Windows input synthesis. Long-term stability and Windows mouse/media operation remain unverified; the checkpoints below are chronological history.
 
 > **Earlier physical milestone (2026-10-23):** the separately approved 30-second HID retry received **59 FB / 720 FC frames**, zero malformed, before peer reason **13**, exit 1. That trial did not verify host cleanup; the later eight-second result above does not change its historical outcome.

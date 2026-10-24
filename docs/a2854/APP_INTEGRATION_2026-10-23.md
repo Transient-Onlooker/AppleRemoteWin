@@ -1,5 +1,7 @@
 # AppleRemoteWin WPF GUI — A2854 integration (2026-10-23)
 
+> **THIS IS A HISTORICAL 2026-10-23 INTEGRATION RECORD.** Read [the authoritative 2026-10-25 current handoff](../HANDOFF_2026-10-25_A2854_CURRENT.md) before relying on any “not verified” statements below. Subsequent Windows GUI real encrypted HID and pointer movement **have been physically verified** (see `64b927c` and `abd69aa`). Successor `85f20a7` click pressure/jitter filtering has not yet been independently verified on Windows. Preserve bond/real calibration/driver.
+
 **Code committed; this new GUI integration has not yet been compiled or run on native Windows.** The **218/218** test baseline and physical 8-second HID trial at `1fd45a4` predate this code. Never claim mouse/keyboard injection is hardware-verified.
 
 ## Physical baseline

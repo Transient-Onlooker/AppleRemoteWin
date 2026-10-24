@@ -1,6 +1,6 @@
 # Siri Remote A2854 — project home
 
-> **Practical hardware QA 2026-10-24:** at `64b927c`, **380/380** Release tests, zero warnings/errors, and actual A2854 encrypted HID + Windows mouse movement worked for **~100 s** using the protected bond. Stop disabled both CCCDs but ended with **real controller reason 0x08 timeout** instead of host-local **0x16**. Source follow-up guards late A2854 HCI Disconnect dispatch and improves Settings contrast/line-height; **new source unverified on Windows** and cannot guarantee a local 0x16 if the peer already timed out. No driver/bond/RF changes.
+> **LATEST project status — 2026-10-25:** [CURRENT HANDOFF](../HANDOFF_2026-10-25_A2854_CURRENT.md). `abd69aa` verified Release 381/381, Stop-focused 28/28, actual ~27s A2854 encrypted GUI input and X-close with 2 CCCDs disabled, Disconnect accepted and real 0x16. Earlier `64b927c` verified ~100s Windows mouse, but Stop reason 0x08. Direct Stop→Start still unverified. Successor `85f20a7` pressure-assisted click drift guard source **awaits independent Windows/real click-and-drag QA**. The remainder of this file contains chronological historical findings, not current test instructions.
 
 > **Historical evidence below is preserved for traceability; do not treat the older 256/256 and 8-second trials as latest results.** Main code changes/commits belong to ChatGPT, while local Windows Codex independently tests read-only. [Engineering handoff](../HANDOFF_2026-10-23_A2854.md) contains current QA provenance and safety gates.
 
