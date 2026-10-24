@@ -64,6 +64,44 @@ public sealed class A2854HidCompletionTests
     }
 
     [Fact]
+    public async Task A2854_live_link_stop_uses_guarded_HCI_disconnect_and_confirms_local_0x16()
+    {
+        HciHost? host = null;
+        int disconnectCommands = 0;
+        host = new HciHost(command =>
+        {
+            ushort opcode = (ushort)(command[0] | command[1] << 8);
+            host!.ReceiveEventBytes([0x0F, 0x04, 0x00, 0x01, command[0], command[1]]);
+            if (opcode == HciOpcode.LeCreateConnection)
+            {
+                host.ReceiveEventBytes([
+                    0x3E, 0x13, 0x01, 0x00, 0x40, 0x00, 0x00, 0x00,
+                    0xCC, 0xBF, 0x26, 0x99, 0x9D, 0x14,
+                    0x18, 0x00, 0x00, 0x00, 0xC8, 0x00, 0x00
+                ]);
+            }
+            if (opcode == HciOpcode.Disconnect)
+            {
+                disconnectCommands++;
+                host.ReceiveEventBytes([0x05, 0x04, 0x00, 0x40, 0x00, 0x16]);
+            }
+        }, _ => { });
+        var central = new LeCentral(host);
+        ushort handle = await central.ConnectAsync("14:9D:99:26:BF:CC");
+        var disconnected = new TaskCompletionSource<(ushort Handle, byte Reason)>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        central.Disconnected += (h, reason) => disconnected.TrySetResult((h, reason));
+
+        var result = await A2854HidCapture.DisconnectAsync(central, handle,
+            disconnected.Task, eventTimeout: TimeSpan.FromSeconds(2),
+            requireLiveLink: true);
+        Assert.Equal(1, disconnectCommands);
+        Assert.True(result.CommandStatusSucceeded);
+        Assert.True(result.LocalHostVerified);
+        Assert.Equal((byte)0x16, result.Reason);
+    }
+
+    [Fact]
     public async Task Command_status_without_disconnect_event_times_out()
     {
         HciHost? host = null;

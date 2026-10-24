@@ -326,7 +326,17 @@ public sealed class LeCentral
     }
 
     public Task DisconnectAsync(ushort handle) =>
-        _hci.CommandAsync(HciOpcode.Disconnect, (byte)handle, (byte)(handle >> 8), 0x13);   // 0x13: terminated by the remote user
+        _hci.CommandAsync(HciOpcode.Disconnect, (byte)handle, (byte)(handle >> 8), 0x13);   // legacy behavior
+
+    /// <summary>
+    /// A2854 Stop: do not dispatch a late HCI Disconnect after the controller
+    /// already reported Disconnection Complete. Host/peer final reasons remain
+    /// controller evidence, never synthesized as 0x16.
+    /// </summary>
+    public Task DisconnectIfConnectedAsync(ushort handle) =>
+        _hci.CommandIfAsync(HciOpcode.Disconnect, _connectionGate,
+            () => _liveHandles.Contains(handle),
+            (byte)handle, (byte)(handle >> 8), 0x13);
 
     void OnAcl(ushort handle, int pb, byte[] data)
     {

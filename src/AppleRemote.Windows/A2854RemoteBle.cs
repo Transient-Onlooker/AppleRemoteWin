@@ -281,9 +281,14 @@ public sealed class A2854RemoteBle(
             {
                 try
                 {
+                    onStatus("A2854: host disconnect requested after notification cleanup.");
                     var result = await A2854HidCapture.DisconnectAsync(
                         central, connectedHandle, disconnected.Task,
-                        eventTimeout: TimeSpan.FromSeconds(5));
+                        eventTimeout: TimeSpan.FromSeconds(5),
+                        requireLiveLink: true);
+                    onStatus(result.CommandStatusSucceeded
+                        ? "A2854: host disconnect command accepted."
+                        : "A2854: host disconnect command not confirmed.");
                     onStatus(result.LocalHostVerified
                         ? "A2854: host disconnect completed with normal local reason 0x16."
                         : $"A2854: disconnect ended with HCI reason 0x{result.Reason:X2} (host cleanup unverified).");

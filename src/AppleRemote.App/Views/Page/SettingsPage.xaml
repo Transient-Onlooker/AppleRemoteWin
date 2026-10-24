@@ -188,7 +188,8 @@
         <ScrollViewer x:Name="RightSettingsScroller" Grid.Column="1"
                       VerticalScrollBarVisibility="Disabled"
                       HorizontalScrollBarVisibility="Disabled">
-        <StackPanel MinWidth="340" Margin="0,0,6,0">
+        <StackPanel MinWidth="340" Margin="0,0,6,0"
+                    TextElement.Foreground="#ECF1F7">
         <StackPanel.Resources>
             <Style TargetType="ui:CardControl" BasedOn="{StaticResource {x:Type ui:CardControl}}">
                 <Setter Property="Margin" Value="0,0,0,4" />
@@ -197,7 +198,39 @@
                 <Setter Property="HorizontalContentAlignment" Value="Stretch" />
             </Style>
             <Style x:Key="Head" TargetType="TextBlock" BasedOn="{StaticResource Section}">
-                <Setter Property="Margin" Value="1,14,0,6" />
+                <Setter Property="Margin" Value="1,16,0,10" />
+                <Setter Property="FontSize" Value="17" />
+                <Setter Property="FontWeight" Value="SemiBold" />
+                <Setter Property="Foreground" Value="#F3F5F8" />
+            </Style>
+            <!-- Fixed dark theme: explicit high-contrast colors rather than
+                 inherited/default black text on charcoal card surfaces. -->
+            <Style x:Key="A2854CardTitle" TargetType="TextBlock">
+                <Setter Property="FontSize" Value="15" />
+                <Setter Property="FontWeight" Value="SemiBold" />
+                <Setter Property="Foreground" Value="#F4F6F9" />
+                <Setter Property="TextWrapping" Value="Wrap" />
+                <Setter Property="LineHeight" Value="23" />
+                <Setter Property="LineStackingStrategy" Value="BlockLineHeight" />
+            </Style>
+            <Style x:Key="A2854Description" TargetType="TextBlock">
+                <Setter Property="FontSize" Value="13.5" />
+                <Setter Property="Foreground" Value="#E1E6ED" />
+                <Setter Property="TextWrapping" Value="Wrap" />
+                <Setter Property="LineHeight" Value="22" />
+                <Setter Property="LineStackingStrategy" Value="BlockLineHeight" />
+                <Setter Property="Margin" Value="0,7,0,0" />
+            </Style>
+            <Style x:Key="A2854Secondary" TargetType="TextBlock"
+                   BasedOn="{StaticResource A2854Description}">
+                <Setter Property="FontSize" Value="12.5" />
+                <Setter Property="Foreground" Value="#CBD3DC" />
+                <Setter Property="LineHeight" Value="20" />
+            </Style>
+            <Style x:Key="A2854Status" TargetType="TextBlock"
+                   BasedOn="{StaticResource A2854Description}">
+                <Setter Property="FontWeight" Value="SemiBold" />
+                <Setter Property="Foreground" Value="#EAF2FC" />
             </Style>
         </StackPanel.Resources>
 
@@ -205,37 +238,28 @@
              be buried below updates, language and generic settings. Plain cards
              avoid a giant empty CardControl content presenter on narrow windows. -->
         <TextBlock Text="{l:T A2854.Settings.Title}" Style="{StaticResource Head}" Margin="1,2,0,8" />
-        <Border Style="{StaticResource Card}" Padding="14,12" Margin="0,0,0,8">
+        <Border Style="{StaticResource Card}" Padding="20,18" Margin="0,0,0,8">
             <StackPanel>
-                <TextBlock Text="{l:T A2854.Settings.Adapter}"
-                           FontSize="13" FontWeight="SemiBold" TextWrapping="Wrap" />
+                <TextBlock Text="{l:T A2854.Settings.Adapter}" Style="{StaticResource A2854CardTitle}" />
                 <ui:ToggleSwitch IsChecked="{Binding A2854Mode, Mode=TwoWay}"
                                  IsEnabled="{Binding CanChangeAdapter}"
-                                 Margin="0,8,0,3" />
-                <TextBlock Text="{l:T A2854.Settings.SwitchHint}"
-                           FontSize="12" TextWrapping="Wrap"
-                           Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
-                <TextBlock Text="{l:T A2854.Settings.LegacyHint}"
-                           FontSize="12" Margin="0,5,0,0" TextWrapping="Wrap"
-                           Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                 Margin="0,11,0,4" />
+                <TextBlock Text="{l:T A2854.Settings.SwitchHint}" Style="{StaticResource A2854Description}" />
+                <TextBlock Text="{l:T A2854.Settings.LegacyHint}" Style="{StaticResource A2854Secondary}" />
             </StackPanel>
         </Border>
-        <Border Style="{StaticResource Card}" Padding="14,12" Margin="0,0,0,12">
+        <Border Style="{StaticResource Card}" Padding="20,18" Margin="0,0,0,12">
             <StackPanel>
-                <TextBlock Text="{l:T A2854.Settings.PointerTitle}"
-                           FontSize="13" FontWeight="SemiBold" TextWrapping="Wrap" />
+                <TextBlock Text="{l:T A2854.Settings.PointerTitle}" Style="{StaticResource A2854CardTitle}" />
                 <ui:ToggleSwitch IsChecked="{Binding A2854PointerEnabled, Mode=TwoWay}"
-                                 Margin="0,8,0,3"/>
-                <TextBlock Text="{l:T A2854.Settings.PointerHint}"
-                           FontSize="12" TextWrapping="Wrap"
-                           Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                 Margin="0,11,0,4"/>
+                <TextBlock Text="{l:T A2854.Settings.PointerHint}" Style="{StaticResource A2854Description}" />
                 <CheckBox Content="{l:T A2854.Settings.UseMeasuredAxes}"
                           IsChecked="{Binding A2854PointerUseCalibration, Mode=TwoWay}"
-                          Margin="0,9,0,1" />
-                <TextBlock Text="{l:T A2854.Settings.AxesHint}"
-                           FontSize="11" TextWrapping="Wrap"
-                           Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
-                <TextBlock Text="{l:T A2854.Settings.Sensitivity}" FontSize="12" Margin="0,9,0,2" />
+                          Margin="0,12,0,2" />
+                <TextBlock Text="{l:T A2854.Settings.AxesHint}" Style="{StaticResource A2854Secondary}" />
+                <TextBlock Text="{l:T A2854.Settings.Sensitivity}" Style="{StaticResource A2854Status}"
+                           Margin="0,12,0,6" />
                 <Slider Minimum="0.02" Maximum="3.0" TickFrequency="0.05"
                         IsSnapToTickEnabled="False"
                         Value="{Binding A2854PointerSensitivity, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
@@ -245,16 +269,14 @@
         <!-- Coordinate calibration is a deliberate manual measurement of
              physical finger-center reference points, separate from the LTK
              bond and from the actual Windows pointer mapper. -->
-        <Border Style="{StaticResource Card}" Padding="14,12" Margin="0,0,0,12"
+        <Border Style="{StaticResource Card}" Padding="20,18" Margin="0,0,0,12"
                 Visibility="{Binding A2854Mode, Converter={StaticResource BoolToVisibility}}">
             <StackPanel DataContext="{Binding Remote}">
-                <TextBlock Text="{l:T A2854.Cal.Title}" FontSize="13"
-                           FontWeight="SemiBold" />
-                <TextBlock Text="{l:T A2854.Cal.Instructions}"
-                           TextWrapping="Wrap" FontSize="12" Margin="0,5,0,10"
-                           Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
-                <TextBlock Text="{Binding LiveTouchCoordinates}" FontFamily="Consolas" FontSize="12"
-                           Margin="0,0,0,8" />
+                <TextBlock Text="{l:T A2854.Cal.Title}" Style="{StaticResource A2854CardTitle}" />
+                <TextBlock Text="{l:T A2854.Cal.Instructions}" Style="{StaticResource A2854Description}"
+                           Margin="0,8,0,12" />
+                <TextBlock Text="{Binding LiveTouchCoordinates}" FontFamily="Consolas"
+                           Style="{StaticResource A2854Status}" Margin="0,0,0,10" />
                 <ComboBox ItemsSource="{Binding CalibrationTargetChoices}"
                           DisplayMemberPath="Name" SelectedValuePath="Code"
                           SelectedValue="{Binding SelectedCalibrationTarget, Mode=TwoWay}"
@@ -267,19 +289,14 @@
                     <ui:Button Content="{l:T A2854.Cal.Copy}" Command="{Binding CopyTouchCalibrationPointsCommand}"
                                Margin="0,0,0,8" />
                 </WrapPanel>
-                <TextBlock Text="{Binding TouchDisplayModeText}" FontWeight="SemiBold"
-                           FontSize="12" TextWrapping="Wrap" Margin="0,0,0,6"
-                           Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
-                <TextBlock Text="{Binding TouchCalibrationSummary}" TextWrapping="Wrap"
-                           FontSize="12"
-                           Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                <TextBlock Text="{Binding TouchDisplayModeText}" Style="{StaticResource A2854Status}"
+                           Margin="0,3,0,7" />
+                <TextBlock Text="{Binding TouchCalibrationSummary}" Style="{StaticResource A2854Description}" />
                 <CheckBox IsChecked="{Binding TouchCalibrationPreviewEnabled, Mode=OneWay}"
                           IsHitTestVisible="False" Focusable="False"
                           Content="{l:T A2854.Cal.PreviewOn}"
                           Margin="0,8,0,2" />
-                <TextBlock Text="{l:T A2854.Cal.PreviewInfo}"
-                           TextWrapping="Wrap" FontSize="11"
-                           Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                <TextBlock Text="{l:T A2854.Cal.PreviewInfo}" Style="{StaticResource A2854Secondary}" />
             </StackPanel>
         </Border>
 

@@ -243,7 +243,8 @@ public static class A2854HidCapture
     /// <summary>Keep a peer disconnect racing with the host command distinct from its Command Status.</summary>
     public static async Task<A2854HidDisconnectResult> DisconnectAsync(
         LeCentral central, ushort handle, Task<(ushort Handle, byte Reason)> disconnected,
-        CancellationToken cancellationToken = default, TimeSpan? eventTimeout = null)
+        CancellationToken cancellationToken = default, TimeSpan? eventTimeout = null,
+        bool requireLiveLink = false)
     {
         cancellationToken.ThrowIfCancellationRequested();
         bool commandStatusSucceeded = false;
@@ -252,10 +253,15 @@ public static class A2854HidCapture
         {
             try
             {
-                await central.DisconnectAsync(handle);
+                if (requireLiveLink)
+                    await central.DisconnectIfConnectedAsync(handle);
+                else
+                    await central.DisconnectAsync(handle);
                 commandStatusSucceeded = true;
             }
-            catch (Exception e) when (e is HciException or TimeoutException)
+            catch (Exception e) when (e is HciException or TimeoutException ||
+                e is InvalidOperationException &&
+                e.Message == "LE link closed before HCI command dispatch.")
             {
                 // Unknown Connection Identifier can race with a genuine peer-ended event.
                 // Still require that event; a command rejection alone never proves link closure.
