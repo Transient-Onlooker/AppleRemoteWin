@@ -21,6 +21,8 @@ Repository: `Transient-Onlooker/AppleRemoteWin`. Working branch: `feat/a2854-sup
 
 ### Current validated baseline and next gate
 
+- **2026-10-24 independent QA @ `5df3307`:** **351/351 PASS**, Release 0 warnings/errors; 2-DIP marker crop fixed, glyphs/13 press states/fade/legacy passed. **Remaining failure:** Settings horizontal overflow 50/516/196 DIP at 1024/1280/1600 test widths. New viewport sizing repair awaits Windows verification: disable horizontal ScrollViewer measure, constrain Grid to actual viewport, and switch Grid column definitions as well as rows. Target **zero excess width**, not merely hidden scrollbar; no bond/BLE changes.
+
 - **2026-10-24 UI QA @ `a3bbc4b`:** 346/346 PASS, clean Release build, 13 press states and two-finger/fading trails/legacy UI render confirmed. Follow-up UI source repairs **2-DIP marker crop** (163-DIP clip, 147-DIP center max with 1-DIP buffer), **1024px Settings right-pane cutoff** (stacked at page width <1160 DIP), and mute/play icon placement. 5 new boundary checks. **This follow-up awaits independent Windows build/offscreen rendering QA; no BLE change.**
 
 - **2026-10-24 independent QA @ `71733be`:** Release 0 errors/warnings, **342/342** tests, external mock **98/98**, Reconnect blocked after failed encrypted HID and redaction verified. One physical connect failed encrypt opcode `0x2019` status `0x3E` after LE establishment (~0.17s); unrelated 70s successful link at earlier `dd06b2f` does not prove every reconnect works. User's local files, bond and five-point calibration unchanged.

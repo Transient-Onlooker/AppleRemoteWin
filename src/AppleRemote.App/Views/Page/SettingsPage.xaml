@@ -57,8 +57,10 @@
     <!-- At narrow widths move the mapping diagram above settings rather than
          leaving the right pane clipped off-screen. The outer viewer scrolls
          vertically; horizontal scroll is a fallback for tiny windows. -->
-    <ScrollViewer Grid.Row="0" VerticalScrollBarVisibility="Auto"
-                  HorizontalScrollBarVisibility="Auto">
+    <ScrollViewer x:Name="SettingsViewport" Grid.Row="0"
+                  VerticalScrollBarVisibility="Auto"
+                  HorizontalScrollBarVisibility="Disabled"
+                  CanContentScroll="False">
     <Grid x:Name="ResponsiveSettingsGrid" Margin="18,6,18,18">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />

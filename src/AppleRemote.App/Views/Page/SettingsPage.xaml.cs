@@ -8,33 +8,59 @@ namespace AppleRemote.App.Views;
 
 public partial class SettingsPage
 {
-    // The diagram is 690 DIP wide, plus 32 DIP of inter-column spacing.
-    // Requiring 690+32+340+page margins on a 1024-pixel window hid the
-    // settings pane behind the diagram. Stack sections below this threshold.
+    // Key diagram requires 690 DIP + 32 DIP gutter; the other column needs
+    // a comfortable 340 DIP. Stack before the two-column view gets cramped.
     const double TwoColumnMinWidth = 1160;
-    bool _stackedLayout;
+    const double GridHorizontalMargins = 36; // 18 DIP on either side
+    const double ScrollbarReserve = 18;      // scrollbar + rounding headroom
+    bool? _stackedLayout;
 
     public SettingsPage()
     {
         InitializeComponent();
-        Loaded += (_, _) => UpdateResponsiveLayout(ActualWidth);
-        SizeChanged += (_, e) => UpdateResponsiveLayout(e.NewSize.Width);
+        Loaded += (_, _) => UpdateResponsiveLayout();
+        SettingsViewport.SizeChanged += (_, _) => UpdateResponsiveLayout();
     }
 
-    void UpdateResponsiveLayout(double availableWidth)
+    void UpdateResponsiveLayout()
     {
-        if (availableWidth <= 0 || double.IsNaN(availableWidth))
+        // With HorizontalScrollBarVisibility=Auto, a WPF ScrollViewer measures
+        // its child at infinite width, so Auto+Star Grid columns can grow to
+        // ~1796 DIP even in a 1280-wide window. Use a finite viewport width
+        // and NEVER offer horizontal scrolling as a workaround.
+        double viewportWidth = SettingsViewport.ActualWidth;
+        if (viewportWidth <= 0 || double.IsNaN(viewportWidth) ||
+            double.IsInfinity(viewportWidth))
             return;
-        bool stack = availableWidth < TwoColumnMinWidth;
+
+        // Explicit content width prevents the nested Auto/Grid/StackPanel
+        // controls from growing beyond the visible ScrollViewer viewport.
+        // Reserve space even if the vertical scrollbar appears later.
+        ResponsiveSettingsGrid.Width =
+            Math.Max(0, viewportWidth - GridHorizontalMargins - ScrollbarReserve);
+
+        bool stack = viewportWidth < TwoColumnMinWidth;
         if (_stackedLayout == stack) return;
         _stackedLayout = stack;
 
-        // Both controls remain alive with their original DataContext and
-        // bindings. Only their layout slots change: no map/settings reset.
-        Grid.SetColumn(RightSettingsScroller, stack ? 0 : 1);
-        Grid.SetRow(RightSettingsScroller, stack ? 1 : 0);
-        RemoteMappingPanel.Margin = stack
-            ? new Thickness(0, 0, 0, 18)
-            : new Thickness(0, 0, 32, 0);
+        if (stack)
+        {
+            ResponsiveSettingsGrid.ColumnDefinitions[0].Width =
+                new GridLength(1, GridUnitType.Star);
+            ResponsiveSettingsGrid.ColumnDefinitions[1].Width =
+                new GridLength(0);
+            Grid.SetColumn(RightSettingsScroller, 0);
+            Grid.SetRow(RightSettingsScroller, 1);
+            RemoteMappingPanel.Margin = new Thickness(0, 0, 0, 18);
+        }
+        else
+        {
+            ResponsiveSettingsGrid.ColumnDefinitions[0].Width = GridLength.Auto;
+            ResponsiveSettingsGrid.ColumnDefinitions[1].Width =
+                new GridLength(1, GridUnitType.Star);
+            Grid.SetColumn(RightSettingsScroller, 1);
+            Grid.SetRow(RightSettingsScroller, 0);
+            RemoteMappingPanel.Margin = new Thickness(0, 0, 32, 0);
+        }
     }
 }
