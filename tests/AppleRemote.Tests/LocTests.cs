@@ -80,6 +80,73 @@ public class LocTests
         Assert.NotEqual(Load("ko")["NoKey"], Load("fr")["NoKey"]);
     }
 
+    [Theory]
+    [InlineData("en", "ko")]
+    [InlineData("ko", "fr")]
+    [InlineData("fr", "en")]
+    public void Live_language_change_preserves_remote_model_in_connected_status(
+        string before, string after)
+    {
+        var old = CultureInfo.CurrentUICulture;
+        var previousDefault = CultureInfo.DefaultThreadCurrentUICulture;
+        try
+        {
+            Loc.SetLanguage(before);
+            const string model = "Siri Remote A2854";
+            string status = Loc.T("Status.ConnectedHid", model);
+            Assert.True(Loc.TryCaptureStatus(status, "Status.ConnectedHid", out var args));
+            Assert.Equal(model, Assert.IsType<string>(Assert.Single(args)));
+            Loc.SetLanguage(after);
+            string translated = Loc.T("Status.ConnectedHid", args);
+            Assert.Equal(Loc.T("Status.ConnectedHid", model), translated);
+            Assert.Contains(model, translated);
+            Assert.NotEqual(Loc.T("Remote.Level.Ok"), translated);
+        }
+        finally
+        {
+            CultureInfo.DefaultThreadCurrentUICulture = previousDefault;
+            CultureInfo.CurrentUICulture = old;
+        }
+    }
+
+    [Fact]
+    public void Localized_status_captures_reordered_placeholders_and_formatted_HCI_reason()
+    {
+        var old = CultureInfo.CurrentUICulture;
+        var previousDefault = CultureInfo.DefaultThreadCurrentUICulture;
+        try
+        {
+            Loc.SetLanguage("ko");
+            string found = Loc.T("Status.Found", "A2854", "Barrot");
+            Assert.True(Loc.TryCaptureStatus(found, "Status.Found", out var details));
+            Assert.Equal(new object?[] { "A2854", "Barrot" }, details);
+            Loc.SetLanguage("en");
+            Assert.Equal(Loc.T("Status.Found", "A2854", "Barrot"),
+                Loc.T("Status.Found", details));
+
+            string disconnect = Loc.T("Status.DisconnectedReason", 0x3E);
+            Assert.True(Loc.TryCaptureStatus(disconnect, "Status.DisconnectedReason", out var code));
+            Assert.Equal(0x3E, Assert.IsType<int>(Assert.Single(code)));
+            Loc.SetLanguage("ko");
+            Assert.Equal(Loc.T("Status.DisconnectedReason", 0x3E),
+                Loc.T("Status.DisconnectedReason", code));
+        }
+        finally
+        {
+            CultureInfo.DefaultThreadCurrentUICulture = previousDefault;
+            CultureInfo.CurrentUICulture = old;
+        }
+    }
+
+    [Fact]
+    public void Unknown_status_is_not_misidentified_or_truncated()
+    {
+        Assert.False(Loc.TryCaptureStatus("Connected device model=Test",
+            "Status.ConnectedHid", out _));
+        Assert.False(Loc.TryCaptureStatus("Connection 1 " + new string('x', 1500),
+            "Status.ConnectedHid", out _));
+    }
+
     static string Placeholders(string s) => string.Join(",", Regex.Matches(s, @"\{\d+[^}]*\}").Select(m => m.Value).Order());
 
     [Fact]

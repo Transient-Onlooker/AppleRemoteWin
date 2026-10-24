@@ -72,6 +72,7 @@ public sealed partial class RemoteViewModel : ObservableObject, IDisposable
     [ObservableProperty] string _selectedCalibrationTarget = "center";
     int _lastLiveTouchX, _lastLiveTouchY;
     string? _lastStatusKey = "Status.Stopped";
+    object?[] _lastStatusArguments = [];
     [ObservableProperty] string _touchCalibrationSummary = Loc.T("A2854.Touch.Initial");
     [ObservableProperty] string _liveTouchCoordinates = Loc.T("A2854.Touch.None");
     [ObservableProperty] bool _touchCalibrationPreviewEnabled;
@@ -345,7 +346,17 @@ public sealed partial class RemoteViewModel : ObservableObject, IDisposable
         "Status.Stopped", "Status.WaitHid", "Status.WaitBonded",
         "Status.WaitPairing", "Status.Disconnected", "Status.WaitDongle",
         "Status.DongleIdle", "Status.PairingFirst", "Status.ConnectedDirect",
-        "Status.ConnectedDongle"
+        "Status.ConnectedDongle", "Status.Relocked"
+    ];
+
+    // Parameter-bearing texts are captured at the instant of OnStatus, while
+    // the original culture is still available; never drop a remote model/name
+    // or HCI error detail merely because the user switched UI languages.
+    static readonly string[] FormattedStatusKeys =
+    [
+        "Status.ConnectedHid", "Status.BtUnavailable", "Status.BtError",
+        "Status.Error", "Status.CannotOpen", "Status.Unreachable",
+        "Status.Found", "Status.DisconnectedReason", "Status.KeysRefused"
     ];
 
     /// <summary>Refresh dynamic UI texts without resetting any profile or session.</summary>
@@ -361,11 +372,12 @@ public sealed partial class RemoteViewModel : ObservableObject, IDisposable
             ? Loc.T("A2854.Touch.Live", _lastLiveTouchX, _lastLiveTouchY)
             : Loc.T("A2854.Touch.None");
         if (_lastStatusKey is { } key)
-            StatusText = Loc.T(key);
-        else if (!StatusText.StartsWith("A2854:", StringComparison.Ordinal))
-            // Unrecognized/dynamic localized statuses become a localized
-            // category, never a stale sentence in the previous language.
-            StatusText = StatusTitle;
+            StatusText = _lastStatusArguments.Length == 0
+                ? Loc.T(key)
+                : Loc.T(key, _lastStatusArguments);
+        // Unknown status strings are deliberately left intact. Replacing an
+        // unmatched "Connected: <device>" with the generic StatusTitle loses
+        // useful diagnostics and misleadingly appears to alter link state.
         A2854TimelineCount = _sessionTimeline.Snapshot().Count == 0
             ? Loc.T("A2854.Link.EventsInitial")
             : Loc.T("A2854.Link.EventsCount", _sessionTimeline.Snapshot().Count);
@@ -671,6 +683,18 @@ public sealed partial class RemoteViewModel : ObservableObject, IDisposable
         StatusText = message;
         _lastStatusKey = PlainStatusKeys.FirstOrDefault(key =>
             string.Equals(message, Loc.T(key), StringComparison.Ordinal));
+        _lastStatusArguments = [];
+        if (_lastStatusKey is null)
+        {
+            foreach (string candidate in FormattedStatusKeys)
+            {
+                if (!Loc.TryCaptureStatus(message, candidate, out var values))
+                    continue;
+                _lastStatusKey = candidate;
+                _lastStatusArguments = values;
+                break;
+            }
+        }
         if (_session.A2854Mode && _sessionTimeline.Record(message))
             A2854TimelineCount = Loc.T("A2854.Link.EventsCount", _sessionTimeline.Snapshot().Count);
         if (_session.A2854Mode && IsA2854OutcomeMessage(message))
