@@ -47,6 +47,16 @@ public sealed class A2854VisualContactTrackerTests
         Assert.Null(firstOnly[1]);
     }
 
+    [Theory]
+    [InlineData(1000, 1000, 0.85)]
+    [InlineData(1500, 1000, 0.425)]
+    [InlineData(2000, 1000, 0.0)]
+    [InlineData(2400, 1000, 0.0)]
+    public void Trail_opacity_decays_after_last_contact(long now, long last, double expected)
+    {
+        Assert.Equal(expected, A2854VisualTrailFade.Opacity(now, last), 5);
+    }
+
     [Fact]
     public void Empty_frame_and_reset_discard_previous_identity()
     {

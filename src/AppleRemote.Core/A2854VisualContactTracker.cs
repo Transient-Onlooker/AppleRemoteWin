@@ -93,3 +93,18 @@ public sealed class A2854VisualContactTracker
         return dx * dx + dy * dy;
     }
 }
+
+/// <summary>
+/// Display-only opacity envelope for independent A2854 finger trails.
+/// A marker hides immediately on release, but its trail fades naturally
+/// without joining an unrelated new finger. Pure math: no WPF dependencies.
+/// </summary>
+public static class A2854VisualTrailFade
+{
+    public static double Opacity(long nowMilliseconds, long lastContactMilliseconds, long lifeMilliseconds = 1000)
+    {
+        if (lifeMilliseconds <= 0) return 0;
+        long elapsed = Math.Max(0, nowMilliseconds - lastContactMilliseconds);
+        return 0.85 * Math.Clamp(1 - elapsed / (double)lifeMilliseconds, 0, 1);
+    }
+}

@@ -146,6 +146,9 @@
                     <TextBlock Text="External Barrot USB · existing protected bond"
                                FontSize="12" TextWrapping="Wrap"
                                Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                    <!-- Battery is application metadata, not printed on the aluminum face. -->
+                    <TextBlock Text="{Binding BatteryText}" FontSize="11" Margin="0,4,0,0"
+                               Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                     <TextBlock Text="{Binding A2854TimelineCount}" Margin="0,6,0,1" FontSize="11"
                                Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                     <TextBlock Text="{Binding A2854LastLinkSummary}"

@@ -104,6 +104,8 @@ public sealed partial class RemoteViewModel : ObservableObject, IDisposable
     [ObservableProperty] PointCollection _trailPoints = new();
     [ObservableProperty] PointCollection _a2854TrailOnePoints = new();
     [ObservableProperty] PointCollection _a2854TrailTwoPoints = new();
+    [ObservableProperty] double _a2854TrailOneOpacity;
+    [ObservableProperty] double _a2854TrailTwoOpacity;
     [ObservableProperty] double _tileShiftX;
     [ObservableProperty] double _tileShiftY;
     [ObservableProperty] string _moveArrow = "·";
@@ -486,8 +488,10 @@ public sealed partial class RemoteViewModel : ObservableObject, IDisposable
         {
             if (assigned[i] is not { } contact)
             {
+                // Hide the lifted finger's marker immediately, but preserve
+                // its short trail so it can fade instead of teleporting away.
+                // A new contact reusing this slot clears the old trail below.
                 Fingers[i].IsVisible = false;
-                _a2854Trails[i].Clear();
                 continue;
             }
             var pos = ProjectTouch(contact.X, contact.Y);
@@ -499,6 +503,7 @@ public sealed partial class RemoteViewModel : ObservableObject, IDisposable
         }
         A2854TrailOnePoints = new PointCollection(_a2854Trails[0].Select(p => p.Point));
         A2854TrailTwoPoints = new PointCollection(_a2854Trails[1].Select(p => p.Point));
+        RefreshA2854TrailOpacity(now);
         if (_a2854Trails.Any(x => x.Count > 0)) _trailTimer.Start();
         else if (_trail.Count == 0) _trailTimer.Stop();
     }
@@ -510,6 +515,15 @@ public sealed partial class RemoteViewModel : ObservableObject, IDisposable
         foreach (var trail in _a2854Trails) trail.Clear();
         A2854TrailOnePoints = new PointCollection();
         A2854TrailTwoPoints = new PointCollection();
+        A2854TrailOneOpacity = A2854TrailTwoOpacity = 0;
+    }
+
+    void RefreshA2854TrailOpacity(long now)
+    {
+        A2854TrailOneOpacity = _a2854Trails[0].Count == 0 ? 0
+            : A2854VisualTrailFade.Opacity(now, _a2854Trails[0][^1].Time, TrailLifeMs);
+        A2854TrailTwoOpacity = _a2854Trails[1].Count == 0 ? 0
+            : A2854VisualTrailFade.Opacity(now, _a2854Trails[1][^1].Time, TrailLifeMs);
     }
 
     /// <summary>Each finger's trail fades independently; no cross-finger line.</summary>
@@ -522,6 +536,7 @@ public sealed partial class RemoteViewModel : ObservableObject, IDisposable
             A2854TrailOnePoints = new PointCollection(_a2854Trails[0].Select(p => p.Point));
         if (TrimTrail(_a2854Trails[1], limit))
             A2854TrailTwoPoints = new PointCollection(_a2854Trails[1].Select(p => p.Point));
+        RefreshA2854TrailOpacity(Environment.TickCount64);
         if (_trail.Count == 0 && _a2854Trails.All(x => x.Count == 0))
             _trailTimer.Stop();
     }

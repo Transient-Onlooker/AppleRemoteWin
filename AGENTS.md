@@ -21,6 +21,9 @@ Repository: `Transient-Onlooker/AppleRemoteWin`. Working branch: `feat/a2854-sup
 
 ### Current validated baseline and next gate
 
+- **2026-10-24 independent QA @ `71733be`:** Release 0 errors/warnings, **342/342** tests, external mock **98/98**, Reconnect blocked after failed encrypted HID and redaction verified. One physical connect failed encrypt opcode `0x2019` status `0x3E` after LE establishment (~0.17s); unrelated 70s successful link at earlier `dd06b2f` does not prove every reconnect works. User's local files, bond and five-point calibration unchanged.
+- **New photo-guided A2854 skin (requires new Windows QA):** user's screenshot material and physical proportions mirrored in WPF vector: 360×1410 aluminum body with light-to-gray diffuse gradient, dark soft radial matte keys/one-ring clickpad, true round hardware keys at corrected y positions and lower blank metal, power/side buttons; separate battery status in card. Finger trails now smoothly fade for 1s after lift (four pure theory checks), while markers still hide immediately. No BLE, USB, pointer, keymap, DPAPI changes.
+
 - **2026-10-24 independent QA @ `dd06b2f`:** **329/329** Release tests, zero build warnings/errors, encrypted LTK and HID link maintained ~70s, one pre-encryption ATT 0x08 handled, GUI Stop CCCD disable and local 0x16 succeeded; 30s peer 0x13 not reproduced **once** (cause unproven). No SendInput physical test; config/keymap restored, bond and physical landmarks unchanged.
 - **New QA corrective patch (await build):** only offer manual Reconnect after actual encrypted HID subscriptions were enabled and native cleanup succeeded; use one strict, allowlisted numeric-only redact function for Copy timeline **and Copy result**, never original callback text. New hostile-suffix tests. Matte remote/two-finger visuals from prior commit also awaiting Windows GUI verification.
 
