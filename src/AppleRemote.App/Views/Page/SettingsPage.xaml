@@ -255,8 +255,9 @@
                            Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                 <TextBlock Text="{Binding LiveTouchCoordinates}" FontFamily="Consolas" FontSize="12"
                            Margin="0,0,0,8" />
-                <ComboBox ItemsSource="{Binding CalibrationTargets}"
-                          SelectedItem="{Binding SelectedCalibrationTarget, Mode=TwoWay}"
+                <ComboBox ItemsSource="{Binding CalibrationTargetChoices}"
+                          DisplayMemberPath="Name" SelectedValuePath="Code"
+                          SelectedValue="{Binding SelectedCalibrationTarget, Mode=TwoWay}"
                           Margin="0,0,0,8" />
                 <WrapPanel>
                     <ui:Button Content="{l:T A2854.Cal.Capture}" Command="{Binding CaptureCalibrationPointCommand}"

@@ -19,7 +19,8 @@ namespace AppleRemote.App.Controls;
 public sealed class MacroEditor : Border, ViewModels.IMacroWorkspace
 {
     readonly WebView2 _web = new() { DefaultBackgroundColor = System.Drawing.Color.FromArgb(0x20, 0x20, 0x20) };
-    bool _started, _ready;
+    bool _started, _ready, _localeChanging;
+    string _loadedLocale = "en";
     JsonNode? _pending;
 
     /// <summary>Software offered by the Software block.</summary>
@@ -40,11 +41,56 @@ public sealed class MacroEditor : Border, ViewModels.IMacroWorkspace
         SetResourceReference(BorderBrushProperty, "ControlStrokeColorDefaultBrush");
         Child = _web;
         Loaded += OnLoaded;
+        Unloaded += (_, _) => Loc.LanguageChanged -= OnLanguageChanged;
+    }
+
+    static string CurrentBlocklyLocale()
+    {
+        string locale = CultureInfo.CurrentUICulture.TwoLetterISOLanguageName;
+        return locale is "ko" or "fr" ? locale : "en";
+    }
+
+    void OnLanguageChanged() => _ = RefreshBlocklyLocaleAsync();
+
+    /// <summary>
+    /// Blockly strings are bound when the workspace is created, not live.
+    /// Preserve unsaved block JSON before reloading the bundled localized UI.
+    /// No macro is executed or saved by changing its display language.
+    /// </summary>
+    async Task RefreshBlocklyLocaleAsync()
+    {
+        if (!_ready || _localeChanging || _web.CoreWebView2 is null) return;
+        string desired = CurrentBlocklyLocale();
+        if (_loadedLocale == desired) return;
+        _localeChanging = true;
+        try
+        {
+            // Capture currently edited, *unsaved* workspace before navigation.
+            var snapshot = await GetWorkspaceAsync();
+            _pending = snapshot;
+            _ready = false;
+            _loadedLocale = CurrentBlocklyLocale();
+            _web.CoreWebView2.Navigate($"https://blockly.local/index.html?lang={_loadedLocale}");
+        }
+        catch (Exception ex)
+        {
+            // Leave the existing workspace accessible if script evaluation
+            // fails; never reset it or mutate the user's saved macro.
+            System.Diagnostics.Debug.WriteLine(
+                $"Blockly localization refresh failed ({ex.GetType().Name}).");
+        }
+        finally { _localeChanging = false; }
     }
 
     async void OnLoaded(object sender, RoutedEventArgs e)
     {
-        if (_started) return; // Loaded fires again each time the page is shown
+        Loc.LanguageChanged -= OnLanguageChanged;
+        Loc.LanguageChanged += OnLanguageChanged;
+        if (_started)
+        {
+            _ = RefreshBlocklyLocaleAsync();
+            return; // Loaded fires each time the page is revisited
+        }
         _started = true;
         try
         {
@@ -57,8 +103,8 @@ public sealed class MacroEditor : Border, ViewModels.IMacroWorkspace
             core.Settings.AreDefaultContextMenusEnabled = false;
             core.Settings.AreDevToolsEnabled = false;
             core.WebMessageReceived += OnMessage;
-            string lang = CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "fr" ? "fr" : "en";
-            core.Navigate($"https://blockly.local/index.html?lang={lang}");
+            _loadedLocale = CurrentBlocklyLocale();
+            core.Navigate($"https://blockly.local/index.html?lang={_loadedLocale}");
         }
         catch (Exception ex)
         {
@@ -86,6 +132,8 @@ public sealed class MacroEditor : Border, ViewModels.IMacroWorkspace
             case "ready":
                 _ready = true;
                 Load(_pending);
+                // Language might have changed while the WebView2 was loading.
+                _ = RefreshBlocklyLocaleAsync();
                 break;
             case "change":
                 HasBlocks = msg.GetProperty("hasBlocks").GetBoolean();

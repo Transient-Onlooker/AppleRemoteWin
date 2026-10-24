@@ -1,6 +1,6 @@
 # Siri Remote (gen 1) pour Windows 11
 
-> **Développement A2854 (2026-10-24) :** l'ancienne procédure d'appairage ci-dessous concerne exclusivement la 1re génération. Sur A2854, l'application utilise un adaptateur USB Barrot dédié et la liaison DPAPI protégée. Les tests Windows ont validé 351/351 cas sur `5df3307`, mais une correction de débordement des Paramètres (`d1e570d`) et la localisation coréenne restent à revérifier. Voir [les notes techniques A2854](docs/a2854/README.md).
+> **État de validation (24/10/2026) :** le correctif `d1e570d` des Paramètres est **validé** : Release 351/351 tests, 171/171 tests WPF et **0 DIP de débordement** à 1024/1280/1600 px. `0d5bcc7` construit correctement et passe **359/359 tests** ; les 326 ressources françaises, anglaises et coréennes sont cohérentes. Cependant, la localisation coréenne **reste partielle** (sélecteur de langue, textes figés, repères de calibrage, Blockly). Le correctif suivant attend encore la QA Windows. La procédure d'appairage ci-dessous est réservée à la première génération, pas à l'A2854 utilisant un dongle Barrot et une liaison DPAPI protégée. Voir [A2854](docs/a2854/README.md).
 
 *[English version](README.md) · [한국어](README.ko.md)*
 

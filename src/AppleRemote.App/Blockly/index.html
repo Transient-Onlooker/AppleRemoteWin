@@ -10,8 +10,10 @@
 <script src="blockly_compressed.js"></script>
 <script src="blocks_compressed.js"></script>
 <script>
-  // Langue de l'interface (?lang=fr|en) : traductions de Blockly puis des blocs de l'application.
-  var lang = new URLSearchParams(location.search).get('lang') === 'fr' ? 'fr' : 'en';
+  // Blockly's core locale is loaded before creating the workspace.
+  // Only these trusted filenames may be used; never interpolate raw URL data.
+  var requested = new URLSearchParams(location.search).get('lang');
+  var lang = ['ko', 'fr', 'en'].includes(requested) ? requested : 'en';
   document.write('<script src="msg/' + lang + '.js"><\/script>');
 </script>
 </head>
@@ -46,6 +48,25 @@ const T = {
     tip_start: 'Entry point of the macro: only the blocks attached below it run.',
     tip_ask: 'Opens a window and returns the answer; the macro stops if the window is closed.',
     pick_combo: 'Record the combination', pick_app: 'Choose the program'
+  },
+  ko: {
+    cat_macro: '매크로', cat_input: '입력', cat_control: '제어', cat_logic: '논리',
+    cat_math: '수학', cat_text: '텍스트', cat_vars: '변수',
+    combo: '키 조합', app: '프로그램', wait: '대기', ms: 'ms',
+    type: '입력', shell: '명령 실행', start: '시작할 때',
+    shell_code: '종료 코드 →', shell_output: '출력 →',
+    ask_text: '텍스트 요청', ask_file: '파일 선택 요청', ask_drop: '파일 끌어놓기',
+    prompt_text: '텍스트를 입력하세요.', prompt_file: '파일을 선택하세요.',
+    prompt_drop: '여기에 파일을 놓으세요.',
+    tip_combo: '지정한 키 조합을 누릅니다. 아이콘을 누르면 조합을 설정할 수 있습니다.',
+    tip_app: '프로그램을 실행합니다. 아이콘을 눌러 프로그램을 선택하세요.',
+    tip_wait: '지정된 밀리초 동안 대기합니다.',
+    tip_type: '전달받은 텍스트나 파일 경로를 입력합니다.',
+    tip_shell: '창을 표시하지 않고 cmd 또는 PowerShell 명령을 실행합니다. ' +
+      '종료 코드 변수는 실행 결과를, 출력 변수는 표준 출력과 오류를 받습니다.',
+    tip_start: '매크로의 시작점입니다. 아래에 연결된 블록만 실행됩니다.',
+    tip_ask: '사용자 입력 창을 열어 응답을 받습니다. 취소하면 매크로가 종료됩니다.',
+    pick_combo: '키 조합 설정', pick_app: '프로그램 선택'
   }
 }[lang];
 

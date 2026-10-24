@@ -2,6 +2,7 @@
 // Copyright (C) 2026 AnthoDingo
 
 using System.Diagnostics;
+using System.Collections.ObjectModel;
 using System.IO;
 using System.Windows;
 using System.Windows.Media;
@@ -53,7 +54,24 @@ public sealed partial class RemoteViewModel : ObservableObject, IDisposable
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
         "AppleRemote", "A2854-touch-calibration.json");
     public string[] CalibrationTargets { get; } = ["center", "left", "right", "top", "bottom"];
+
+    public sealed class CalibrationChoice(string code, string name) : ObservableObject
+    {
+        public string Code { get; } = code;
+        string _name = name;
+        public string Name
+        {
+            get => _name;
+            set => SetProperty(ref _name, value);
+        }
+    }
+
+    // Stable code strings are stored to JSON and used for capture. Only their
+    // displayed labels change with the current UI culture.
+    public ObservableCollection<CalibrationChoice> CalibrationTargetChoices { get; } = [];
     [ObservableProperty] string _selectedCalibrationTarget = "center";
+    int _lastLiveTouchX, _lastLiveTouchY;
+    string? _lastStatusKey = "Status.Stopped";
     [ObservableProperty] string _touchCalibrationSummary = Loc.T("A2854.Touch.Initial");
     [ObservableProperty] string _liveTouchCoordinates = Loc.T("A2854.Touch.None");
     [ObservableProperty] bool _touchCalibrationPreviewEnabled;
@@ -156,6 +174,8 @@ public sealed partial class RemoteViewModel : ObservableObject, IDisposable
         _dialogs = dialogs;
         _log = log;
         _runBound = runBound;
+        foreach (var code in CalibrationTargets)
+            CalibrationTargetChoices.Add(new CalibrationChoice(code, CalibrationLabel(code)));
         LoadTouchCalibrationPoints();
         _session.Event += ev =>
         {
@@ -285,6 +305,7 @@ public sealed partial class RemoteViewModel : ObservableObject, IDisposable
         BatteryLevel = null;
         A2854LastLinkSummary = Loc.T("A2854.Link.None");
         StatusText = Loc.T("Status.Stopped");
+        _lastStatusKey = "Status.Stopped";
         StatusLevel = StatusLevel.Idle;
         ShowButtons(0);
         foreach (var finger in Fingers) finger.IsVisible = false;
@@ -308,14 +329,46 @@ public sealed partial class RemoteViewModel : ObservableObject, IDisposable
         _scanner.Dispose();
     }
 
-    /// <summary>The language changed: texts computed here are re-read.</summary>
+    static string CalibrationLabel(string code) => Loc.T(code switch
+    {
+        "center" => "A2854.Cal.Center",
+        "left" => "A2854.Cal.Left",
+        "right" => "A2854.Cal.Right",
+        "top" => "A2854.Cal.Top",
+        _ => "A2854.Cal.Bottom"
+    });
+
+    // These messages contain no dynamic data: safely regenerate their
+    // translations rather than attempting to parse the old UI language.
+    static readonly string[] PlainStatusKeys =
+    [
+        "Status.Stopped", "Status.WaitHid", "Status.WaitBonded",
+        "Status.WaitPairing", "Status.Disconnected", "Status.WaitDongle",
+        "Status.DongleIdle", "Status.PairingFirst", "Status.ConnectedDirect",
+        "Status.ConnectedDongle"
+    ];
+
+    /// <summary>Refresh dynamic UI texts without resetting any profile or session.</summary>
     public void RefreshTexts()
     {
+        foreach (var choice in CalibrationTargetChoices)
+            choice.Name = CalibrationLabel(choice.Code);
         OnPropertyChanged(string.Empty);
-        // Never reset the saved profile or visual preview on language switch.
-        if (_touchReferences.Count > 0)
-            TouchCalibrationSummary = BuildCalibrationSummary();
-        A2854TimelineCount = Loc.T("A2854.Link.EventsCount", _sessionTimeline.Snapshot().Count);
+        TouchCalibrationSummary = _touchReferences.Count > 0
+            ? BuildCalibrationSummary()
+            : Loc.T("A2854.Touch.Initial");
+        LiveTouchCoordinates = _calibrationFingerDown
+            ? Loc.T("A2854.Touch.Live", _lastLiveTouchX, _lastLiveTouchY)
+            : Loc.T("A2854.Touch.None");
+        if (_lastStatusKey is { } key)
+            StatusText = Loc.T(key);
+        else if (!StatusText.StartsWith("A2854:", StringComparison.Ordinal))
+            // Unrecognized/dynamic localized statuses become a localized
+            // category, never a stale sentence in the previous language.
+            StatusText = StatusTitle;
+        A2854TimelineCount = _sessionTimeline.Snapshot().Count == 0
+            ? Loc.T("A2854.Link.EventsInitial")
+            : Loc.T("A2854.Link.EventsCount", _sessionTimeline.Snapshot().Count);
         if (_sessionTimeline.Snapshot().Count == 0)
             A2854LastLinkSummary = Loc.T("A2854.Link.None");
     }
@@ -436,6 +489,8 @@ public sealed partial class RemoteViewModel : ObservableObject, IDisposable
                 if (!_calibrationFingerDown) _calibrationWindow.Clear();
                 _calibrationFingerDown = true;
                 _calibrationWindow.Add(t.X, t.Y, Environment.TickCount64);
+                _lastLiveTouchX = t.X;
+                _lastLiveTouchY = t.Y;
                 LiveTouchCoordinates = Loc.T("A2854.Touch.Live", t.X, t.Y);
             }
             else
@@ -614,6 +669,8 @@ public sealed partial class RemoteViewModel : ObservableObject, IDisposable
         // Battery is optional: its failure is logged but must not hide the connection status.
         if (Loc.StartsWith(message, "Status.BatteryUnreadable")) { _log(message); return; }
         StatusText = message;
+        _lastStatusKey = PlainStatusKeys.FirstOrDefault(key =>
+            string.Equals(message, Loc.T(key), StringComparison.Ordinal));
         if (_session.A2854Mode && _sessionTimeline.Record(message))
             A2854TimelineCount = Loc.T("A2854.Link.EventsCount", _sessionTimeline.Snapshot().Count);
         if (_session.A2854Mode && IsA2854OutcomeMessage(message))

@@ -74,8 +74,10 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
     bool CanCheckUpdates() => !CheckingUpdates;
     partial void OnCheckingUpdatesChanged(bool value) => CheckUpdatesCommand.NotifyCanExecuteChanged();
 
-    static readonly string NoKey = Loc.T("NoKey");
-    public IReadOnlyList<string> KeyChoices { get; } = [NoKey, .. Keys.Names.Keys.Where(n => n != "Esc")];
+    // Key selectors keep a stable collection/selection across live language changes.
+    // "NoKey" is a UI sentinel, not a persisted key mapping.
+    string _noKey = Loc.T("NoKey");
+    public ObservableCollection<string> KeyChoices { get; } = [];
     public Dictionary<string, KeyChoice> Bindings { get; } = new();
     /// <summary>Paths of the software offered in the Software menu: detected + added by Browse.</summary>
     public ObservableCollection<string> SoftwareChoices { get; } = new();
@@ -156,23 +158,55 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
         }
     }
 
-    public sealed record LanguageChoice(string Code, string Name);
-    // Recreate display names on culture changes; keep stable language codes
-    // (including existing persisted "auto"/"fr"/"en" settings).
-    public IReadOnlyList<LanguageChoice> Languages =>
-        [new("auto", Loc.T("Language.Auto")), new("ko", Loc.T("Language.Ko")),
-         new("en", Loc.T("Language.En")), new("fr", Loc.T("Language.Fr"))];
+    public sealed class LanguageChoice(string code, string name) : ObservableObject
+    {
+        public string Code { get; } = code;
+        string _name = name;
+        public string Name
+        {
+            get => _name;
+            set => SetProperty(ref _name, value);
+        }
+    }
+
+    // Never replace ItemsSource objects while SelectedValue is bound:
+    // WPF can temporarily clear the selection and write null to Language.
+    public IReadOnlyList<LanguageChoice> Languages { get; } =
+        [new("auto", Loc.T("Language.Auto")),
+         new("ko", Loc.T("Language.Ko")),
+         new("en", Loc.T("Language.En")),
+         new("fr", Loc.T("Language.Fr"))];
 
     /// <summary>Applied live: XAML texts (<see cref="LocSource"/>) and model properties are re-evaluated.</summary>
     [ObservableProperty] string _language = "auto";
 
     partial void OnLanguageChanged(string value)
     {
+        if (string.IsNullOrEmpty(value)) return;
         _settings.Language = value;
         _settings.Save();
         Loc.SetLanguage(value);
+        string oldNoKey = _noKey;
+        _noKey = Loc.T("NoKey");
+        _syncingBindings = true;
+        try
+        {
+            // Replace sentinel in the same stable combo collection and
+            // in any unassigned picker, but never modify a real key mapping.
+            if (KeyChoices.Count > 0) KeyChoices[0] = _noKey;
+            foreach (var choice in Bindings.Values)
+                if (choice.Key == oldNoKey) choice.Key = _noKey;
+        }
+        finally { _syncingBindings = false; }
+        foreach (var item in Languages)
+            item.Name = Loc.T(item.Code switch
+            {
+                "ko" => "Language.Ko",
+                "fr" => "Language.Fr",
+                "en" => "Language.En",
+                _ => "Language.Auto"
+            });
         LocSource.Instance.Refresh();
-        OnPropertyChanged(nameof(Languages));
         OnPropertyChanged(string.Empty);
         Remote.RefreshTexts();
     }
@@ -184,11 +218,14 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
         _dialogs = dialogs;
         _log = log;
         Remote = remote;
+        KeyChoices.Add(_noKey);
+        foreach (var key in Keys.Names.Keys.Where(n => n != "Esc"))
+            KeyChoices.Add(key);
 
         Macro.Renamed += OnMacroRenamed;
         foreach (var p in SoftwareApps.Detect().Concat(_settings.Apps).Where(File.Exists))
             if (!SoftwareChoices.Contains(p, StringComparer.OrdinalIgnoreCase)) SoftwareChoices.Add(p);
-        foreach (var input in KeyMap.Inputs) Bindings[input] = new KeyChoice(input, NoKey, OnBindingChanged);
+        foreach (var input in KeyMap.Inputs) Bindings[input] = new KeyChoice(input, _noKey, OnBindingChanged);
         SyncBindings();
 
         _keyboardEnabled = _settings.KeyboardEnabled;
@@ -226,7 +263,7 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
             choice.Key = _settings.Software.TryGetValue(input, out var app) ? SoftwareApps.Prefix + app
                 : _settings.Combos.TryGetValue(input, out var combo) ? combo
                 : _settings.Macros.TryGetValue(input, out var macro) ? Macro.Prefix + macro
-                : _session.KeyMap.TryGet(input, out var k) ? Keys.NameOf(k) ?? NoKey : NoKey;
+                : _session.KeyMap.TryGet(input, out var k) ? Keys.NameOf(k) ?? _noKey : _noKey;
         _syncingBindings = false;
     }
 

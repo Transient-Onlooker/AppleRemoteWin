@@ -58,6 +58,28 @@ public class LocTests
         Assert.Equal(expected, Loc.ResolveCulture(preference, windows).TwoLetterISOLanguageName);
     }
 
+    [Theory]
+    [InlineData("A2854.Cal.Center", "중앙")]
+    [InlineData("A2854.Cal.Left", "왼쪽")]
+    [InlineData("A2854.Cal.Right", "오른쪽")]
+    [InlineData("A2854.Cal.Top", "위쪽")]
+    [InlineData("A2854.Cal.Bottom", "아래쪽")]
+    public void Five_point_caption_is_localized_without_changing_storage_key(
+        string resourceKey, string korean)
+    {
+        Assert.Equal(korean, Load("ko")[resourceKey]);
+        Assert.NotEqual(korean, Load("en")[resourceKey]);
+        Assert.False(string.IsNullOrWhiteSpace(Load("fr")[resourceKey]));
+    }
+
+    [Fact]
+    public void No_key_sentinel_is_translated_in_all_three_locales()
+    {
+        Assert.Equal("(none)", Load("en")["NoKey"]);
+        Assert.Equal("(없음)", Load("ko")["NoKey"]);
+        Assert.NotEqual(Load("ko")["NoKey"], Load("fr")["NoKey"]);
+    }
+
     static string Placeholders(string s) => string.Join(",", Regex.Matches(s, @"\{\d+[^}]*\}").Select(m => m.Value).Order());
 
     [Fact]

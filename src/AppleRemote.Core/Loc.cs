@@ -31,10 +31,17 @@ public static class Loc
             ? requested : "en");
     }
 
+    /// <summary>Notifies loaded embedded editors to refresh their display locale.</summary>
+    public static event Action? LanguageChanged;
+
     public static void SetLanguage(string? language)
     {
+        var culture = ResolveCulture(language);
+        bool changed = !string.Equals(CultureInfo.CurrentUICulture.Name,
+            culture.Name, StringComparison.OrdinalIgnoreCase);
         CultureInfo.DefaultThreadCurrentUICulture =
-            CultureInfo.CurrentUICulture = ResolveCulture(language);
+            CultureInfo.CurrentUICulture = culture;
+        if (changed) LanguageChanged?.Invoke();
     }
 
     public static string T(string key) => Resources.GetString(key) ?? key;
