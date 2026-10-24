@@ -431,7 +431,9 @@ public sealed class LeCentral
                 break;
             case EvtEncryptionChange when p.Length >= 4 && _encrypting is { } encryption &&
                 encryption.Handle == (ushort)(p[1] | p[2] << 8):
-                if (p[0] != 0) encryption.Done.TrySetException(new HciException(HciOpcode.LeEnableEncryption, p[0]));
+                if (p[0] != 0) encryption.Done.TrySetException(
+                    new HciException(HciOpcode.LeEnableEncryption, p[0],
+                        HciFailureSource.EncryptionChange));
                 else if (p[3] == 0) encryption.Done.TrySetException(new InvalidOperationException("Encryption disabled by the remote."));
                 else encryption.Done.TrySetResult();
                 break;

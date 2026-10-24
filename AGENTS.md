@@ -21,6 +21,8 @@ Repository: `Transient-Onlooker/AppleRemoteWin`. Working branch: `feat/a2854-sup
 
 ### Current validated baseline and next gate
 
+- **2026-10-24 functional reliability follow-up (new source awaiting independent Windows QA):** the owner prioritizes successful A2854 connections over further localization polish. Source distinguishes HCI Command Status/Complete vs Encryption Change causes of `0x2019/0x3E`, recognizes the LinkEstablished→ConnectAsync pre-handle disconnect window and avoids encrypting a link already closed by the peer. Fixed-format privacy-sanitized new diagnostic categories and mock regressions. **No RF settings, driver, DPAPI bond, GATT, or SendInput changes; no evidence yet this resolves real link reliability.**
+
 **Authoritative QA status as of 2026-10-24 (historical details remain in the handoff):**
 
 - `d1e570d`: **351/351** Release tests, **171/171** WPF checks, build 0 warnings/errors. A2854 and gen-1 Settings overflow measured **0 DIP** at **1024/1280/1600px**. Settings width bug is **resolved**; do not repeat earlier 50/516/196 DIP failure as a current issue.

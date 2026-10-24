@@ -78,6 +78,19 @@ public sealed class A2854SessionTimelineTests
             A2854SessionTimeline.Redact(peer + " 11:22:33:44:55:66"));
     }
 
+    [Theory]
+    [InlineData("A2854: HCI failure source=CommandStatus.", "HCI failure source=CommandStatus")]
+    [InlineData("A2854: HCI failure source=EncryptionChange.", "HCI failure source=EncryptionChange")]
+    [InlineData("A2854: early peer disconnect before encryption reason=0x3E; bond unchanged.",
+        "Peer disconnected before encryption; reason=0x3E")]
+    public void Sanitized_encryption_phase_evidence_includes_no_raw_peer_details(
+        string message, string expected)
+    {
+        Assert.Equal(expected, A2854SessionTimeline.Redact(message));
+        Assert.DoesNotContain("bond", A2854SessionTimeline.Redact(message)!);
+        Assert.NotEqual(expected, A2854SessionTimeline.Redact(message + " LTK=SECRET"));
+    }
+
     [Fact]
     public void Unknown_and_oversized_statuses_are_rejected()
     {

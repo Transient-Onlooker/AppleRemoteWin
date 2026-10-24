@@ -95,6 +95,39 @@ public class BleTests
     }
 
     [Fact]
+    public async Task Immediate_peer_disconnect_can_be_observed_before_ConnectAsync_continuation()
+    {
+        int provisional = -1;
+        ushort? assigned = null;
+        (ushort Handle, byte Reason)? early = null;
+        _central.ConnectionUpdateTrace += e =>
+        {
+            if (e.Phase == LeConnectionUpdatePhase.LinkEstablished)
+                provisional = e.Handle;
+        };
+        _central.Disconnected += (h, reason) =>
+        {
+            if (assigned == h || provisional == h)
+                early = (h, reason);
+        };
+
+        Task<ushort> connecting = _central.ConnectAsync("14:9D:99:26:BF:CC");
+        CommandStatusOk(HciOpcode.LeCreateConnection);
+        _hci.ReceiveEventBytes([
+            0x3E, 0x13, 0x01, 0x00, 0x40, 0x00, 0x00, 0x00,
+            0xCC, 0xBF, 0x26, 0x99, 0x9D, 0x14,
+            0x18, 0x00, 0x00, 0x00, 0xC8, 0x00, 0x00
+        ]);
+        // A peer may end the link on the HCI reader before the awaiting
+        // A2854RemoteBle continuation publishes the new handle.
+        _hci.ReceiveEventBytes([0x05, 0x04, 0x00, 0x40, 0x00, 0x3E]);
+        Assert.Null(assigned);
+        Assert.Equal((ushort)0x0040, (await connecting));
+        Assert.Equal((ushort)0x0040, early?.Handle);
+        Assert.Equal((byte)0x3E, early?.Reason);
+    }
+
+    [Fact]
     public void Scan_reports_every_advertisement_with_address_and_rssi()
     {
         var seen = new List<(byte[] Address, sbyte Rssi, byte[] Data)>();
@@ -169,6 +202,31 @@ public class BleTests
         Assert.False(encrypting.IsCompleted);
         _hci.ReceiveEventBytes([0x08, 0x04, 0x00, 0x40, 0x00, 0x01]);
         await encrypting;
+    }
+
+    [Fact]
+    public async Task Encryption_change_failure_is_distinguished_from_hci_command_rejection()
+    {
+        Task encryption = _central.EncryptAsync(
+            0x0040, new BondKeys(new byte[16], 0, new byte[8]));
+        CommandStatusOk(HciOpcode.LeEnableEncryption);
+        _hci.ReceiveEventBytes([0x08, 0x04, 0x3E, 0x40, 0x00, 0x00]);
+
+        var error = await Assert.ThrowsAsync<HciException>(() => encryption);
+        Assert.Equal(HciOpcode.LeEnableEncryption, error.Opcode);
+        Assert.Equal(HciFailureSource.EncryptionChange, error.Source);
+        Assert.Equal(0x3E, error.Status);
+    }
+
+    [Fact]
+    public async Task Encryption_command_status_rejection_has_command_origin()
+    {
+        Task encryption = _central.EncryptAsync(
+            0x0040, new BondKeys(new byte[16], 0, new byte[8]));
+        _hci.ReceiveEventBytes([0x0F, 0x04, 0x3E, 0x01, 0x19, 0x20]);
+        var error = await Assert.ThrowsAsync<HciException>(() => encryption);
+        Assert.Equal(HciFailureSource.CommandStatus, error.Source);
+        Assert.Equal(0x3E, error.Status);
     }
 
     [Fact]

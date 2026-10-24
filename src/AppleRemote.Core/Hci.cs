@@ -47,12 +47,23 @@ public static class HciDisconnectReason
     };
 }
 
-/// <summary>An HCI command rejected by the controller (non-zero status).</summary>
-public sealed class HciException(ushort opcode, byte status)
-    : Exception($"HCI command 0x{opcode:X4} rejected by the controller (status 0x{status:X2}).")
+/// <summary>Safe origin of a rejected HCI operation; contains no peer or key material.</summary>
+public enum HciFailureSource
+{
+    Unknown,
+    CommandStatus,
+    CommandComplete,
+    EncryptionChange,
+}
+
+/// <summary>An HCI command or procedure failed with a nonzero controller status.</summary>
+public sealed class HciException(ushort opcode, byte status,
+    HciFailureSource source = HciFailureSource.Unknown)
+    : Exception($"HCI command 0x{opcode:X4} failed (status 0x{status:X2}; source {source}).")
 {
     public ushort Opcode { get; } = opcode;
     public byte Status { get; } = status;
+    public HciFailureSource Source { get; } = source;
 }
 
 /// <summary>
@@ -126,10 +137,12 @@ public sealed class HciHost(Action<byte[]> sendCommand, Action<byte[]> sendAcl)
         switch (code)
         {
             case EvtCommandComplete when p.Length >= 3:
-                Complete((ushort)(p[1] | p[2] << 8), p[3..], p.Length > 3 ? p[3] : (byte)0);
+                Complete((ushort)(p[1] | p[2] << 8), p[3..],
+                    p.Length > 3 ? p[3] : (byte)0, HciFailureSource.CommandComplete);
                 break;
             case EvtCommandStatus when p.Length >= 4:
-                Complete((ushort)(p[2] | p[3] << 8), [], p[0]);
+                Complete((ushort)(p[2] | p[3] << 8), [], p[0],
+                    HciFailureSource.CommandStatus);
                 break;
             default:
                 Event?.Invoke(code, p);
@@ -137,11 +150,12 @@ public sealed class HciHost(Action<byte[]> sendCommand, Action<byte[]> sendAcl)
         }
     }
 
-    void Complete(ushort opcode, byte[] result, byte status)
+    void Complete(ushort opcode, byte[] result, byte status, HciFailureSource source)
     {
         // Opcode 0 ("ready") or a response with no pending request: nothing to do.
         if (_pending is not { } pending || pending.Opcode != opcode) return;
-        if (status != 0) pending.Done.TrySetException(new HciException(opcode, status));
+        if (status != 0)
+            pending.Done.TrySetException(new HciException(opcode, status, source));
         else pending.Done.TrySetResult(result);
     }
 }

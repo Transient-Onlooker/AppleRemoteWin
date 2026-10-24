@@ -80,6 +80,20 @@ public sealed class A2854SessionTimeline
                 ? $"LE {m.Groups[1].Value}; {m.Groups[2].Value}; elapsed={m.Groups[3].Value}; interval={m.Groups[4].Value}..{m.Groups[5].Value}; latency={m.Groups[6].Value}; timeout={m.Groups[7].Value}; status={m.Groups[8].Value}"
                 : "LE parameter event (details withheld)";
         }
+        if (message.StartsWith("A2854: HCI failure source=", StringComparison.Ordinal))
+        {
+            var m = MatchNumeric(message,
+                @"\AA2854: HCI failure source=(CommandStatus|CommandComplete|EncryptionChange|Unknown)\.\z");
+            return m.Success ? $"HCI failure source={m.Groups[1].Value}"
+                : "HCI failure source withheld";
+        }
+        if (message.StartsWith("A2854: early peer disconnect before encryption reason=", StringComparison.Ordinal))
+        {
+            var m = MatchNumeric(message,
+                @"\AA2854: early peer disconnect before encryption reason=(0x[0-9A-Fa-f]{2}); bond unchanged\.\z");
+            return m.Success ? $"Peer disconnected before encryption; reason={m.Groups[1].Value}"
+                : "Peer disconnected before encryption (details withheld)";
+        }
         if (message.StartsWith("A2854: HCI error phase=", StringComparison.Ordinal))
         {
             var m = MatchNumeric(message,

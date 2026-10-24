@@ -28,6 +28,7 @@ public sealed class A2854RemoteBle(
         A2854HidInputMap? map = null;
         LeCentral? central = null;
         ushort? handle = null;
+        int provisionalHandle = -1; // observed at LE LinkEstablished, before ConnectAsync resumes
         bool subscribed = false;
         bool alreadyDisconnected = false;
         string phase = "load-bond";
@@ -77,7 +78,10 @@ public sealed class A2854RemoteBle(
                 ushort? activeHandle = handle;
                 if (activeHandle is ushort selected && selected != trace.Handle) return;
                 if (trace.Phase == LeConnectionUpdatePhase.LinkEstablished)
+                {
+                    Volatile.Write(ref provisionalHandle, trace.Handle);
                     Interlocked.CompareExchange(ref connectedAt, Stopwatch.GetTimestamp(), 0);
+                }
                 long start = Interlocked.Read(ref connectedAt);
                 string elapsed = start == 0 ? "unknown" :
                     $"{Stopwatch.GetElapsedTime(start).TotalSeconds:F2}s";
@@ -90,7 +94,10 @@ public sealed class A2854RemoteBle(
             };
             central.Disconnected += (h, reason) =>
             {
-                if (handle != h) return;
+                // A short-lived link can end on the transport thread before
+                // ConnectAsync resumes and publishes the handle. Use only the
+                // handle learned from this central's LinkEstablished event.
+                if (handle != h && Volatile.Read(ref provisionalHandle) != h) return;
                 // Invalidate input before completing the disconnect task. Any
                 // in-flight notification is ordered before the final release;
                 // a resumed callback after this point cannot re-press a button.
@@ -118,6 +125,16 @@ public sealed class A2854RemoteBle(
                 // The LE Connection Complete event records a more precise start
                 // before the async ConnectAsync continuation. Keep that timestamp.
                 Interlocked.CompareExchange(ref connectedAt, Stopwatch.GetTimestamp(), 0);
+            }
+            if (disconnected.Task.IsCompleted)
+            {
+                // Never command encryption for a link already closed by the peer.
+                // This avoids disguising a real early disconnect as a stale-LTK
+                // HCI 0x2019/0x3E error; no automatic retry or pairing follows.
+                alreadyDisconnected = true;
+                var endedEarly = await disconnected.Task;
+                onStatus($"A2854: early peer disconnect before encryption reason=0x{endedEarly.Reason:X2}; bond unchanged.");
+                return;
             }
 
             using (var encryptWindow = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken))
@@ -214,9 +231,10 @@ public sealed class A2854RemoteBle(
         }
         catch (HciException e)
         {
-            // HCI opcode and status are diagnostic, unlike peer addresses/keys.
-            // Preserve them so 0x3E connect failures and LE parameter update
-            // controller rejections are no longer collapsed into "HciException".
+            // Distinguish controller Command Status/Complete rejection from
+            // Encryption Change failure. All fields are fixed enum values;
+            // do not expose any peer address, LTK or raw HCI payload.
+            onStatus($"A2854: HCI failure source={e.Source}.");
             onStatus(Loc.T("Status.Unreachable"));
             onStatus($"A2854: HCI error phase={phase} opcode=0x{e.Opcode:X4} " +
                 $"status=0x{e.Status:X2}; bond unchanged.");
