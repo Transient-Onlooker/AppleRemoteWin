@@ -30,6 +30,118 @@ public sealed class A2854PointerMapperTests
     static ButtonsEvent Press(params string[] names) => new(0, names, [], []);
     static ButtonsEvent Release(params string[] names) => new(0, [], names, []);
 
+    static TouchEvent TouchWithPressure(int x, int y, byte pressure)
+    {
+        // 0xFC + 11-byte payload: marker, seq, header, signed 12-bit XY,
+        // width/height, empirical "pressure", flags (contact).
+        int packed = (x & 0xFFF) | ((y & 0xFFF) << 12);
+        byte[] report =
+        [
+            0xFC, 0x32, 0x00, 0x00, 0x01,
+            (byte)packed, (byte)(packed >> 8), (byte)(packed >> 16),
+            0x40, 0x20, pressure, 0x00
+        ];
+        return new TouchEvent(0, x, y, true, [Contact(x, y)], report);
+    }
+
+    [Fact]
+    public void Physical_click_prevents_pointer_wobble_and_post_release_tail()
+    {
+        var sink = new FakePointer();
+        var pointer = new A2854PointerMapper(sink, 0.2);
+        pointer.OnEvent(Touch(0, 0, true, Contact(0, 0)));
+        pointer.OnEvent(Touch(100, 0, true, Contact(100, 0)));
+        Assert.Equal((20, 0), Assert.Single(sink.Moves));
+        pointer.OnEvent(Press("click"));
+        pointer.OnEvent(Touch(120, 4, true, Contact(120, 4)));
+        pointer.OnEvent(Touch(145, 10, true, Contact(145, 10)));
+        pointer.OnEvent(Touch(166, 9, true, Contact(166, 9)));
+        Assert.Single(sink.Moves);
+        pointer.OnEvent(Release("click"));
+        pointer.OnEvent(Touch(172, 14, true, Contact(172, 14)));
+        pointer.OnEvent(Touch(184, 15, true, Contact(184, 15)));
+        pointer.OnEvent(Touch(190, 16, true, Contact(190, 16)));
+        Assert.Single(sink.Moves);
+        pointer.OnEvent(Touch(210, 16, true, Contact(210, 16)));
+        Assert.Equal((4, 0), sink.Moves[^1]);
+        Assert.Equal(new[] { true, false }, sink.Clicks);
+        Assert.False(pointer.HasHeldClick);
+    }
+
+    [Fact]
+    public void Deliberate_click_hold_and_drag_still_moves_pointer_without_accumulated_jump()
+    {
+        var sink = new FakePointer();
+        var pointer = new A2854PointerMapper(sink, 0.2);
+        pointer.OnEvent(Touch(0, 0, true, Contact(0, 0)));
+        pointer.OnEvent(Press("click"));
+        pointer.OnEvent(Touch(30, 0, true, Contact(30, 0)));
+        pointer.OnEvent(Touch(60, 0, true, Contact(60, 0)));
+        Assert.Empty(sink.Moves);
+        pointer.OnEvent(Touch(95, 0, true, Contact(95, 0))); // exceeds 90-unit hold zone
+        Assert.Empty(sink.Moves); // threshold-crossing frame is only a new anchor
+        pointer.OnEvent(Touch(115, 0, true, Contact(115, 0)));
+        Assert.Equal((4, 0), Assert.Single(sink.Moves));
+        pointer.OnEvent(Release("click"));
+        Assert.Equal(new[] { true, false }, sink.Clicks);
+    }
+
+    [Fact]
+    public void Rapid_empirical_pressure_rise_suppresses_two_frames_not_normal_swipes()
+    {
+        var sink = new FakePointer();
+        var pointer = new A2854PointerMapper(sink, 0.2);
+        pointer.OnEvent(TouchWithPressure(0, 0, 9));
+        pointer.OnEvent(TouchWithPressure(40, 0, 14)); // ordinary contact 9 -> 14
+        Assert.Equal((8, 0), Assert.Single(sink.Moves));
+        pointer.OnEvent(TouchWithPressure(70, 0, 50)); // conservative pre-click spike
+        pointer.OnEvent(TouchWithPressure(100, 0, 49));
+        Assert.Single(sink.Moves);
+        pointer.OnEvent(TouchWithPressure(130, 0, 48));
+        Assert.Equal((6, 0), sink.Moves[^1]); // no queued phantom displacement
+        Assert.Equal(2, sink.Moves.Count);
+        Assert.Empty(sink.Clicks); // pressure never becomes a synthetic click
+    }
+
+    [Fact]
+    public void Large_normal_swipe_is_not_paused_by_uncalibrated_pressure_value()
+    {
+        var sink = new FakePointer();
+        var pointer = new A2854PointerMapper(sink, 0.2);
+        pointer.OnEvent(TouchWithPressure(0, 0, 9));
+        pointer.OnEvent(TouchWithPressure(110, 0, 75));
+        Assert.Equal((22, 0), Assert.Single(sink.Moves));
+        Assert.Empty(sink.Clicks);
+    }
+
+    [Fact]
+    public void Rejected_mouse_down_does_not_freeze_normal_pointer_input()
+    {
+        var sink = new FakePointer { FailedPresses = 1 };
+        var pointer = new A2854PointerMapper(sink, 0.2);
+        pointer.OnEvent(Touch(0, 0, true, Contact(0, 0)));
+        pointer.OnEvent(Press("click"));
+        Assert.False(pointer.HasHeldClick);
+        pointer.OnEvent(Touch(40, 0, true, Contact(40, 0)));
+        Assert.Equal((8, 0), Assert.Single(sink.Moves));
+    }
+
+    [Fact]
+    public void Reset_after_held_click_releases_and_restores_normal_movement()
+    {
+        var sink = new FakePointer();
+        var pointer = new A2854PointerMapper(sink, 0.2);
+        pointer.OnEvent(Touch(0, 0, true, Contact(0, 0)));
+        pointer.OnEvent(Press("click"));
+        pointer.OnEvent(Touch(20, 0, true, Contact(20, 0)));
+        Assert.Empty(sink.Moves);
+        Assert.True(pointer.Reset());
+        Assert.Equal(new[] { true, false }, sink.Clicks);
+        pointer.OnEvent(Touch(20, 0, true, Contact(20, 0)));
+        pointer.OnEvent(Touch(60, 0, true, Contact(60, 0)));
+        Assert.Equal((8, 0), Assert.Single(sink.Moves));
+    }
+
     [Fact]
     public void Failed_mouse_up_keeps_held_state_until_backend_confirms_release()
     {

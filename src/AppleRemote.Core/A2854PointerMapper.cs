@@ -22,11 +22,21 @@ public sealed class A2854PointerMapper(IRelativePointerSink sink, double sensiti
     const int JumpThreshold = 350; // signed-12-bit touch coordinates; reject discontinuities
     const int MaxStep = 60;        // Windows relative pixels per accepted frame
     const double NormalizedPointerSpan = 1000; // calibrated full-axis fraction -> legacy-ish units
+    // Controller-observed contact "Pressure" is empirical, NOT calibrated force.
+    // A sharp rise may precede an 0xFB click; ignore only two touch frames.
+    const int PressureSpikeDelta = 24;
+    const int PressureGuardFrames = 2;
+    const int PostClickGuardFrames = 2;
+    // On a physical click, absorb finger wobble without blocking intentional
+    // click-and-drag. Threshold applies to actual 12-bit touch coordinates.
+    const int ClickDragDistance = 90;
 
     readonly IRelativePointerSink _sink = sink ?? throw new ArgumentNullException(nameof(sink));
     double _sensitivity = CheckSensitivity(sensitivity);
-    bool _tracking, _held;
-    int _previousX, _previousY;
+    bool _tracking, _held, _dragging, _clickAnchored;
+    int _previousX, _previousY, _clickAnchorX, _clickAnchorY;
+    byte? _previousPressure;
+    int _pressureGuardRemaining, _postClickGuardRemaining;
     double _remainderX, _remainderY;
     A2854TouchCalibration? _calibration;
 
@@ -73,11 +83,30 @@ public sealed class A2854PointerMapper(IRelativePointerSink sink, double sensiti
             {
                 LastButtonTransitionSucceeded = _sink.LeftButton(true);
                 _held = LastButtonTransitionSucceeded;
+                if (_held)
+                {
+                    // Anchor at the last touch coordinate known BEFORE the
+                    // physical click: HID touch and button frames can interleave.
+                    _clickAnchored = _tracking;
+                    _clickAnchorX = _previousX;
+                    _clickAnchorY = _previousY;
+                    _dragging = false;
+                    _pressureGuardRemaining = 0;
+                    _remainderX = _remainderY = 0;
+                }
             }
             if (buttons.Released.Contains("click") && _held)
             {
                 LastButtonTransitionSucceeded = _sink.LeftButton(false);
                 _held = !LastButtonTransitionSucceeded; // failed up must remain retryable
+                if (!_held)
+                {
+                    _dragging = _clickAnchored = false;
+                    // Lift can produce a touch frame after button-up. Do not
+                    // translate its wobble into a delayed cursor displacement.
+                    ResetTracking();
+                    _postClickGuardRemaining = PostClickGuardFrames;
+                }
             }
         }
         else if (ev is TouchEvent touch)
@@ -90,13 +119,31 @@ public sealed class A2854PointerMapper(IRelativePointerSink sink, double sensiti
                 return;
             }
 
+            byte? pressure = ContactPressure(touch);
             if (!_tracking)
             {
                 _tracking = true;
                 _previousX = touch.X;
                 _previousY = touch.Y;
+                _previousPressure = pressure;
+                if (_held)
+                {
+                    _clickAnchorX = touch.X;
+                    _clickAnchorY = touch.Y;
+                    _clickAnchored = true;
+                }
                 return; // never move on first touch
             }
+
+            bool pressureRising = !_held && pressure.HasValue &&
+                _previousPressure.HasValue &&
+                pressure.Value - _previousPressure.Value >= PressureSpikeDelta &&
+                // A deliberate swipe must never be paused solely because the
+                // empirical contact value varies with finger area or angle.
+                Math.Abs(touch.X - _previousX) < ClickDragDistance &&
+                Math.Abs(touch.Y - _previousY) < ClickDragDistance;
+            _previousPressure = pressure;
+            if (pressureRising) _pressureGuardRemaining = PressureGuardFrames;
 
             int previousX = _previousX, previousY = _previousY;
             int dx = touch.X - previousX, dy = touch.Y - previousY;
@@ -105,7 +152,43 @@ public sealed class A2854PointerMapper(IRelativePointerSink sink, double sensiti
             if (Math.Abs(dx) > JumpThreshold || Math.Abs(dy) > JumpThreshold)
             {
                 _remainderX = _remainderY = 0;
+                if (_held)
+                {
+                    _clickAnchorX = touch.X;
+                    _clickAnchorY = touch.Y;
+                    _clickAnchored = true;
+                }
                 return; // tracking restarts at the new position, no jump
+            }
+
+            if (_held && !_dragging)
+            {
+                if (!_clickAnchored)
+                {
+                    _clickAnchorX = touch.X;
+                    _clickAnchorY = touch.Y;
+                    _clickAnchored = true;
+                }
+                long offsetX = (long)touch.X - _clickAnchorX;
+                long offsetY = (long)touch.Y - _clickAnchorY;
+                if (offsetX * offsetX + offsetY * offsetY <
+                    (long)ClickDragDistance * ClickDragDistance)
+                {
+                    _remainderX = _remainderY = 0;
+                    return; // physical click wobble: no cursor movement
+                }
+                // Deliberate movement while held becomes a drag. Do not
+                // replay suppressed wobble in a sudden one-frame jump.
+                _dragging = true;
+                _remainderX = _remainderY = 0;
+                return;
+            }
+            if (!_held && (_pressureGuardRemaining > 0 || _postClickGuardRemaining > 0))
+            {
+                if (_pressureGuardRemaining > 0) _pressureGuardRemaining--;
+                if (_postClickGuardRemaining > 0) _postClickGuardRemaining--;
+                _remainderX = _remainderY = 0;
+                return;
             }
 
             double scaledX = dx, scaledY = dy;
@@ -128,9 +211,28 @@ public sealed class A2854PointerMapper(IRelativePointerSink sink, double sensiti
         }
     }
 
+    static byte? ContactPressure(TouchEvent touch)
+    {
+        // Normal HID reports only; never treat arbitrary gen-1 or mock event
+        // buffers as force data. No raw touch data is logged or stored.
+        byte[] raw = touch.Raw;
+        if (raw.Length < 12 || raw[0] != A2854Decoder.TouchReportId)
+            return null;
+        var frame = A2854Decoder.ParseTouch(raw.AsSpan(1));
+        if (frame is null) return null;
+        A2854Finger? contact = frame.First is { Hover: false } first ? first
+            : frame.Second is { Hover: false } second ? second
+            : null;
+        return contact?.Pressure;
+    }
+
     void ResetTracking()
     {
         _tracking = false;
+        _previousPressure = null;
+        _pressureGuardRemaining = 0;
+        _postClickGuardRemaining = 0;
+        _clickAnchored = _dragging = false;
         _remainderX = _remainderY = 0;
     }
 
