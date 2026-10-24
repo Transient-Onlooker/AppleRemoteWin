@@ -46,6 +46,47 @@ public sealed class A2854SessionTimelineTests
         Assert.DoesNotContain("11:22:33:44:55:66", report);
     }
 
+    [Theory]
+    [InlineData("A2854: early ATT request count=2. private:SECRETKEY", "Early ATT count (details withheld)")]
+    [InlineData("A2854: previous USB cleanup failed; SECRET-LTK", "Previous USB cleanup failed")]
+    [InlineData("A2854: transport error (Mac=11:22:33:44:55:66)", "A2854 transport error (details withheld)")]
+    [InlineData("A2854: dedicated Barrot WinUSB interface unavailable (MAC:11:22:33:44:55:66)", "Dedicated Barrot USB unavailable")]
+    public void Copy_result_redaction_never_returns_an_untrusted_suffix(string input, string expected)
+    {
+        Assert.Equal(expected, A2854SessionTimeline.Redact(input));
+        var timeline = new A2854SessionTimeline();
+        Assert.True(timeline.Record(input));
+        Assert.Contains(expected, timeline.Export());
+        Assert.DoesNotContain("SECRET", timeline.Export());
+        Assert.DoesNotContain("11:22:33:44:55:66", timeline.Export());
+    }
+
+    [Fact]
+    public void Exact_numeric_diagnostics_are_preserved_but_appended_data_is_discarded()
+    {
+        const string safe = "A2854: HCI error phase=connect opcode=0x200D status=0x3E; bond unchanged.";
+        Assert.Equal("HCI error phase=connect; opcode=0x200D; status=0x3E",
+            A2854SessionTimeline.Redact(safe));
+
+        var injected = safe + " key=DEADBEEF";
+        Assert.Equal("HCI error (details withheld)", A2854SessionTimeline.Redact(injected));
+
+        var peer = "A2854: peer disconnection 0x13 (Remote User Terminated Connection); " +
+            "connected=30.1s FB=78 FC=1553 last-input=0.1s ago; host Stop/CCCD disable not yet verified.";
+        Assert.Contains("Peer disconnect=0x13", A2854SessionTimeline.Redact(peer));
+        Assert.Equal("Peer disconnected (details withheld)",
+            A2854SessionTimeline.Redact(peer + " 11:22:33:44:55:66"));
+    }
+
+    [Fact]
+    public void Unknown_and_oversized_statuses_are_rejected()
+    {
+        Assert.Null(A2854SessionTimeline.Redact("Address=11:22:33:44:55:66 LTK=ABCD"));
+        Assert.Null(A2854SessionTimeline.Redact("A2854: encrypted LTK connection established. " + new string('x', 1200)));
+        Assert.Equal("A2854: encrypted LTK connection established.",
+            A2854SessionTimeline.Redact("A2854: encrypted LTK connection established."));
+    }
+
     [Fact]
     public void Bounded_record_count_and_explicit_reset_do_not_retain_previous_session()
     {

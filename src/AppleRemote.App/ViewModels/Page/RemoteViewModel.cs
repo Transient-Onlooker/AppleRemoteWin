@@ -593,19 +593,14 @@ public sealed partial class RemoteViewModel : ObservableObject, IDisposable
         StatusText = message;
         if (_session.A2854Mode && _sessionTimeline.Record(message))
             A2854TimelineCount = $"{_sessionTimeline.Snapshot().Count} diagnostic events (max 48)";
-        if (_session.A2854Mode &&
-            (message.StartsWith("A2854: peer disconnection ", StringComparison.Ordinal) ||
-             message.StartsWith("A2854: HCI error phase=", StringComparison.Ordinal) ||
-             message.StartsWith("A2854: session error phase=", StringComparison.Ordinal) ||
-             message.StartsWith("A2854: early ATT request count=", StringComparison.Ordinal) ||
-             message.StartsWith("A2854: host disconnect completed", StringComparison.Ordinal) ||
-             message.StartsWith("A2854: disconnect ended with", StringComparison.Ordinal) ||
-             message.StartsWith("A2854: connection or operation timed out.", StringComparison.Ordinal) ||
-             message.StartsWith("A2854: dedicated Barrot WinUSB interface unavailable", StringComparison.Ordinal) ||
-             message.StartsWith("A2854: previous USB", StringComparison.Ordinal) ||
-             message.StartsWith("A2854: transport error (", StringComparison.Ordinal) ||
-             message.StartsWith("A2854: link cleanup incomplete", StringComparison.Ordinal)))
-            A2854LastLinkSummary = message;
+        if (_session.A2854Mode && IsA2854OutcomeMessage(message))
+        {
+            // Copy result and the on-screen outcome use exactly the same
+            // allowlisted redaction as Copy timeline. Never cache/export raw
+            // callback messages with an untrusted suffix or a device address.
+            A2854LastLinkSummary = A2854SessionTimeline.Redact(message)
+                ?? "Connection event (details withheld)";
+        }
         bool ok = new[] { "Status.ConnectedHid", "Status.ConnectedDirect", "Status.ConnectedDongle" }.Any(k => Loc.StartsWith(message, k));
         bool warn = new[] { "Status.WaitHid", "Status.WaitBonded", "Status.WaitPairing", "Status.Unreachable", "Status.Disconnected", "Status.DisconnectedReason", "Status.WaitDongle", "Status.DongleIdle" }
             .Any(k => Loc.StartsWith(message, k));
@@ -613,6 +608,19 @@ public sealed partial class RemoteViewModel : ObservableObject, IDisposable
         StatusLevel = ok ? StatusLevel.Ok : warn ? StatusLevel.Warn : _session.IsRunning ? StatusLevel : StatusLevel.Idle;
         _log(message);
     }
+
+    static bool IsA2854OutcomeMessage(string message) =>
+        message.StartsWith("A2854: peer disconnection ", StringComparison.Ordinal) ||
+        message.StartsWith("A2854: HCI error phase=", StringComparison.Ordinal) ||
+        message.StartsWith("A2854: session error phase=", StringComparison.Ordinal) ||
+        message.StartsWith("A2854: early ATT request count=", StringComparison.Ordinal) ||
+        message.StartsWith("A2854: host disconnect completed", StringComparison.Ordinal) ||
+        message.StartsWith("A2854: disconnect ended with", StringComparison.Ordinal) ||
+        message.StartsWith("A2854: connection or operation timed out.", StringComparison.Ordinal) ||
+        message.StartsWith("A2854: dedicated Barrot WinUSB interface unavailable", StringComparison.Ordinal) ||
+        message.StartsWith("A2854: previous USB", StringComparison.Ordinal) ||
+        message.StartsWith("A2854: transport error (", StringComparison.Ordinal) ||
+        message.StartsWith("A2854: link cleanup incomplete", StringComparison.Ordinal);
 
     /// <summary>
     /// Raw 0xFC geometry is stored apart from settings and the protected bond.

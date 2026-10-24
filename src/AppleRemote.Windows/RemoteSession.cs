@@ -18,6 +18,7 @@ public sealed class RemoteSession : IDisposable
     readonly KeyBinder _binder;
     bool _a2854Mode, _a2854PointerEnabled, _acceptA2854Input;
     bool _a2854PointerUseCalibration;
+    int _a2854HidReady; // set only after encrypted GATT HID subscriptions succeed
     Task? _a2854CleanupTask;
     bool _keyboardEnabled;
 
@@ -172,7 +173,8 @@ public sealed class RemoteSession : IDisposable
                 return RemoteStartupPolicy.CanOfferManualReconnect(
                     _a2854Mode, _cts is not null,
                     _driverTask?.IsCompleted == true,
-                    _a2854CleanupTask?.IsCompletedSuccessfully == true);
+                    _a2854CleanupTask?.IsCompletedSuccessfully == true,
+                    Volatile.Read(ref _a2854HidReady) != 0);
         }
     }
 
@@ -223,6 +225,7 @@ public sealed class RemoteSession : IDisposable
                 }
             }
             _a2854CleanupTask = null;
+            Interlocked.Exchange(ref _a2854HidReady, 0);
             _cts = new CancellationTokenSource();
             var ct = _cts.Token;
 
@@ -279,7 +282,7 @@ public sealed class RemoteSession : IDisposable
                     {
                         lock (_gate) _acceptA2854Input = false;
                         ReleaseA2854HeldInputs(); // independent fallback if GUI event callback threw
-                    });
+                    }, onReady: () => Interlocked.Exchange(ref _a2854HidReady, 1));
                 _driverTask = Task.Run(async () =>
                 {
                     try { await a2854.RunAsync(transportFault.Token); }

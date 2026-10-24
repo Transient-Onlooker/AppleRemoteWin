@@ -33,10 +33,13 @@ public static class RemoteStartupPolicy
 
     /// <summary>
     /// A manual one-click reconnect may replace a finished A2854 session only
-    /// AFTER its driver has returned and the previous native USB cleanup has
-    /// completed successfully. Never initiate automatic reconnect/pairing.
+    /// after successful encrypted HID activation and after its driver has
+    /// returned and native USB cleanup has completed successfully.
+    /// Failed pre-connect sessions retain the normal Stop action; no auto retry.
     /// </summary>
     public static bool CanOfferManualReconnect(
-        bool a2854Mode, bool sessionActive, bool driverCompleted, bool usbCleanupSucceeded) =>
-        a2854Mode && sessionActive && driverCompleted && usbCleanupSucceeded;
+        bool a2854Mode, bool sessionActive, bool driverCompleted,
+        bool usbCleanupSucceeded, bool hadEncryptedHidSession) =>
+        a2854Mode && sessionActive && driverCompleted &&
+        usbCleanupSucceeded && hadEncryptedHidSession;
 }

@@ -47,16 +47,19 @@ public sealed class RemoteStartupPolicyTests
     }
 
     [Theory]
-    [InlineData(true, true, true, true, true)]
-    [InlineData(true, true, false, true, false)]
-    [InlineData(true, true, true, false, false)]
-    [InlineData(true, false, true, true, false)]
-    [InlineData(false, true, true, true, false)]
+    [InlineData(true, true, true, true, true, true)]
+    [InlineData(true, true, true, true, false, false)] // never reached encrypted HID
+    [InlineData(true, true, false, true, true, false)] // driver still running
+    [InlineData(true, true, true, false, true, false)] // native USB cleanup not done
+    [InlineData(true, false, true, true, true, false)] // logical session already stopped
+    [InlineData(false, true, true, true, true, false)] // legacy remote
+    [InlineData(true, true, true, false, false, false)]
     public void Manual_reconnect_requires_finished_driver_and_successful_native_cleanup(
-        bool a2854Mode, bool hasSession, bool driverDone, bool usbClean, bool expected)
+        bool a2854Mode, bool hasSession, bool driverDone, bool usbClean,
+        bool hidReady, bool expected)
     {
         Assert.Equal(expected, RemoteStartupPolicy.CanOfferManualReconnect(
-            a2854Mode, hasSession, driverDone, usbClean));
+            a2854Mode, hasSession, driverDone, usbClean, hidReady));
     }
 
     [Fact]

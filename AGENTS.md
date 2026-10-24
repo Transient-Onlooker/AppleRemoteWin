@@ -21,6 +21,9 @@ Repository: `Transient-Onlooker/AppleRemoteWin`. Working branch: `feat/a2854-sup
 
 ### Current validated baseline and next gate
 
+- **2026-10-24 independent QA @ `dd06b2f`:** **329/329** Release tests, zero build warnings/errors, encrypted LTK and HID link maintained ~70s, one pre-encryption ATT 0x08 handled, GUI Stop CCCD disable and local 0x16 succeeded; 30s peer 0x13 not reproduced **once** (cause unproven). No SendInput physical test; config/keymap restored, bond and physical landmarks unchanged.
+- **New QA corrective patch (await build):** only offer manual Reconnect after actual encrypted HID subscriptions were enabled and native cleanup succeeded; use one strict, allowlisted numeric-only redact function for Copy timeline **and Copy result**, never original callback text. New hostile-suffix tests. Matte remote/two-finger visuals from prior commit also awaiting Windows GUI verification.
+
 - **New A2854 UI follow-up while dd06b2f QA runs:** matte-black hardware buttons on brushed-silver face, true vector hardware glyphs, numbered 1/2 contacts with two separate trails, stable nearest-distance slot matching for incoming contact order changes. Five new pure Core tracking tests; no BLE/USB/SendInput/protected bond changes. **Windows WPF build and live visualization still pending independent verification.**
 
 - **Further pointer feature awaiting Windows QA:** opt-in `A2854PointerUseCalibration` (default OFF), physically measured signed coordinate axes used in real cursor mapping only if separately enabled with the original pointer switch. Missing/invalid measured profile keeps raw pointer behavior; first touch re-anchors on changes. Test with fake sink first, physical OS mouse only on a controlled desktop.

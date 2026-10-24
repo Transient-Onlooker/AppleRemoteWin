@@ -16,7 +16,8 @@ namespace AppleRemote.Windows;
 /// </summary>
 public sealed class A2854RemoteBle(
     HciHost host, Action<byte[]?> onReport, Action<string> onStatus,
-    string? protectedBondPath = null, Action? onTerminalCleanup = null)
+    string? protectedBondPath = null, Action? onTerminalCleanup = null,
+    Action? onReady = null)
 {
     readonly ProtectedBondStore _bonds = new(protectedBondPath ?? ProtectedBondStore.DefaultPath);
 
@@ -168,6 +169,11 @@ public sealed class A2854RemoteBle(
                 await A2854HidCapture.EnableAsync(gatt, map, writeWindow.Token);
             }
             cancellationToken.ThrowIfCancellationRequested();
+            // "Connected" is only awarded after the *encrypted* link is up
+            // and both button/touch HID notifications have been enabled.
+            // A successful HCI connection alone is not enough to allow the
+            // UI to offer a restart following failed initialization.
+            onReady?.Invoke();
             onStatus(Loc.T("Status.ConnectedDirect"));
             phase = "observe";
 
