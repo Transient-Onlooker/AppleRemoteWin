@@ -21,14 +21,28 @@ public sealed class KeyboardInjector : IConfirmedKeySink
     // input keeps its own retry ledger, but neither can lift the other's VK.
     readonly SharedKeyOwnershipSink _sharedKeys;
     readonly RetryableShortcutSink _shortcutSink;
+    readonly IConfirmedKeySink _physicalKeys;
 
     public KeyboardInjector()
     {
         _sharedKeys = new SharedKeyOwnershipSink(this);
+        _physicalKeys = _sharedKeys.Physical;
         _shortcutSink = new RetryableShortcutSink(_sharedKeys.Shortcuts);
     }
 
-    public IConfirmedKeySink PhysicalKeys => _sharedKeys.Physical;
+    // A sibling retains its own shortcut pending-release ledger, but joins
+    // the parent's OS-key registry. It cannot lift physical C/Tab held by
+    // RemoteSession or a shortcut owned by that original injector.
+    KeyboardInjector(SharedKeyOwnershipSink sharedKeys)
+    {
+        _sharedKeys = sharedKeys;
+        _physicalKeys = sharedKeys.CreateProducer();
+        _shortcutSink = new RetryableShortcutSink(sharedKeys.CreateProducer());
+    }
+
+    public KeyboardInjector CreateSibling() => new(_sharedKeys);
+
+    public IConfirmedKeySink PhysicalKeys => _physicalKeys;
 
     public string? LastError { get; private set; }
 

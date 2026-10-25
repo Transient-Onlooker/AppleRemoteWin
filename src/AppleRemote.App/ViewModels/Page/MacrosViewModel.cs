@@ -20,12 +20,13 @@ public interface IMacroWorkspace
 /// <summary>Macros page: pick a macro in the list (or start a new one), edit its blocks, save.</summary>
 /// <param name="macros">Saved macro names; the owner keeps it in step with <see cref="Macro.Renamed"/> (renames and deletions).</param>
 /// <param name="software">Software offered by the Software block.</param>
-public sealed partial class MacrosViewModel(ObservableCollection<string> macros, IEnumerable<string> software, IDialogs dialogs) : ObservableObject
+public sealed partial class MacrosViewModel(ObservableCollection<string> macros, IEnumerable<string> software, IDialogs dialogs,
+    KeyboardInjector? sessionInjector = null) : ObservableObject
 {
     CancellationTokenSource? _testCts; // test run in progress
     // Retained across tests: a refused OS key-up must not vanish with a
     // temporary KeyboardInjector after Macro.RunAsync returns.
-    readonly KeyboardInjector _testInjector = new();
+    readonly KeyboardInjector _testInjector = sessionInjector?.CreateSibling() ?? new();
 
     /// <summary>Cancel a running test on navigation/quit, then retry release.
     /// A persistent Windows rejection remains tracked for the next attempt.</summary>

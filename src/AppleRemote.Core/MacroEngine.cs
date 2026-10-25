@@ -70,12 +70,21 @@ public sealed class MacroEngine(IMacroHost host, CancellationToken ct)
                 await Task.Delay(Math.Max(0, (int)Num(Field(b, "MS"))), ct);
                 break;
             case "macro_type":
-                host.Type(Str(await Eval(Input(b, "VALUE"))));
+            {
+                // Eval can await a modal AskAsync. Cancellation during that
+                // wait must be observed BEFORE any late keyboard injection.
+                string value = Str(await Eval(Input(b, "VALUE")));
+                ct.ThrowIfCancellationRequested();
+                host.Type(value);
                 break;
+            }
             case "macro_shell":
-                if (Str(await Eval(Input(b, "COMMAND"))) is { Length: > 0 } command)
+                string command = Str(await Eval(Input(b, "COMMAND")));
+                ct.ThrowIfCancellationRequested();
+                if (command.Length > 0)
                 {
                     var (output, code) = await host.ShellAsync(Field(b, "SHELL") == "powershell" ? "powershell" : "cmd", command, ct);
+                    ct.ThrowIfCancellationRequested();
                     // Optional slots: a variable plugged there receives the result.
                     if (Input(b, "CODE") is { } c && (string?)c["type"] == "variables_get") _vars[Var(c)] = (double)code;
                     if (Input(b, "OUTPUT") is { } o && (string?)o["type"] == "variables_get") _vars[Var(o)] = output;
@@ -147,7 +156,12 @@ public sealed class MacroEngine(IMacroHost host, CancellationToken ct)
             case "variables_get":
                 return _vars.GetValueOrDefault(Var(b));
             case "macro_ask_text" or "macro_ask_file" or "macro_ask_drop":
-                return await host.AskAsync(((string)b["type"]!)["macro_ask_".Length..], Field(b, "PROMPT") ?? "") ?? throw new Aborted();
+            {
+                string? answer = await host.AskAsync(
+                    ((string)b["type"]!)["macro_ask_".Length..], Field(b, "PROMPT") ?? "");
+                ct.ThrowIfCancellationRequested(); // cancelled while the modal dialog was open
+                return answer ?? throw new Aborted();
+            }
         }
         return null;
     }

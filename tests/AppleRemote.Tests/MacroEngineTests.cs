@@ -13,6 +13,7 @@ public class MacroEngineTests
         readonly Queue<string?> _answers = new(answers);
         public List<string> Log { get; } = [];
         public Action? OnType;
+        public Func<Task<string?>>? OnAskAsync;
 
         public void Combo(string combo) => Log.Add("combo " + combo);
         public void Launch(string path) => Log.Add("app " + path);
@@ -25,7 +26,7 @@ public class MacroEngineTests
         public Task<string?> AskAsync(string kind, string prompt)
         {
             Log.Add($"ask {kind} {prompt}");
-            return Task.FromResult(_answers.Dequeue());
+            return OnAskAsync is null ? Task.FromResult(_answers.Dequeue()) : OnAskAsync();
         }
     }
 
@@ -135,4 +136,54 @@ public class MacroEngineTests
         var forever = B("controls_whileUntil", new { MODE = "WHILE" }, [("BOOL", B("logic_boolean", new { BOOL = "TRUE" })), ("DO", TypeOf(Text("x")))]);
         Assert.Equal(3, (await Run(forever, host, cts.Token)).Count);
     }
+    [Fact]
+    public async Task Cancelling_while_Ask_is_open_prevents_late_Type_after_answer()
+    {
+        using var cts = new CancellationTokenSource();
+        var reply = new TaskCompletionSource<string?>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        var host = new FakeHost { OnAskAsync = () => reply.Task };
+        var macro = TypeOf(B("macro_ask_text", new { PROMPT = "name" }),
+            next: TypeOf(Text("must not run")));
+        Task<List<string>> run = Run(macro, host, cts.Token);
+        Assert.Equal(["ask text name"], host.Log);
+        cts.Cancel();
+        reply.SetResult("answered after cancel");
+        await run;
+        Assert.Equal(["ask text name"], host.Log);
+    }
+
+    [Fact]
+    public async Task Cancelled_modal_answer_cannot_launch_a_shell_command()
+    {
+        using var cts = new CancellationTokenSource();
+        var reply = new TaskCompletionSource<string?>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        var host = new FakeHost { OnAskAsync = () => reply.Task };
+        var shell = B("macro_shell", new { SHELL = "cmd" },
+            [("COMMAND", B("macro_ask_text", new { PROMPT = "command" }))],
+            next: TypeOf(Text("must not run")));
+        Task<List<string>> run = Run(shell, host, cts.Token);
+        Assert.Equal(["ask text command"], host.Log);
+        cts.Cancel();
+        reply.SetResult("dir");
+        await run;
+        Assert.Equal(["ask text command"], host.Log);
+    }
+
+    [Fact]
+    public async Task Modal_answer_without_cancellation_still_types_normally()
+    {
+        using var cts = new CancellationTokenSource();
+        var reply = new TaskCompletionSource<string?>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        var host = new FakeHost { OnAskAsync = () => reply.Task };
+        Task<List<string>> run = Run(TypeOf(B("macro_ask_text", new { PROMPT = "p" })),
+            host, cts.Token);
+        Assert.Equal(["ask text p"], host.Log);
+        reply.SetResult("expected");
+        await run;
+        Assert.Equal(["ask text p", "type expected"], host.Log);
+    }
+
 }

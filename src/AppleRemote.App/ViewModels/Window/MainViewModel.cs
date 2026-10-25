@@ -42,7 +42,10 @@ public sealed class MainViewModel : IDisposable
         Remote = new RemoteViewModel(_session, dialogs, Debug.Add, input => Preferences!.RunBound(input));
         Preferences = new SettingsViewModel(_settings, _session, dialogs, Debug.Add, Remote);
         Remote.Preferences = Preferences;
-        Macros = new MacrosViewModel(Preferences.MacroChoices, Preferences.SoftwareChoices, dialogs);
+        // Give the macro tester a distinct key owner in the SAME OS-key
+        // registry as the active RemoteSession, never a disconnected injector.
+        Macros = new MacrosViewModel(Preferences.MacroChoices, Preferences.SoftwareChoices,
+            dialogs, _session.Injector);
     }
 
     public bool CloseQuits => Preferences.CloseQuits;

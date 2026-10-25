@@ -2,6 +2,22 @@
 
 > **START HERE when this conversation is lost.** This is the current, concise operational truth. The long chronological record is [HANDOFF_2026-10-23_A2854.md](HANDOFF_2026-10-23_A2854.md). Prior dated README/QA statements are **historical** where they conflict with this page. Check the GitHub branch HEAD again before making a code change. Do **not** treat this documentation commit as a Windows-build or hardware QA pass.
 
+## 2026-10-25 — RC follow-up: macro tester joins session key registry and late modal cancel guard (new source / Windows QA pending)
+
+User-provided independent Windows QA for `b69cdb2aedb0ae9c01bcd1b2996ffecab7c20e72`: **NOT READY**. Release build **0 warnings/0 errors**, full **450 PASS / 1 FAIL**, focused **85 PASS / 1 FAIL**, new shared-key ownership tests **7/8 PASS**, independent mock/WPF **288 PASS / 2 FAIL**. Existing same-session physical/shortcut VK ownership and independent macro-test pending cleanup succeeded. The one test failure was an **invalid assumed order** of two distinct accepted key-ups; both keys were actually released and ordering is not a contract. Local report: `AppleRemoteWin-Validation/ownership-b69cdb2/QA_REPORT_KO.md` (not in repository).
+
+**Two additional Major issues reproduced by independent QA:**
+1. Session physical C held while a *separate macro-editor Test* runs Ctrl+C: C was lifted early because `MacrosViewModel` used a new unrelated `KeyboardInjector`, not the session's `SharedKeyOwnershipSink`.
+2. A macro cancelled while awaiting a modal input's `AskAsync` executed one late `Type` when the modal dialog returned. `MacroEngine` checked cancellation *before* but not *after* the awaited input result.
+
+**Source-only remediation (requires fresh independent Windows QA):**
+- `SharedKeyOwnershipSink` supports any number of independent producer endpoints with one acknowledged OS-level VK down/last-owner up policy. Its existing `Physical` and `Shortcuts` APIs remain.
+- `KeyboardInjector.CreateSibling()` gives the macro editor a **separate retry ledger/shortcut endpoint** in the parent session's **same shared key registry**. `MainViewModel` explicitly passes `_session.Injector` to `MacrosViewModel`. Editor cleanup/blocked-new-test semantics persist, but physical C/Tab and independent macro-test Ctrl+C/Alt+Tab cannot release each other's still-held key. It is *not* a global singleton across unrelated application instances; validate the actual MainViewModel composition and ownership.
+- `MacroEngine` tests `CancellationToken` after awaited `Eval` and after awaited `AskAsync` (and shell-command evaluation), before external Type/Shell. Cancel during a modal prompt must never produce a late type or shell command after the answer. Normal uncancelled dialog input still types.
+- Correct the overly strict `SharedKeyOwnershipSinkTests.Interrupted_shortcut_and_physical_Stop_each_release_only_their_keys` assertion: require exactly one accepted down/up per key without inventing a cross-producer key-up ordering guarantee. Add **4** pure three-owner tests and **3** asynchronous delayed-answer cancellation tests.
+
+**Remaining gates:** new Release build 0 warnings/errors; all full/focused tests; offline MainViewModel/RemoteSession plus MacrosViewModel integration with physical C/Tab held and macro test combos; actual delayed dialog cancellation test in UI; cancellation/close cleanup and no keyup duplicates; settings/bond/calibration/USB/Intel driver unchanged. **No real BLE or Windows SendInput approval yet.** A successful mock suite does not establish physical READY.
+
 ## 2026-10-25 — RC Major follow-up: common physical/shortcut VK owners + macro test cleanup (NEW SOURCE, WINDOWS QA PENDING)
 
 The user reported independent Windows RC QA at application `fb55711e4c4c5021be93b24984fab3f3bda0f315`: Release succeeded but **1 xUnit2017 warning**, **443/443** full tests, **78/78** focused, external mock **74 PASS / 3 FAIL**. Real `RemoteSession.Stop()` simulated Ctrl+C/Alt+Tab/macro key-up refusal and subsequent recovery successfully, but two **Major** defects remained:

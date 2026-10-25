@@ -157,9 +157,14 @@ public sealed class SharedKeyOwnershipSinkTests
         Assert.True(binder.ReleaseAll()); // Ctrl+C still owns C
         Assert.DoesNotContain((C, false), win.Log);
         Assert.True(shortcut.ReleaseAll());
-        Assert.Equal(new[] {
-            (C, true), (Ctrl, true), (C, false), (Ctrl, false)
-        }, win.Log);
+        // Stop releases each owner's keys; cross-producer release order is
+        // deliberately unspecified. Verify exactly one transition per VK.
+        Assert.Equal(4, win.Log.Count);
+        foreach (var vk in new[] { C, Ctrl })
+        {
+            Assert.Equal(1, win.Log.Count(x => x == (vk, true)));
+            Assert.Equal(1, win.Log.Count(x => x == (vk, false)));
+        }
         Assert.True(shortcut.ReleaseAll());
         Assert.True(binder.ReleaseAll());
         Assert.Equal(4, win.Log.Count);
@@ -181,4 +186,80 @@ public sealed class SharedKeyOwnershipSinkTests
         Assert.Contains((Tab, true), win.Log);
         Assert.Contains((Tab, false), win.Log);
     }
+    [Fact]
+    public void Third_macro_test_owner_cannot_release_physical_C_or_session_shortcut_C()
+    {
+        var win = new FakeWindows();
+        var shared = new SharedKeyOwnershipSink(win);
+        var binder = new KeyBinder(KeyMap.FromJson("""{"click":"C"}"""), shared.Physical);
+        var sessionShortcuts = new RetryableShortcutSink(shared.Shortcuts);
+        var macroTest = new RetryableShortcutSink(shared.CreateProducer());
+        binder.OnEvent(Button(["click"], []));
+        sessionShortcuts.Key(Ctrl, true);
+        sessionShortcuts.Key(C, true);
+        macroTest.Key(C, true); // third owner, no duplicate OS down
+        macroTest.Key(C, false); // cannot lift physical/session C
+        Assert.DoesNotContain((C, false), win.Log);
+        sessionShortcuts.Key(C, false);
+        sessionShortcuts.Key(Ctrl, false);
+        Assert.DoesNotContain((C, false), win.Log);
+        binder.OnEvent(Button([], ["click"]));
+        Assert.Equal(1, win.Log.Count(x => x == (C, true)));
+        Assert.Equal(1, win.Log.Count(x => x == (C, false)));
+    }
+
+    [Fact]
+    public void Independent_macro_test_Alt_Tab_keeps_physical_Tab_held()
+    {
+        var win = new FakeWindows();
+        var shared = new SharedKeyOwnershipSink(win);
+        var binder = new KeyBinder(KeyMap.FromJson("""{"click":"Tab"}"""), shared.Physical);
+        var macroTest = new RetryableShortcutSink(shared.CreateProducer());
+        binder.OnEvent(Button(["click"], []));
+        macroTest.Key(Alt, true);
+        macroTest.Key(Tab, true);
+        macroTest.Key(Tab, false);
+        macroTest.Key(Alt, false);
+        Assert.DoesNotContain((Tab, false), win.Log);
+        binder.OnEvent(Button([], ["click"]));
+        Assert.Equal(1, win.Log.Count(x => x == (Tab, false)));
+        Assert.Equal(1, win.Log.Count(x => x == (Tab, true)));
+    }
+
+    [Fact]
+    public void Third_owner_rejected_last_keyup_keeps_pending_and_retries()
+    {
+        var win = new FakeWindows();
+        var shared = new SharedKeyOwnershipSink(win);
+        var binder = new KeyBinder(KeyMap.FromJson("""{"click":"C"}"""), shared.Physical);
+        var macroTest = new RetryableShortcutSink(shared.CreateProducer());
+        win.RefuseUps[C] = 2;
+        binder.OnEvent(Button(["click"], []));
+        macroTest.Key(C, true);
+        binder.OnEvent(Button([], ["click"]));
+        macroTest.Key(C, false); // refused final release
+        Assert.True(macroTest.HasPendingReleases);
+        Assert.False(macroTest.ReleaseAll()); // still refused
+        Assert.True(macroTest.ReleaseAll()); // later accepted
+        Assert.False(macroTest.HasPendingReleases);
+        for (int i = 0; i < 5; i++) Assert.True(macroTest.ReleaseAll());
+        Assert.Equal(1, win.Log.Count(x => x == (C, true)));
+        Assert.Equal(1, win.Log.Count(x => x == (C, false)));
+    }
+
+    [Fact]
+    public void Separate_macro_test_owners_do_not_release_each_other()
+    {
+        var win = new FakeWindows();
+        var shared = new SharedKeyOwnershipSink(win);
+        var first = new RetryableShortcutSink(shared.CreateProducer());
+        var second = new RetryableShortcutSink(shared.CreateProducer());
+        first.Key(C, true);
+        second.Key(C, true);
+        Assert.True(first.ReleaseAll());
+        Assert.DoesNotContain((C, false), win.Log);
+        Assert.True(second.ReleaseAll());
+        Assert.Equal(new[] { (C, true), (C, false) }, win.Log);
+    }
+
 }

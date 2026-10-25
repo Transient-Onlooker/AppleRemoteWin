@@ -3,17 +3,15 @@
 namespace AppleRemote;
 
 /// <summary>
-/// Shared OS-key ownership for physical KeyBinder and shortcut/macro producers.
-/// Both call the same backend, but only the first owner sends key-down and
-/// only the last owner can send key-up. Rejected transitions leave ownership
-/// unchanged, so each producer can retry through its existing cleanup path.
+/// Shares one acknowledged OS VK state among independent producers: physical
+/// buttons, bound shortcuts, and separate macro-test runs. Each producer owns
+/// its own accepted down state; no source can lift another source's held VK.
 /// </summary>
 public sealed class SharedKeyOwnershipSink
 {
     readonly IConfirmedKeySink _backend;
     readonly object _gate = new();
-    readonly HashSet<KeyCode> _physical = new();
-    readonly HashSet<KeyCode> _shortcuts = new();
+    readonly List<HashSet<KeyCode>> _owners = [];
 
     public IConfirmedKeySink Physical { get; }
     public IConfirmedKeySink Shortcuts { get; }
@@ -21,29 +19,41 @@ public sealed class SharedKeyOwnershipSink
     public SharedKeyOwnershipSink(IConfirmedKeySink backend)
     {
         _backend = backend ?? throw new ArgumentNullException(nameof(backend));
-        Physical = new Producer(this, shortcut: false);
-        Shortcuts = new Producer(this, shortcut: true);
+        Physical = CreateProducer();
+        Shortcuts = CreateProducer();
     }
 
-    sealed class Producer(SharedKeyOwnershipSink parent, bool shortcut) : IConfirmedKeySink
-    {
-        public bool TryKey(KeyCode key, bool down) => parent.TryKey(key, down, shortcut);
-        public void Key(KeyCode key, bool down) => _ = TryKey(key, down);
-    }
-
-    bool TryKey(KeyCode key, bool down, bool shortcut)
+    /// <summary>
+    /// Creates an independent producer within this same OS-key registry.
+    /// The owning application keeps the producer for its lifetime so failed
+    /// releases remain attributable and retryable. Used by the macro tester.
+    /// </summary>
+    public IConfirmedKeySink CreateProducer()
     {
         lock (_gate)
         {
-            var own = shortcut ? _shortcuts : _physical;
-            var other = shortcut ? _physical : _shortcuts;
+            var held = new HashSet<KeyCode>();
+            _owners.Add(held);
+            return new Producer(this, held);
+        }
+    }
+
+    sealed class Producer(SharedKeyOwnershipSink parent, HashSet<KeyCode> held) : IConfirmedKeySink
+    {
+        public bool TryKey(KeyCode key, bool down) => parent.TryKey(key, down, held);
+        public void Key(KeyCode key, bool down) => _ = TryKey(key, down);
+    }
+
+    bool TryKey(KeyCode key, bool down, HashSet<KeyCode> own)
+    {
+        lock (_gate)
+        {
+            bool heldElsewhere = _owners.Any(o => !ReferenceEquals(o, own) && o.Contains(key));
 
             if (down)
             {
                 if (own.Contains(key)) return true;
-                // The other producer has already successfully sent key-down.
-                // Joining its ownership must NOT inject a duplicate key-down.
-                if (other.Contains(key) || Send(key, true))
+                if (heldElsewhere || Send(key, true))
                 {
                     own.Add(key);
                     return true;
@@ -52,13 +62,12 @@ public sealed class SharedKeyOwnershipSink
             }
 
             if (!own.Contains(key)) return true;
-            // Never release a different producer's still-held VK.
-            if (other.Contains(key) || Send(key, false))
+            if (heldElsewhere || Send(key, false))
             {
                 own.Remove(key);
                 return true;
             }
-            // OS rejected the final key-up: keep the last owner for retries.
+            // Last owner keeps rejected VK until a subsequent cleanup.
             return false;
         }
     }
