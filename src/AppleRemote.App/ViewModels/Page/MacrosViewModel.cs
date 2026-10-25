@@ -23,6 +23,17 @@ public interface IMacroWorkspace
 public sealed partial class MacrosViewModel(ObservableCollection<string> macros, IEnumerable<string> software, IDialogs dialogs) : ObservableObject
 {
     CancellationTokenSource? _testCts; // test run in progress
+    // Retained across tests: a refused OS key-up must not vanish with a
+    // temporary KeyboardInjector after Macro.RunAsync returns.
+    readonly KeyboardInjector _testInjector = new();
+
+    /// <summary>Cancel a running test on navigation/quit, then retry release.
+    /// A persistent Windows rejection remains tracked for the next attempt.</summary>
+    public void CancelTestAndRelease()
+    {
+        _testCts?.Cancel();
+        _testInjector.ReleaseShortcutKeys();
+    }
 
     public ObservableCollection<string> Macros { get; } = macros;
     public IEnumerable<string> Software { get; } = software;
@@ -91,14 +102,32 @@ public sealed partial class MacrosViewModel(ObservableCollection<string> macros,
     {
         if (_testCts is { } running) { running.Cancel(); return; }
         if (Editor is null) return;
+
+        // Do not start a new test while a previous keyboard release remains
+        // unacknowledged by Windows; another attempt may recover it.
+        if (!_testInjector.ReleaseShortcutKeys())
+        {
+            await dialogs.Warn(Loc.T("Macro.Title"), Loc.T("Macro.KeyUpPending"));
+            return;
+        }
+
         using var cts = _testCts = new CancellationTokenSource();
         Testing = true;
-        try { await new Macro { Workspace = await Editor.GetWorkspaceAsync() }.RunAsync(new KeyboardInjector(), cts.Token); }
+        try
+        {
+            await new Macro { Workspace = await Editor.GetWorkspaceAsync() }.RunAsync(_testInjector, cts.Token);
+        }
+        catch (OperationCanceledException) when (cts.IsCancellationRequested) { }
         catch (Exception ex) { await dialogs.Warn(Loc.T("Macro.Title"), ex.Message); }
         finally
         {
+            // RunAsync also cleans up, but keep retry state alive in the
+            // view-model on persistent failures; never drop the injector.
+            bool released = _testInjector.ReleaseShortcutKeys();
             _testCts = null;
             Testing = false;
+            if (!released)
+                await dialogs.Warn(Loc.T("Macro.Title"), Loc.T("Macro.KeyUpPending"));
         }
     }
 

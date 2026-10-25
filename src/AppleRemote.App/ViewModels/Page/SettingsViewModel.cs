@@ -392,7 +392,14 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
         _ = RefreshDriver();
     }
 
-    public void Dispose() => Macro.Renamed -= OnMacroRenamed;
+    public void Dispose()
+    {
+        // Cancel a running remote-triggered macro before the parent session
+        // shuts down. Macro.RunAsync's finally and RemoteSession.Stop will
+        // both attempt the same idempotent shortcut cleanup.
+        _macroCts?.Cancel();
+        Macro.Renamed -= OnMacroRenamed;
+    }
 
     // ---- key assignment ---------------------------------------------------------
 

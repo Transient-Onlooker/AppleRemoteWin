@@ -55,6 +55,9 @@ public sealed class MainViewModel : IDisposable
 
     public void Dispose()
     {
+        // A macro editor test may be cancelled by application quit rather
+        // than the Test button. Attempt its input cleanup before shutdown.
+        Macros.CancelTestAndRelease();
         Preferences.Dispose();
         Remote.Dispose();
         _updates?.Dispose();

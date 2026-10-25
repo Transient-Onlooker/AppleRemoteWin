@@ -126,6 +126,7 @@ Do not unplug the dongle during the update (about a minute). The dongle checks t
   <data name="Macro.ConfirmDelete" xml:space="preserve"><value>Delete macro "{0}"?</value></data>
   <data name="Log.MacroMissing" xml:space="preserve"><value>Macro not found or unreadable: {0}</value></data>
   <data name="Pick.DuplicateMacro" xml:space="preserve"><value>Duplicate macro</value></data>
+  <data name="Macro.KeyUpPending" xml:space="preserve"><value>Windows rejected a macro key release. A key may remain held. The test was stopped; retry cleanup before running another test.</value></data>
   <data name="Macro.Copy" xml:space="preserve"><value>{0} (copy)</value></data>
   <data name="Macros.New" xml:space="preserve"><value>New macro</value></data>
   <data name="Macros.Save" xml:space="preserve"><value>Save</value></data>

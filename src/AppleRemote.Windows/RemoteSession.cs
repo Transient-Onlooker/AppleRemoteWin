@@ -34,7 +34,9 @@ public sealed class RemoteSession : IDisposable
 
     public RemoteSession(KeyMap? map = null)
     {
-        _binder = new KeyBinder(map ?? KeyMap.Default(), _injector);
+        // Both producers must share a VK owner registry; otherwise Ctrl+C
+        // can lift a held physical C when the shortcut completes.
+        _binder = new KeyBinder(map ?? KeyMap.Default(), _injector.PhysicalKeys);
         _pipeline.Event += ev =>
         {
             if (_keyboardEnabled) _binder.OnEvent(ev);

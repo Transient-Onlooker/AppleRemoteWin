@@ -126,6 +126,7 @@ Ne débranchez pas le dongle pendant la mise à jour (environ une minute). Le do
   <data name="Macro.ConfirmDelete" xml:space="preserve"><value>Supprimer la macro « {0} » ?</value></data>
   <data name="Log.MacroMissing" xml:space="preserve"><value>Macro introuvable ou illisible : {0}</value></data>
   <data name="Pick.DuplicateMacro" xml:space="preserve"><value>Dupliquer la macro</value></data>
+  <data name="Macro.KeyUpPending" xml:space="preserve"><value>Windows a refusé le relâchement d’une touche de macro. Une touche peut rester enfoncée. Le test est arrêté ; réessayez le nettoyage avant un autre test.</value></data>
   <data name="Macro.Copy" xml:space="preserve"><value>{0} (copie)</value></data>
   <data name="Macros.New" xml:space="preserve"><value>Nouvelle macro</value></data>
   <data name="Macros.Save" xml:space="preserve"><value>Enregistrer</value></data>

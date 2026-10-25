@@ -16,12 +16,19 @@ public sealed class KeyboardInjector : IConfirmedKeySink
 {
     const uint MAPVK_VK_TO_VSC = 0, KEYEVENTF_UNICODE = 0x0004;
 
-    // KeyBinder calls TryKey() directly and manages physical button ownership.
-    // Shortcut and macro callers use Key(), whose independent ledger keeps
-    // rejected key-ups retryable on Stop/Keyboard OFF.
+    // One OS-key ownership arbiter for both independent keyboard producers.
+    // Physical KeyBinder still manages its button references; shortcut/macro
+    // input keeps its own retry ledger, but neither can lift the other's VK.
+    readonly SharedKeyOwnershipSink _sharedKeys;
     readonly RetryableShortcutSink _shortcutSink;
 
-    public KeyboardInjector() => _shortcutSink = new RetryableShortcutSink(this);
+    public KeyboardInjector()
+    {
+        _sharedKeys = new SharedKeyOwnershipSink(this);
+        _shortcutSink = new RetryableShortcutSink(_sharedKeys.Shortcuts);
+    }
+
+    public IConfirmedKeySink PhysicalKeys => _sharedKeys.Physical;
 
     public string? LastError { get; private set; }
 

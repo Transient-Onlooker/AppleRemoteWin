@@ -53,7 +53,7 @@ public sealed class RetryableShortcutSinkTests
         sink.Key(C, false);
         sink.Key(Ctrl, false); // Windows rejects this Ctrl up
         Assert.True(sink.HasPendingReleases);
-        Assert.False(underlying.Accepted.Contains((Ctrl, false)));
+        Assert.DoesNotContain((Ctrl, false), underlying.Accepted);
 
         Assert.True(sink.ReleaseAll()); // Stop
         Assert.False(sink.HasPendingReleases);

@@ -11,6 +11,12 @@ public partial class MacrosPage
     public MacrosPage()
     {
         InitializeComponent();
+        Unloaded += (_, _) =>
+        {
+            // Navigation/closing must cancel a long-running macro and retry
+            // rejected key-ups even if the Test button is never clicked again.
+            if (DataContext is MacrosViewModel vm) vm.CancelTestAndRelease();
+        };
         DataContextChanged += (_, e) =>
         {
             if (e.NewValue is not MacrosViewModel vm) return;

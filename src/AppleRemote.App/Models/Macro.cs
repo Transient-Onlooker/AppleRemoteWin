@@ -97,5 +97,15 @@ public sealed class Macro
     }
 
     /// <summary>Exécute les blocs (thread de l'interface : les fenêtres de saisie s'y ouvrent). Annulable ; s'arrête aussi si une fenêtre de saisie est fermée.</summary>
-    public Task RunAsync(KeyboardInjector injector, CancellationToken ct) => new MacroEngine(new MacroHost(injector), ct).RunAsync(Workspace);
+    public async Task RunAsync(KeyboardInjector injector, CancellationToken ct)
+    {
+        try { await new MacroEngine(new MacroHost(injector), ct).RunAsync(Workspace); }
+        finally
+        {
+            // Even a completed/cancelled/failed test may have a rejected
+            // shortcut key-up. Attempt cleanup before returning; the caller
+            // retains the injector so any remaining pending key can be retried.
+            injector.ReleaseShortcutKeys();
+        }
+    }
 }
