@@ -3,20 +3,20 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:l="clr-namespace:AppleRemote.App"
              MinWidth="0">
-    <Border Padding="16" CornerRadius="12" Background="#171D25"
-            BorderBrush="#3D4A5C" BorderThickness="1">
+    <Border Padding="16" CornerRadius="12" Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
+            BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}" BorderThickness="1">
         <StackPanel>
             <TextBlock Text="{l:T Assign.Title}" FontWeight="SemiBold"
-                       FontSize="19" Foreground="#F4F6F9" Margin="0,0,0,4" />
-            <TextBlock Text="{l:T Assign.Help}" Foreground="#ADBCCB"
+                       FontSize="19" Foreground="{DynamicResource TextFillColorPrimaryBrush}" Margin="0,0,0,4" />
+            <TextBlock Text="{l:T Assign.Help}" Foreground="{DynamicResource TextFillColorSecondaryBrush}"
                        FontSize="12" TextWrapping="Wrap" Margin="0,0,0,12" />
-            <Border BorderBrush="#596B82" BorderThickness="1" CornerRadius="7"
+            <Border BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="7"
                     Padding="12,10" Margin="0,0,0,12">
                 <StackPanel>
-                    <TextBlock Text="{l:T Assign.Selected}" Foreground="#ABBAD0" FontSize="11" />
-                    <TextBlock Text="{Binding SelectedAssignmentLabel}" Foreground="#F4F6FA"
+                    <TextBlock Text="{l:T Assign.Selected}" Foreground="{DynamicResource TextFillColorSecondaryBrush}" FontSize="11" />
+                    <TextBlock Text="{Binding SelectedAssignmentLabel}" Foreground="{DynamicResource TextFillColorPrimaryBrush}"
                                FontWeight="SemiBold" FontSize="16" TextWrapping="Wrap" Margin="0,2,0,4"/>
-                    <TextBlock Text="{Binding SelectedAssignmentValue}" Foreground="#A8CFFF"
+                    <TextBlock Text="{Binding SelectedAssignmentValue}" Foreground="{DynamicResource TextFillColorPrimaryBrush}"
                                FontSize="13" TextWrapping="Wrap"/>
                 </StackPanel>
             </Border>
@@ -44,7 +44,7 @@
                     </Style>
                 </ListBox.ItemContainerStyle>
             </ListBox>
-            <TextBlock Text="{l:T Assign.Search}" Foreground="#ABBAD0" Margin="0,0,0,5"/>
+            <TextBlock Text="{l:T Assign.Search}" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,5"/>
             <TextBox Text="{Binding AssignmentSearch, UpdateSourceTrigger=PropertyChanged}"
                      Padding="10,8" Margin="0,0,0,8" />
             <ScrollViewer MaxHeight="255" VerticalScrollBarVisibility="Auto"
