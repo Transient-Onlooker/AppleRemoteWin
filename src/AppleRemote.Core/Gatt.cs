@@ -33,6 +33,8 @@ public sealed class GattClient
     PendingRequest? _pending;
     Exception? _closedException;
     int _linkEnded; // ATT cancellation does not itself end HID notifications
+    int _dispatches; // high bit closes admission; remaining bits count admitted sends
+    readonly TaskCompletionSource _dispatchesEnded = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
     sealed class PendingRequest(byte request, TaskCompletionSource<byte[]> done)
     {
@@ -93,12 +95,13 @@ public sealed class GattClient
     /// </summary>
     public event Action<byte>? PeerRequest;
 
-    /// <summary>Call when the connection ends: stops listening to the channel.</summary>
+    /// <summary>Stop admission/listening immediately. Already admitted transport calls may still finish; await DetachAsync before releasing transport.</summary>
     public void Detach()
     {
         // Publish the terminal state FIRST: unsubscribe cannot revoke an
         // event handler which has already been copied for dispatch.
         Interlocked.Exchange(ref _linkEnded, 1);
+        CloseDispatch();
         var reason = CloseRequests(new InvalidOperationException("GATT client detached."));
         _central.L2capData -= OnL2cap;
         _central.Disconnected -= OnDisconnected;
@@ -106,6 +109,41 @@ public sealed class GattClient
         // No monitor or synchronous wait for a blocked transport callback.
         // RequestAsync's own finally also clears the pending reference.
         Volatile.Read(ref _pending)?.Done.TrySetException(reason);
+    }
+
+    /// <summary>Detach immediately, then await transport calls admitted before termination.</summary>
+    public async ValueTask DetachAsync()
+    {
+        Detach();
+        await _dispatchesEnded.Task;
+    }
+
+    void CloseDispatch()
+    {
+        if (Interlocked.Or(ref _dispatches, int.MinValue) == 0)
+            _dispatchesEnded.TrySetResult();
+    }
+
+    bool SendAtt(ushort connection, byte[] pdu)
+    {
+        int active;
+        do
+        {
+            active = Volatile.Read(ref _dispatches);
+            if (active < 0) return false;
+        }
+        while (Interlocked.CompareExchange(ref _dispatches, active + 1, active) != active);
+
+        try
+        {
+            _central.SendL2cap(connection, LeCentral.CidAtt, pdu);
+            return true;
+        }
+        finally
+        {
+            if (Interlocked.Decrement(ref _dispatches) == int.MinValue)
+                _dispatchesEnded.TrySetResult();
+        }
     }
 
     public static bool Is(byte[] uuid, ushort uuid16) => uuid.Length == 2 && (uuid[0] | uuid[1] << 8) == uuid16;
@@ -227,7 +265,18 @@ public sealed class GattClient
             if (Volatile.Read(ref _linkEnded) != 0)
                 throw new IOException("GATT link ended before ATT request dispatch.");
             cancellationToken.ThrowIfCancellationRequested();
-            _central.SendL2cap((ushort)connection, LeCentral.CidAtt, pdu);
+            try
+            {
+                if (!SendAtt((ushort)connection, pdu))
+                    throw new IOException("GATT link ended before ATT request dispatch.");
+            }
+            catch (Exception e)
+            {
+                // A transport can throw after handing bytes to the controller.
+                // Its late response cannot safely belong to a subsequent request.
+                CloseRequests(new IOException("ATT dispatch failed; disconnect before creating a new client.", e));
+                throw;
+            }
             return await done.Task.WaitAsync(RequestTimeout, cancellationToken);
         }
         catch (Exception e) when (e is OperationCanceledException or TimeoutException)
@@ -250,6 +299,7 @@ public sealed class GattClient
     {
         if (connection != Volatile.Read(ref _connection)) return;
         Interlocked.Exchange(ref _linkEnded, 1);
+        CloseDispatch();
         var failure = CloseRequests(new IOException($"GATT connection disconnected (reason 0x{reason:X2})."));
         Volatile.Read(ref _pending)?.Done.TrySetException(failure);
     }
@@ -277,16 +327,17 @@ public sealed class GattClient
                 p.Done.TrySetException(new AttException(pdu[1], U16(pdu, 2), pdu[4]));
                 break;
             case 0x1B or 0x1D when pdu.Length >= 3:   // notification, indication
-                if (opcode == 0x1D) _central.SendL2cap(_connection, LeCentral.CidAtt, [0x1E]);   // confirmation
+                if (opcode == 0x1D) SendAtt(connection, [0x1E]);   // confirmation
+                if (Volatile.Read(ref _linkEnded) != 0) return;
                 Notification?.Invoke(U16(pdu, 1), pdu[3..]);
                 break;
             case 0x02:   // Exchange MTU: stay at the minimum
-                _central.SendL2cap(_connection, LeCentral.CidAtt, [0x03, 23, 0]);
+                SendAtt(connection, [0x03, 23, 0]);
                 break;
             case 0x04 or 0x06 or 0x08 or 0x0A or 0x0C or 0x0E or 0x10 or 0x12 or 0x16 or 0x18 or 0x20:   // request from the device
                 byte error = opcode is 0x04 or 0x06 or 0x08 or 0x10 ? AttributeNotFound : RequestNotSupported;
                 ushort handle = pdu.Length >= 3 ? U16(pdu, 1) : (ushort)0;
-                _central.SendL2cap(_connection, LeCentral.CidAtt, [ErrorResponse, opcode, .. U16(handle), error]);
+                SendAtt(connection, [ErrorResponse, opcode, .. U16(handle), error]);
                 break;
             default:
                 if (pending is { Request: 0x12 } write && opcode == 0x13 && pdu.Length != 1)

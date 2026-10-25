@@ -1037,7 +1037,7 @@ internal static partial class Program
                 }
                 finally
                 {
-                    gatt?.Detach();
+                    if (gatt is not null) await gatt.DetachAsync();
                     if (stored is { } bond)
                     {
                         CryptographicOperations.ZeroMemory(bond.Keys.Ltk);

@@ -313,7 +313,7 @@ public sealed class A2854RemoteBle(
                 onStatus("A2854: notification cleanup interrupted; closing link.");
             }
 
-            gatt?.Detach();
+            if (gatt is not null) await gatt.DetachAsync();
 
             // A valid BLE connection is the only resource we may close here.
             // This never changes a Windows adapter driver or the protected bond.
