@@ -42,6 +42,14 @@ User-reported **Windows read-only QA on `c8782f6`**: Release build **0 warnings,
 
 **Validation pending on new source.** The 421/421 result applies only to `c8782f6`, not the follow-up commit. Run Windows Release full + focused `KeyTests` with fake rejected key-up, verify Settings UI without changes, and report back. Do not modify BLE, protected DPAPI bond, five-point calibration or drivers. No real input injection without additional user approval.
 
+## 2026-10-25 — Retrying keyboard key-up after session Stop (source-only follow-up)
+
+Independent local Windows QA at **`a63325b`**: clean worktree, Release **0 errors/0 warnings**, full **429/429**, `KeyTests` **31/31**. Shared F5 ownership worked for both release orders and mode/Stop cleanup. Offline WPF two models × ko/en/fr × 1024/1280/1600 DIP had 0 horizontal overflow. External mock/WPF suite was **209 PASS / 1 FAIL**: when all key-up attempts during the initial Stop were rejected, `KeyBinder` correctly preserved pending keys but a **later `RemoteSession.Stop()` made 0 further attempts**, because `RemoteSession.cs:401` returned immediately if `_cts == null`. The detailed report `AppleRemoteWin-Validation/shared-keys-a63325b/QA_REPORT_KO.md` exists only on the user's local Windows environment; not in GitHub. No physical BLE or Windows input injection was attempted.
+
+**Narrow repair (unverified new source):** When `Stop()` is called with `_cts == null`, it now holds the existing lifecycle and input gates, checks **only** `_binder.HasPendingReleases`, and if needed runs `ReportKeyboardReleaseResult()` exactly once before returning. No BLE reopen, new shutdown wait, pointer injection, settings rewrite or duplicate "Stopped" event; normal active-session shutdown is unchanged. Repeated stopped-session Stop attempts can retry until Windows accepts the pending key-up, and calls with no pending key-up remain inert. The ack sink still determines real OS acceptance; do not claim recovery if Windows persistently refuses. Added portable `KeyTests` covering repeated rejects then success, idempotence after success, and multiple pending VKs. They prove binder retry behavior, **not** the `RemoteSession` lifecycle path; independent Windows mock QA must specifically invoke `Stop()` twice/three times on an already stopped session using a rejecting sink or equivalent injection shim, and distinguish pending from zero-pending calls.
+
+**New commit requires Windows Release rebuild and tests**; 429/429 are previous `a63325b` evidence only. Keep protected DPAPI bond, measured calibration and drivers untouched. No automatic BLE reconnection or `SendInput` field test.
+
 ## 0. Quick resume / ownership
 
 - GitHub: `Transient-Onlooker/AppleRemoteWin`; work branch: `feat/a2854-support`.

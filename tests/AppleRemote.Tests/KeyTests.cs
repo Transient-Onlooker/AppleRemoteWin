@@ -366,6 +366,54 @@ public class KeyTests
         }, sink.Log);
     }
 
+    [Fact]
+    public void Pending_keyup_remains_retryable_after_multiple_cleanup_failures()
+    {
+        var sink = new RejectingSink { FailedUps = 3 };
+        var binder = new KeyBinder(KeyMap.FromJson("""{"click":"F5"}"""), sink);
+        binder.OnEvent(Buttons(1, ["click"], []));
+        Assert.False(binder.ReleaseAll()); // initial Stop cleanup fails
+        Assert.True(binder.HasPendingReleases);
+        Assert.False(binder.ReleaseAll()); // stopped-session Stop retry #1
+        Assert.True(binder.HasPendingReleases);
+        Assert.False(binder.ReleaseAll()); // stopped-session Stop retry #2
+        Assert.True(binder.HasPendingReleases);
+        Assert.True(binder.ReleaseAll()); // stopped-session Stop retry #3 succeeds
+        Assert.False(binder.HasPendingReleases);
+        Assert.Equal(new[] { (Keys.Names["F5"], true), (Keys.Names["F5"], false) }, sink.Accepted);
+    }
+
+    [Fact]
+    public void Successful_cleanup_does_not_repeat_keyup_on_further_Stop_calls()
+    {
+        var sink = new RejectingSink { FailedUps = 1 };
+        var binder = new KeyBinder(KeyMap.FromJson("""{"click":"F5"}"""), sink);
+        binder.OnEvent(Buttons(1, ["click"], []));
+        Assert.False(binder.ReleaseAll());
+        Assert.True(binder.ReleaseAll());
+        Assert.True(binder.ReleaseAll());
+        Assert.False(binder.HasPendingReleases);
+        Assert.Equal(new[] { (Keys.Names["F5"], true), (Keys.Names["F5"], false) }, sink.Accepted);
+    }
+
+    [Fact]
+    public void Multiple_keys_with_rejected_up_are_each_retryable_after_Stop()
+    {
+        var sink = new RejectingSink { FailedUps = 2 };
+        var binder = new KeyBinder(KeyMap.FromJson("""{"click":"F5","menu":"Space"}"""), sink);
+        binder.OnEvent(Buttons(1, ["click"], []));
+        binder.OnEvent(Buttons(3, ["menu"], []));
+        Assert.False(binder.ReleaseAll());
+        Assert.True(binder.HasPendingReleases);
+        Assert.True(binder.ReleaseAll());
+        Assert.False(binder.HasPendingReleases);
+        Assert.Equal(new[]
+        {
+            (Keys.Names["F5"], true), (Keys.Names["Space"], true),
+            (Keys.Names["F5"], false), (Keys.Names["Space"], false)
+        }, sink.Accepted);
+    }
+
 }
 
 

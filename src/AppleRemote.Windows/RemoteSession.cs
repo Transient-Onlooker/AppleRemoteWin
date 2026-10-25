@@ -398,7 +398,19 @@ public sealed class RemoteSession : IDisposable
         lock (_lifecycleGate)
         {
             var cts = _cts;
-            if (cts is null) return;
+            if (cts is null)
+            {
+                // A previous Stop may have finished USB/session teardown but
+                // Windows could have rejected its keyboard key-up. Retrying
+                // Stop must still attempt that pending release without
+                // restarting BLE, sending extra input or repeating teardown.
+                lock (_gate)
+                {
+                    if (_binder.HasPendingReleases)
+                        ReportKeyboardReleaseResult();
+                }
+                return;
+            }
 
             bool wasA2854 = _a2854Mode;
             Task? activeDriver = _driverTask;
