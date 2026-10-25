@@ -109,6 +109,14 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
         _settings.Save();
     }
 
+    [ObservableProperty] bool _a2854ClickAsKeyboard;
+    partial void OnA2854ClickAsKeyboardChanged(bool value)
+    {
+        _session.A2854ClickAsKeyboard = value;
+        _settings.A2854ClickAsKeyboard = value;
+        _settings.Save();
+    }
+
     [ObservableProperty] bool _a2854PointerUseCalibration;
     partial void OnA2854PointerUseCalibrationChanged(bool value)
     {
@@ -231,6 +239,7 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
         _keyboardEnabled = _settings.KeyboardEnabled;
         _a2854Mode = _settings.A2854Mode;
         _a2854PointerEnabled = _settings.A2854PointerEnabled;
+        _a2854ClickAsKeyboard = _settings.A2854ClickAsKeyboard;
         _a2854PointerUseCalibration = _settings.A2854PointerUseCalibration;
         _a2854PointerSensitivity =
             double.IsFinite(_settings.A2854PointerSensitivity) &&
@@ -247,6 +256,7 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
         _session.A2854Mode = _a2854Mode;
         _session.A2854PointerSensitivity = _a2854PointerSensitivity;
         _session.A2854PointerUseCalibration = _a2854PointerUseCalibration;
+        _session.A2854ClickAsKeyboard = _a2854ClickAsKeyboard;
         _session.A2854PointerEnabled = _a2854PointerEnabled;
         _session.AdapterId = _settings.Adapter;
         // The remote VM loaded the saved five-point profile before we restored

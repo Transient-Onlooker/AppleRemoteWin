@@ -19,6 +19,8 @@ Repository: `Transient-Onlooker/AppleRemoteWin`. Working branch: `feat/a2854-sup
 - Do not subscribe to or record microphone Report 0xFA; only button 0xFB and touch 0xFC are in scope.
 - Keep first-generation Siri Remote, ESP32, WPF behavior compatible. `Core` stays portable (.NET 10; no Windows references), with regression tests for new core behavior.
 
+> **A2854 CENTER-BUTTON KEYBOARD ROUTING (2026-10-25 SOURCE, WINDOWS QA PENDING):** New opt-in `A2854ClickAsKeyboard` routes the physical center button's `0xFB.click` to existing configurable keyboard/shortcut bindings when A2854 pointer movement is enabled, instead of OS left-click. Default false keeps current pointer behavior. Keyboard input remains separately opt-in; TV/Siri/Power blocked. The routing policy is a portable Core helper; modes release held inputs on switching. Verify full Release tests and WPF settings before any separately authorized physical input test. No BLE, bond, driver or five-point profile changes.
+
 ### Current validated baseline and next gate
 
 > **2026-10-25 POST-HANDOFF UPDATE:** The user reported independent Windows QA for `85f20a7`: Release 0 errors/warnings, full 387/387, pointer 26/26, actual cursor/click/drag usable with 37 down/up pairs, on-screen Stop disabled both CCCDs and ended with actual 0x16. Settings restored, protected bond and five-point calibration unchanged, no residual processes. This does not prove reconnect repeatability or instrumented cursor accuracy. Post-QA radial-pressure, nested-Settings-scroll and saved visual-calibration cold-start source changes require **new** Windows validation; never treat earlier passes as proof of those changes. The legacy entries below preserve historical details.

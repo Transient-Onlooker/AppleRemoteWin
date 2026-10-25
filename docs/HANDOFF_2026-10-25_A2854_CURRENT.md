@@ -8,6 +8,16 @@ The user reported **independent Windows QA at application commit `85f20a7`**: cl
 
 **A newly committed follow-up after that QA must be treated as source-only until independently built and tested.** It changes the empirical pre-click pressure guard from per-axis limits to **radial displacement**, cancels any pending pressure suppression on a deliberate larger swipe (including a diagonal), and adds two fake-pointer regression tests. It also removes a nested disabled ScrollViewer so only `SettingsViewport` handles mouse wheel input, and synchronizes saved visual five-point projection after restoring the persisted A2854 model on cold start. The actual Windows pointer's *separate* calibrated-axis opt-in remains unchanged, as do click/drag thresholds, bonded BLE and USB safety controls. Validate Release tests, Settings wheel/keyboard scrolling in both layouts, and saved visual projection after restart **without** changing actual user calibration values.
 
+## 2026-10-25 — optional A2854 center keyboard binding (source, Windows QA pending)
+
+User request: keep A2854 pointer movement while remapping the physical **center 0xFB.click** to a chosen keyboard key, keyboard combo, application or macro through the existing `Bindings[click]` KeyPicker. The pre-existing key-picker works with the pointer **off**, but pointer mode previously claimed click exclusively as Windows left-mouse.
+
+A new opt-in preference `A2854ClickAsKeyboard` (default **false**) switches *only* the center button's ownership while the A2854 pointer is on: **false** = physical left mouse click, **true** = existing user-defined keyboard/shortcut binding (requires separately enabled `KeyboardEnabled`). Pointer *touch movement* remains on. The physical click never generates both mouse-left and keyboard key in one mode. With pointer off, prior keyboard center-key mapping remains unchanged. TV/Siri/Power remain inert for OS keyboard, as before. First-gen and ESP32 code paths do not change.
+
+UI: Settings → A2854 mouse card → **Use center clickpad button as a keyboard binding**; enable keyboard input lower in Settings; assign **Clickpad center** in the existing left-side A2854 KeyPicker. The option is disabled while keyboard injection is off and the saved choice is preserved. Switching the ownership while connected proactively releases any mapped key and attempts mouse-up, retaining existing failed-release diagnostics. User settings save the new non-secret Boolean (no protected bond, five-point calibration or BLE changes). `A2854ButtonRouting` is a pure portable classifier shared by Windows session and UI combo/macro dispatch to avoid duplicate actions; new fake sink unit tests cover modes, custom F5/Space, TV/Siri/Power exclusions, and held release.
+
+**New source is not Windows-built, WPF-verified, or physically field-tested yet.** Request a read-only Release build/full tests, focused `A2854ButtonRoutingTests`, localization consistency, and offline WPF Settings binding checks. Physical mouse/keyboard `SendInput` and BLE may only be tested after separate user approval, and the default mouse-click behavior must not regress.
+
 ## 0. Quick resume / ownership
 
 - GitHub: `Transient-Onlooker/AppleRemoteWin`; work branch: `feat/a2854-support`.

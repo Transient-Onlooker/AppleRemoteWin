@@ -17,7 +17,7 @@ public sealed class RemoteSession : IDisposable
     readonly A2854PointerMapper _pointer = new(new WindowsPointerSink());
     readonly KeyBinder _binder;
     bool _a2854Mode, _a2854PointerEnabled, _acceptA2854Input;
-    bool _a2854PointerUseCalibration;
+    bool _a2854PointerUseCalibration, _a2854ClickAsKeyboard;
     int _a2854HidReady; // set only after encrypted GATT HID subscriptions succeed
     Task? _a2854CleanupTask;
     bool _keyboardEnabled;
@@ -86,6 +86,33 @@ public sealed class RemoteSession : IDisposable
                 _a2854PointerEnabled = value;
                 if (value && _a2854PointerUseCalibration)
                     ReloadPointerCalibration();
+            }
+        }
+    }
+
+    /// <summary>
+    /// Optional A2854 center-button routing while pointer movement stays on.
+    /// False (default): physical click is Windows left mouse. True: route it
+    /// through the existing user-editable keyboard binding instead. Keyboard
+    /// injection remains separately opt-in.
+    /// </summary>
+    public bool A2854ClickAsKeyboard
+    {
+        get { lock (_gate) return _a2854ClickAsKeyboard; }
+        set
+        {
+            lock (_gate)
+            {
+                if (_a2854ClickAsKeyboard == value) return;
+                if (_a2854Mode)
+                {
+                    // Changing the owner of a held click must not strand a
+                    // mouse button or a mapped keyboard key in its down state.
+                    _binder.ReleaseAll();
+                    if (!_pointer.Reset())
+                        Status?.Invoke("A2854: Windows rejected mouse-up; held click retained for cleanup retry.");
+                }
+                _a2854ClickAsKeyboard = value;
             }
         }
     }
@@ -456,7 +483,9 @@ public sealed class RemoteSession : IDisposable
             {
                 foreach (RemoteEvent ev in _a2854Decoder.Decode(report))
                 {
-                    if (_a2854PointerEnabled)
+                    if (_a2854PointerEnabled &&
+                        (ev is not ButtonsEvent ||
+                         A2854ButtonRouting.PointerOwnsClick(_a2854PointerEnabled, _a2854ClickAsKeyboard)))
                     {
                         _pointer.OnEvent(ev);
                         if (ev is ButtonsEvent transition &&
@@ -466,24 +495,10 @@ public sealed class RemoteSession : IDisposable
                     }
 
                     if (_keyboardEnabled)
-                    {
-                        // A pointer click may not also emit the gen-1 Enter key.
-                        // TV/Siri/Power are deliberately inert for A2854.
-                        if (_a2854PointerEnabled && ev is ButtonsEvent buttons)
-                        {
-                            _binder.OnEvent(new ButtonsEvent(buttons.Mask,
-                                buttons.Pressed.Where(name => name != "click" &&
-                                    name is not ("tv" or "siri" or "power")).ToArray(),
-                                buttons.Released.Where(name => name != "click" &&
-                                    name is not ("tv" or "siri" or "power")).ToArray(), buttons.Raw));
-                        }
-                        else if (ev is ButtonsEvent limited)
-                            _binder.OnEvent(new ButtonsEvent(limited.Mask,
-                                limited.Pressed.Where(name => name is not ("tv" or "siri" or "power")).ToArray(),
-                                limited.Released.Where(name => name is not ("tv" or "siri" or "power")).ToArray(),
-                                limited.Raw));
-                        else _binder.OnEvent(ev);
-                    }
+                        _binder.OnEvent(ev is ButtonsEvent buttons
+                            ? A2854ButtonRouting.ForKeyboard(
+                                buttons, _a2854PointerEnabled, _a2854ClickAsKeyboard)
+                            : ev);
                     Event?.Invoke(ev);
                 }
             }

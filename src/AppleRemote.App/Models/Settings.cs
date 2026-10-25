@@ -14,6 +14,11 @@ public sealed class Settings
     public bool A2854Mode { get; set; }
     /// <summary>Opt-in Windows mouse movement/click synthesis, off by default.</summary>
     public bool A2854PointerEnabled { get; set; }
+    /// <summary>
+    /// When the A2854 pointer is enabled, use the configured center-button
+    /// keyboard binding instead of a mouse left-click. Off by default.
+    /// </summary>
+    public bool A2854ClickAsKeyboard { get; set; }
     /// <summary>Relative cursor sensitivity in pixels per A2854 coordinate unit.</summary>
     public double A2854PointerSensitivity { get; set; } = 0.18;
     /// <summary>

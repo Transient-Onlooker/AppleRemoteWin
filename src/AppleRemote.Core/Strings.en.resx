@@ -293,6 +293,8 @@ An administrator confirmation (UAC) will appear.</value></data>
   <data name="A2854.Settings.LegacyHint" xml:space="preserve"><value>Gen-1 and ESP32 behavior is unchanged when A2854 mode is off.</value></data>
   <data name="A2854.Settings.PointerTitle" xml:space="preserve"><value>Use A2854 touchpad as a Windows mouse</value></data>
   <data name="A2854.Settings.PointerHint" xml:space="preserve"><value>Optional real cursor movement and left click; keyboard and media shortcuts have a separate switch.</value></data>
+  <data name="A2854.Settings.ClickAsKeyboard" xml:space="preserve"><value>Use center clickpad button as a keyboard binding (instead of left-click)</value></data>
+  <data name="A2854.Settings.ClickAsKeyboardHint" xml:space="preserve"><value>Enable keyboard input, then assign a key or shortcut under 'Clickpad center' on the left. The cursor still moves, but the center button no longer sends a mouse left-click.</value></data>
   <data name="A2854.Settings.UseMeasuredAxes" xml:space="preserve"><value>Apply measured five-point axes to Windows pointer</value></data>
   <data name="A2854.Settings.AxesHint" xml:space="preserve"><value>Off by default. Requires a valid five-point profile and the separate mouse switch. Toggle off/on to reload measurements.</value></data>
   <data name="A2854.Settings.Sensitivity" xml:space="preserve"><value>Pointer sensitivity</value></data>
