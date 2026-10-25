@@ -4,6 +4,10 @@
 
 ## 2026-10-25 — Latest independent Windows QA PASS: `d6d97e0`
 
+**Saved calibration default follow-up:** At the user's explicit request, valid saved five-point measurements are now preferred for pointer axes as well as the existing automatic visual projection. Settings loaded from older releases migrate the previous default-off option to on once (`A2854CalibrationDefaultsVersion=1`); subsequent explicit opt-out is preserved. Pointer/keyboard enable switches remain independent and are not turned on by this migration. Missing or invalid profiles retain the existing raw-axis fallback. Measurements remain local and are never embedded in source. This supersedes historical descriptions below that call pointer calibration default-off. No new live BLE or pointer trial is implied.
+
+Local Windows verification for this follow-up: Release solution build 0 warnings/errors; full tests **435/435**, including three new settings migration/default/opt-out regressions compiled against the actual Settings source. No live BLE or SendInput trial was run.
+
 **Validated application HEAD:** `d6d97e01ff099a7ba95b59f17187e3107e214d47` on `feat/a2854-support`, clean working tree. The user reported independent **overall PASS** for the requested release-build, core regression and offline session/UI mock scope:
 
 - Release build: **0 warnings / 0 errors**.

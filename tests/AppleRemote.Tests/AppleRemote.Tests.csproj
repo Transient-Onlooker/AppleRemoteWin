@@ -21,6 +21,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\AppleRemote.Core\AppleRemote.Core.csproj" />
+    <Compile Include="..\..\src\AppleRemote.App\Models\Settings.cs" Link="AppSettings.cs" />
   </ItemGroup>
 
   <ItemGroup>

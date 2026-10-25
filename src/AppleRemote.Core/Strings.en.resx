@@ -313,7 +313,7 @@ An administrator confirmation (UAC) will appear.</value></data>
   <data name="A2854.Settings.ClickAsKeyboard" xml:space="preserve"><value>Use center clickpad button as a keyboard binding (instead of left-click)</value></data>
   <data name="A2854.Settings.ClickAsKeyboardHint" xml:space="preserve"><value>Enable keyboard input, then assign a key or shortcut under 'Clickpad center' on the left. The cursor still moves, but the center button no longer sends a mouse left-click.</value></data>
   <data name="A2854.Settings.UseMeasuredAxes" xml:space="preserve"><value>Apply measured five-point axes to Windows pointer</value></data>
-  <data name="A2854.Settings.AxesHint" xml:space="preserve"><value>Off by default. Requires a valid five-point profile and the separate mouse switch. Toggle off/on to reload measurements.</value></data>
+  <data name="A2854.Settings.AxesHint" xml:space="preserve"><value>On by default. Applies your valid saved five-point profile to the mouse. Mouse input must be enabled separately; turn this off to use raw axes.</value></data>
   <data name="A2854.Settings.Sensitivity" xml:space="preserve"><value>Pointer sensitivity</value></data>
   <data name="A2854.Cal.Title" xml:space="preserve"><value>A2854 touchpad calibration</value></data>
   <data name="A2854.Cal.Instructions" xml:space="preserve"><value>Mark center and four reachable edge contact centers. Hold one finger steady then capture. Saves back up the previous valid profile. Continue across reconnects.</value></data>

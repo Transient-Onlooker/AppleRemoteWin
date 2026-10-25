@@ -313,7 +313,7 @@ WinUSB가 제거되고 Windows가 해당 어댑터를 다시 사용합니다(직
   <data name="A2854.Settings.ClickAsKeyboard" xml:space="preserve"><value>클릭패드 중앙 버튼을 키보드 키로 사용 (왼쪽 클릭 대신)</value></data>
   <data name="A2854.Settings.ClickAsKeyboardHint" xml:space="preserve"><value>키보드 입력을 켠 뒤 왼쪽의 '클릭패드 중앙'에 원하는 키·단축키를 지정하세요. 커서는 계속 이동하며, 중앙 버튼은 마우스 왼쪽 클릭을 보내지 않습니다.</value></data>
   <data name="A2854.Settings.UseMeasuredAxes" xml:space="preserve"><value>실측 5점 좌표를 Windows 커서에 적용</value></data>
-  <data name="A2854.Settings.AxesHint" xml:space="preserve"><value>기본값은 꺼짐입니다. 유효한 5점 보정값과 별도 마우스 설정이 필요합니다. 다시 읽으려면 껐다 켜세요.</value></data>
+  <data name="A2854.Settings.AxesHint" xml:space="preserve"><value>기본으로 켜집니다. 저장된 유효한 5점 보정값을 마우스에 적용합니다. 마우스 입력은 별도로 켜야 하며, 꺼서 원시 좌표를 사용할 수 있습니다.</value></data>
   <data name="A2854.Settings.Sensitivity" xml:space="preserve"><value>커서 감도</value></data>
   <data name="A2854.Cal.Title" xml:space="preserve"><value>A2854 터치패드 보정</value></data>
   <data name="A2854.Cal.Instructions" xml:space="preserve"><value>실제 중앙과 상하좌우 가장자리의 손가락 중심을 지정하세요. 손가락 하나를 고정하고 측정합니다. 기존 유효 보정값은 백업되며 재연결 후에도 이어서 측정할 수 있습니다.</value></data>

@@ -127,8 +127,8 @@ public sealed class RemoteSession : IDisposable
     }
 
     /// <summary>
-    /// An additional, explicit opt-in: apply the user's measured clickpad
-    /// physical axes to Windows cursor movement. The pointer itself remains
+    /// Apply the user's saved measured clickpad axes when enabled in settings.
+    /// The pointer itself remains
     /// OFF unless A2854PointerEnabled is separately enabled. A failed profile
     /// load leaves the original relative mapper active, never guesses bounds.
     /// </summary>

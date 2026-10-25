@@ -313,7 +313,7 @@ Une confirmation administrateur (UAC) va s'afficher.</value></data>
   <data name="A2854.Settings.ClickAsKeyboard" xml:space="preserve"><value>Utiliser le bouton central comme touche clavier (à la place du clic gauche)</value></data>
   <data name="A2854.Settings.ClickAsKeyboardHint" xml:space="preserve"><value>Activez les entrées clavier, puis attribuez une touche ou un raccourci à « Centre du pavé tactile » à gauche. Le curseur reste mobile, mais le bouton central ne produit plus de clic gauche.</value></data>
   <data name="A2854.Settings.UseMeasuredAxes" xml:space="preserve"><value>Appliquer les cinq points mesurés au pointeur Windows</value></data>
-  <data name="A2854.Settings.AxesHint" xml:space="preserve"><value>Désactivé par défaut. Nécessite cinq points valides et la souris activée. Désactivez et réactivez pour actualiser.</value></data>
+  <data name="A2854.Settings.AxesHint" xml:space="preserve"><value>Activé par défaut. Applique les cinq points enregistrés valides à la souris. Activez la souris séparément ; désactivez cette option pour utiliser les axes bruts.</value></data>
   <data name="A2854.Settings.Sensitivity" xml:space="preserve"><value>Sensibilité du pointeur</value></data>
   <data name="A2854.Cal.Title" xml:space="preserve"><value>Étalonnage du pavé A2854</value></data>
   <data name="A2854.Cal.Instructions" xml:space="preserve"><value>Mesurez le centre et les quatre bords. Maintenez un doigt immobile avant de mesurer. Le profil valide précédent est sauvegardé.</value></data>

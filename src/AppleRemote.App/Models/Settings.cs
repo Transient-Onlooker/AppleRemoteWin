@@ -22,10 +22,11 @@ public sealed class Settings
     /// <summary>Relative cursor sensitivity in pixels per A2854 coordinate unit.</summary>
     public double A2854PointerSensitivity { get; set; } = 0.18;
     /// <summary>
-    /// Separate, optional measured physical X/Y pointer mapping. Disabled by
-    /// default, even when calibration visualization auto-applies.
+    /// Use saved measured physical X/Y axes when available. This does not
+    /// enable pointer input; invalid or missing profiles use the raw axes.
     /// </summary>
-    public bool A2854PointerUseCalibration { get; set; }
+    public bool A2854PointerUseCalibration { get; set; } = true;
+    public int A2854CalibrationDefaultsVersion { get; set; }
     public string? KeyMapPath { get; set; }
     /// <summary>Closing the window minimises it to the notification area (otherwise the app exits).</summary>
     public bool CloseToTray { get; set; } = true;
@@ -58,13 +59,28 @@ public sealed class Settings
         try
         {
             if (File.Exists(FilePath))
-                return JsonSerializer.Deserialize<Settings>(File.ReadAllText(FilePath)) ?? new Settings();
+            {
+                var settings = JsonSerializer.Deserialize<Settings>(File.ReadAllText(FilePath)) ?? new Settings();
+                settings.ApplyCalibrationDefaults();
+                return settings;
+            }
         }
         catch
         {
             // unreadable file: defaults
         }
-        return new Settings();
+        var defaults = new Settings();
+        defaults.ApplyCalibrationDefaults();
+        return defaults;
+    }
+
+    internal void ApplyCalibrationDefaults()
+    {
+        if (A2854CalibrationDefaultsVersion >= 1) return;
+        // Earlier releases defaulted this option off, including saved files.
+        // Migrate once, then preserve an explicit opt-out on later launches.
+        A2854PointerUseCalibration = true;
+        A2854CalibrationDefaultsVersion = 1;
     }
 
     public void Save()
