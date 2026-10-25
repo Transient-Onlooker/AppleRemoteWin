@@ -2,6 +2,8 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Media;
+using System.Windows.Input;
+using AppleRemote.App.ViewModels;
 using AppleRemote.App.Models;
 
 namespace AppleRemote.App.Controls;
@@ -9,6 +11,33 @@ namespace AppleRemote.App.Controls;
 /// <summary>Sélecteur d'action : un bouton qui ouvre un menu Key (sous-menu des touches) / Key Combo / Software / Macro.</summary>
 public sealed class KeyPicker : Button
 {
+    public static readonly DependencyProperty InputIdProperty =
+        DependencyProperty.Register(nameof(InputId), typeof(string), typeof(KeyPicker),
+            new PropertyMetadata("", (d, _) => ((KeyPicker)d).RefreshSelection()));
+    public static readonly DependencyProperty SelectedInputProperty =
+        DependencyProperty.Register(nameof(SelectedInput), typeof(string), typeof(KeyPicker),
+            new PropertyMetadata("", (d, _) => ((KeyPicker)d).RefreshSelection()));
+    public static readonly DependencyProperty SelectInputCommandProperty =
+        DependencyProperty.Register(nameof(SelectInputCommand), typeof(ICommand), typeof(KeyPicker));
+
+    public string InputId { get => (string)GetValue(InputIdProperty); set => SetValue(InputIdProperty, value); }
+    public string SelectedInput { get => (string)GetValue(SelectedInputProperty); set => SetValue(SelectedInputProperty, value); }
+    public ICommand? SelectInputCommand { get => (ICommand?)GetValue(SelectInputCommandProperty); set => SetValue(SelectInputCommandProperty, value); }
+
+    void RefreshSelection()
+    {
+        if (!string.IsNullOrEmpty(InputId) && InputId == SelectedInput)
+        {
+            SetResourceReference(BorderBrushProperty, "AccentFillColorDefaultBrush");
+            BorderThickness = new Thickness(2);
+        }
+        else
+        {
+            ClearValue(BorderBrushProperty);
+            ClearValue(BorderThicknessProperty);
+        }
+    }
+
     public static readonly DependencyProperty KeyProperty = DependencyProperty.Register(nameof(Key), typeof(string), typeof(KeyPicker),
         new FrameworkPropertyMetadata("", FrameworkPropertyMetadataOptions.BindsTwoWayByDefault, (d, e) => ((KeyPicker)d)._label.Text = Display((string)e.NewValue)));
     public static readonly DependencyProperty ChoicesProperty = DependencyProperty.Register(nameof(Choices), typeof(IEnumerable<string>), typeof(KeyPicker));
@@ -45,7 +74,34 @@ public sealed class KeyPicker : Button
         grid.Children.Add(_label);
         grid.Children.Add(chevron);
         Content = grid;
-        Click += (_, _) => Open();
+        Click += (_, _) =>
+        {
+            if (SelectInputCommand?.CanExecute(InputId) == true)
+                SelectInputCommand.Execute(InputId);
+            else Open();
+        };
+        MouseRightButtonUp += (_, e) =>
+        {
+            if (SelectInputCommand is null) return;
+            Open(); // alternative legacy menu
+            e.Handled = true;
+        };
+        AllowDrop = true;
+        DragOver += (_, e) =>
+        {
+            e.Effects = SelectInputCommand is not null &&
+                e.Data.GetDataPresent(typeof(AssignmentEntry)) ? DragDropEffects.Copy : DragDropEffects.None;
+            e.Handled = true;
+        };
+        Drop += (_, e) =>
+        {
+            if (SelectInputCommand is null ||
+                e.Data.GetData(typeof(AssignmentEntry)) is not AssignmentEntry entry ||
+                !SelectInputCommand.CanExecute(InputId)) return;
+            SelectInputCommand.Execute(InputId);
+            Key = entry.Value;
+            e.Handled = true;
+        };
     }
 
     /// <summary>Ouvre l'éditeur ; une macro nouvellement enregistrée est affectée au bouton.</summary>

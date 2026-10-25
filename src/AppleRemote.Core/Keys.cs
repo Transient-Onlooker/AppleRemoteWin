@@ -12,6 +12,16 @@ public interface IKeySink
     void Key(KeyCode key, bool down);
 }
 
+/// <summary>
+/// Optional acknowledgement for keyboard input backends. A rejected Windows
+/// SendInput key-up must remain retryable, rather than be treated as released.
+/// Existing portable IKeySink implementations continue to work unchanged.
+/// </summary>
+public interface IConfirmedKeySink : IKeySink
+{
+    bool TryKey(KeyCode key, bool down);
+}
+
 /// <summary>Key names accepted in the JSON mapping file. Portable table (VK_* values).</summary>
 public static class Keys
 {
@@ -143,7 +153,10 @@ public sealed class KeyMap
 public sealed class KeyBinder
 {
     readonly IKeySink _sink;
-    readonly HashSet<string> _held = new();
+    // Remember the key sent for each physical input. Remapping while held
+    // must release its ORIGINAL key, never the replacement mapping.
+    readonly Dictionary<string, KeyCode> _held = new();
+    readonly HashSet<string> _pendingReleases = new();
     KeyMap _map;
 
     public KeyBinder(KeyMap map, IKeySink sink)
@@ -152,37 +165,87 @@ public sealed class KeyBinder
         _sink = sink;
     }
 
+    public bool HasPendingReleases => _pendingReleases.Count > 0;
+
     public KeyMap Map
     {
         get => _map;
-        set { ReleaseAll(); _map = value; }
+        set
+        {
+            ReleaseAll();
+            _map = value;
+        }
+    }
+
+    // False means a rejected key transition. Legacy fake sinks that cannot
+    // acknowledge an operation preserve their historical successful semantics.
+    bool Send(KeyCode key, bool down)
+    {
+        try
+        {
+            if (_sink is IConfirmedKeySink confirmed)
+                return confirmed.TryKey(key, down);
+            _sink.Key(key, down);
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    bool Release(string name, KeyCode key)
+    {
+        if (Send(key, false))
+        {
+            _held.Remove(name);
+            _pendingReleases.Remove(name);
+            return true;
+        }
+        _pendingReleases.Add(name);
+        return false;
+    }
+
+    void Press(string name, KeyCode key)
+    {
+        if (_held.TryGetValue(name, out var prior))
+        {
+            if (!_pendingReleases.Contains(name) || !Release(name, prior))
+                return; // prevent a duplicate down while a key-up is pending
+        }
+        if (Send(key, true))
+            _held[name] = key;
     }
 
     public void OnEvent(RemoteEvent ev)
     {
         if (ev is not ButtonsEvent b) return;
         foreach (var name in b.Released)
-            if (_held.Remove(name) && _map.TryGet(name, out var up))
-                _sink.Key(up, false);
+            if (_held.TryGetValue(name, out var key))
+                Release(name, key);
         foreach (var name in b.Pressed)
-            if (_map.TryGet(name, out var down) && _held.Add(name))
-                _sink.Key(down, true);
+            if (_map.TryGet(name, out var key))
+                Press(name, key);
     }
 
     public void OnGesture(GestureEvent g)
     {
         if (g is not MoveGesture m) return;
+        string name = "$gesture:" + m.Dir;
         if (!_map.TryGet(m.Dir.ToString().ToLowerInvariant(), out var key)) return;
-        _sink.Key(key, true);
-        _sink.Key(key, false);
+        Press(name, key);
+        if (_held.TryGetValue(name, out var sent))
+            Release(name, sent);
     }
 
-    /// <summary>Releases every key still held (disable, stop, link lost).</summary>
-    public void ReleaseAll()
+    /// <summary>
+    /// Try to release every recorded key once. Failure preserves the held key
+    /// and its original VK for a subsequent Stop/fault/mode-change retry.
+    /// </summary>
+    public bool ReleaseAll()
     {
-        foreach (var name in _held.ToArray())
-            if (_map.TryGet(name, out var key))
-                _sink.Key(key, false);
-        _held.Clear();
+        foreach (var (name, key) in _held.ToArray())
+            Release(name, key);
+        return _held.Count == 0;
     }
 }

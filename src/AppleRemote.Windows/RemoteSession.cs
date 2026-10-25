@@ -49,6 +49,15 @@ public sealed class RemoteSession : IDisposable
 
     public KeyboardInjector Injector => _injector;
 
+    void ReportKeyboardReleaseResult()
+    {
+        if (!_binder.ReleaseAll())
+        {
+            try { Status?.Invoke("A2854: Windows rejected a keyboard key-up; release remains pending for cleanup retry."); }
+            catch { /* diagnostics must not prevent cleanup */ }
+        }
+    }
+
     /// <summary>
     /// Explicitly opt into the third-generation USB-C A2854 driver. Must be
     /// selected before Start; the default 1st-gen/HID/ESP path is unchanged.
@@ -77,7 +86,7 @@ public sealed class RemoteSession : IDisposable
                 // keyboard state. Only A2854 pointer-mode changes require
                 // releasing its keyboard binding alongside the mouse click.
                 if (_a2854Mode)
-                    _binder.ReleaseAll();
+                    ReportKeyboardReleaseResult();
                 if (_a2854Mode || _pointer.HasHeldClick)
                 {
                     if (!_pointer.Reset())
@@ -108,7 +117,7 @@ public sealed class RemoteSession : IDisposable
                 {
                     // Changing the owner of a held click must not strand a
                     // mouse button or a mapped keyboard key in its down state.
-                    _binder.ReleaseAll();
+                    ReportKeyboardReleaseResult();
                     if (!_pointer.Reset())
                         Status?.Invoke("A2854: Windows rejected mouse-up; held click retained for cleanup retry.");
                 }
@@ -173,7 +182,7 @@ public sealed class RemoteSession : IDisposable
         {
             lock (_gate)
             {
-                if (_keyboardEnabled && !value) _binder.ReleaseAll();
+                if (_keyboardEnabled && !value) ReportKeyboardReleaseResult();
                 _keyboardEnabled = value;
             }
         }
@@ -443,7 +452,7 @@ public sealed class RemoteSession : IDisposable
                 _dongle = null;
                 lock (_gate)
                 {
-                    try { _binder.ReleaseAll(); }
+                    try { ReportKeyboardReleaseResult(); }
                     catch (Exception e)
                     {
                         try { Status?.Invoke($"Remote: keyboard cleanup failed ({e.GetType().Name})."); }
@@ -495,10 +504,14 @@ public sealed class RemoteSession : IDisposable
                     }
 
                     if (_keyboardEnabled)
+                    {
                         _binder.OnEvent(ev is ButtonsEvent buttons
                             ? A2854ButtonRouting.ForKeyboard(
                                 buttons, _a2854PointerEnabled, _a2854ClickAsKeyboard)
                             : ev);
+                        if (_binder.HasPendingReleases)
+                            Status?.Invoke("A2854: Windows rejected a keyboard key-up; release remains pending for cleanup retry.");
+                    }
                     Event?.Invoke(ev);
                 }
             }
@@ -536,7 +549,7 @@ public sealed class RemoteSession : IDisposable
     {
         lock (_gate)
         {
-            try { _binder.ReleaseAll(); }
+            try { ReportKeyboardReleaseResult(); }
             catch (Exception e)
             {
                 try { Status?.Invoke($"A2854: keyboard release failed ({e.GetType().Name})."); }

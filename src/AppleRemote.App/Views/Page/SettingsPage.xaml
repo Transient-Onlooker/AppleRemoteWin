@@ -131,52 +131,72 @@
                 <StackPanel Canvas.Left="15" Canvas.Top="14" Width="188">
                     <TextBlock Text="{l:T A2854.Mapping.Up}" Style="{StaticResource A2854MappingCaption}" />
                     <c:KeyPicker Width="180" Choices="{Binding KeyChoices}" Software="{Binding SoftwareChoices}"
-                                 Macros="{Binding MacroChoices}" Key="{Binding Bindings[up].Key}" />
+                                 Macros="{Binding MacroChoices}" Key="{Binding Bindings[up].Key}"
+                                 InputId="up" SelectedInput="{Binding SelectedAssignmentInput}"
+                                 SelectInputCommand="{Binding SelectAssignmentInputCommand}" />
                 </StackPanel>
                 <StackPanel Canvas.Left="15" Canvas.Top="111" Width="188">
                     <TextBlock Text="{l:T A2854.Mapping.Left}" Style="{StaticResource A2854MappingCaption}" />
                     <c:KeyPicker Width="180" Choices="{Binding KeyChoices}" Software="{Binding SoftwareChoices}"
-                                 Macros="{Binding MacroChoices}" Key="{Binding Bindings[left].Key}" />
+                                 Macros="{Binding MacroChoices}" Key="{Binding Bindings[left].Key}"
+                                 InputId="left" SelectedInput="{Binding SelectedAssignmentInput}"
+                                 SelectInputCommand="{Binding SelectAssignmentInputCommand}" />
                 </StackPanel>
                 <StackPanel Canvas.Left="15" Canvas.Top="208" Width="188">
                     <TextBlock Text="{l:T A2854.Mapping.Back}" Style="{StaticResource A2854MappingCaption}" />
                     <c:KeyPicker Width="180" Choices="{Binding KeyChoices}" Software="{Binding SoftwareChoices}"
-                                 Macros="{Binding MacroChoices}" Key="{Binding Bindings[menu].Key}" />
+                                 Macros="{Binding MacroChoices}" Key="{Binding Bindings[menu].Key}"
+                                 InputId="menu" SelectedInput="{Binding SelectedAssignmentInput}"
+                                 SelectInputCommand="{Binding SelectAssignmentInputCommand}" />
                 </StackPanel>
                 <StackPanel Canvas.Left="15" Canvas.Top="305" Width="188">
                     <TextBlock Text="{l:T A2854.Mapping.PlayPause}" Style="{StaticResource A2854MappingCaption}" />
                     <c:KeyPicker Width="180" Choices="{Binding KeyChoices}" Software="{Binding SoftwareChoices}"
-                                 Macros="{Binding MacroChoices}" Key="{Binding Bindings[playpause].Key}" />
+                                 Macros="{Binding MacroChoices}" Key="{Binding Bindings[playpause].Key}"
+                                 InputId="playpause" SelectedInput="{Binding SelectedAssignmentInput}"
+                                 SelectInputCommand="{Binding SelectAssignmentInputCommand}" />
                 </StackPanel>
                 <StackPanel Canvas.Left="15" Canvas.Top="402" Width="188">
                     <TextBlock Text="{l:T A2854.Mapping.Mute}" Style="{StaticResource A2854MappingCaption}" />
                     <c:KeyPicker Width="180" Choices="{Binding KeyChoices}" Software="{Binding SoftwareChoices}"
-                                 Macros="{Binding MacroChoices}" Key="{Binding Bindings[mute].Key}" />
+                                 Macros="{Binding MacroChoices}" Key="{Binding Bindings[mute].Key}"
+                                 InputId="mute" SelectedInput="{Binding SelectedAssignmentInput}"
+                                 SelectInputCommand="{Binding SelectAssignmentInputCommand}" />
                 </StackPanel>
                 <StackPanel Canvas.Left="488" Canvas.Top="14" Width="188">
                     <TextBlock Text="{l:T A2854.Mapping.Right}" Style="{StaticResource A2854MappingCaption}" />
                     <c:KeyPicker Width="180" Choices="{Binding KeyChoices}" Software="{Binding SoftwareChoices}"
-                                 Macros="{Binding MacroChoices}" Key="{Binding Bindings[right].Key}" />
+                                 Macros="{Binding MacroChoices}" Key="{Binding Bindings[right].Key}"
+                                 InputId="right" SelectedInput="{Binding SelectedAssignmentInput}"
+                                 SelectInputCommand="{Binding SelectAssignmentInputCommand}" />
                 </StackPanel>
                 <StackPanel Canvas.Left="488" Canvas.Top="111" Width="188">
                     <TextBlock Text="{l:T A2854.Mapping.Center}" Style="{StaticResource A2854MappingCaption}" />
                     <c:KeyPicker Width="180" Choices="{Binding KeyChoices}" Software="{Binding SoftwareChoices}"
-                                 Macros="{Binding MacroChoices}" Key="{Binding Bindings[click].Key}" />
+                                 Macros="{Binding MacroChoices}" Key="{Binding Bindings[click].Key}"
+                                 InputId="click" SelectedInput="{Binding SelectedAssignmentInput}"
+                                 SelectInputCommand="{Binding SelectAssignmentInputCommand}" />
                 </StackPanel>
                 <StackPanel Canvas.Left="488" Canvas.Top="208" Width="188">
                     <TextBlock Text="{l:T A2854.Mapping.Down}" Style="{StaticResource A2854MappingCaption}" />
                     <c:KeyPicker Width="180" Choices="{Binding KeyChoices}" Software="{Binding SoftwareChoices}"
-                                 Macros="{Binding MacroChoices}" Key="{Binding Bindings[down].Key}" />
+                                 Macros="{Binding MacroChoices}" Key="{Binding Bindings[down].Key}"
+                                 InputId="down" SelectedInput="{Binding SelectedAssignmentInput}"
+                                 SelectInputCommand="{Binding SelectAssignmentInputCommand}" />
                 </StackPanel>
                 <StackPanel Canvas.Left="488" Canvas.Top="305" Width="188">
                     <TextBlock Text="{l:T A2854.Mapping.VolUp}" Style="{StaticResource A2854MappingCaption}" />
                     <c:KeyPicker Width="180" Choices="{Binding KeyChoices}" Software="{Binding SoftwareChoices}"
-                                 Macros="{Binding MacroChoices}" Key="{Binding Bindings[volup].Key}" />
+                                 Macros="{Binding MacroChoices}" Key="{Binding Bindings[volup].Key}"
+                                 InputId="volup" SelectedInput="{Binding SelectedAssignmentInput}"
+                                 SelectInputCommand="{Binding SelectAssignmentInputCommand}" />
                 </StackPanel>
                 <StackPanel Canvas.Left="488" Canvas.Top="402" Width="188">
                     <TextBlock Text="{l:T A2854.Mapping.VolDown}" Style="{StaticResource A2854MappingCaption}" />
                     <c:KeyPicker Width="180" Choices="{Binding KeyChoices}" Software="{Binding SoftwareChoices}"
-                                 Macros="{Binding MacroChoices}" Key="{Binding Bindings[voldown].Key}" />
+                                 Macros="{Binding MacroChoices}" Key="{Binding Bindings[voldown].Key}"
+                                 InputId="voldown" SelectedInput="{Binding SelectedAssignmentInput}"
+                                 SelectInputCommand="{Binding SelectAssignmentInputCommand}" />
                 </StackPanel>
             </Canvas>
             <TextBlock Grid.Row="1" HorizontalAlignment="Center" TextAlignment="Center"
@@ -233,6 +253,11 @@
                 <Setter Property="Foreground" Value="#EAF2FC" />
             </Style>
         </StackPanel.Resources>
+
+        <!-- G HUB-inspired command palette: choose a physical control on the
+             left, then browse/click/drag an assignment here. -->
+        <c:AssignmentPalette Visibility="{Binding A2854Mode, Converter={StaticResource BoolToVisibility}}"
+                             Margin="0,0,0,14" />
 
         <!-- Put device mode controls first: the active A2854 profile should not
              be buried below updates, language and generic settings. Plain cards

@@ -161,4 +161,90 @@ public class KeyTests
 
         Assert.Equal(new[] { (Enter, true), (Enter, false) }, sink.Log);
     }
+    sealed class RejectingSink : IConfirmedKeySink
+    {
+        public int FailedUps { get; set; }
+        public int FailedDowns { get; set; }
+        public readonly List<(KeyCode Key, bool Down)> Accepted = new();
+        public void Key(KeyCode key, bool down) => _ = TryKey(key, down);
+        public bool TryKey(KeyCode key, bool down)
+        {
+            if (!down && FailedUps-- > 0) return false;
+            if (down && FailedDowns-- > 0) return false;
+            Accepted.Add((key, down));
+            return true;
+        }
+    }
+
+    [Fact]
+    public void Rejected_ordinary_keyup_is_retryable_without_duplicate_down()
+    {
+        var sink = new RejectingSink { FailedUps = 1 };
+        var binder = new KeyBinder(KeyMap.FromJson("""{"click":"F5"}"""), sink);
+        binder.OnEvent(Buttons(8, ["click"], []));
+        binder.OnEvent(Buttons(0, [], ["click"])); // failed key-up
+        Assert.True(binder.HasPendingReleases);
+        binder.OnEvent(Buttons(8, ["click"], [])); // retries old up, then new down
+        Assert.False(binder.HasPendingReleases);
+        binder.OnEvent(Buttons(0, [], ["click"]));
+        Assert.Equal(new[]
+        {
+            (Keys.Names["F5"], true), (Keys.Names["F5"], false),
+            (Keys.Names["F5"], true), (Keys.Names["F5"], false)
+        }, sink.Accepted);
+    }
+
+    [Fact]
+    public void Rejected_keyup_on_map_change_uses_original_virtual_key_at_stop()
+    {
+        var sink = new RejectingSink { FailedUps = 2 };
+        var binder = new KeyBinder(KeyMap.FromJson("""{"click":"F5"}"""), sink);
+        binder.OnEvent(Buttons(8, ["click"], []));
+        binder.Map = KeyMap.FromJson("""{"click":"Space"}"""); // first failure
+        Assert.True(binder.HasPendingReleases);
+        Assert.False(binder.ReleaseAll()); // second failure during Stop
+        Assert.True(binder.HasPendingReleases);
+        Assert.True(binder.ReleaseAll());
+        Assert.False(binder.HasPendingReleases);
+        Assert.Equal(new[] { (Keys.Names["F5"], true), (Keys.Names["F5"], false) }, sink.Accepted);
+        binder.OnEvent(Buttons(8, ["click"], []));
+        Assert.Equal((Keys.Names["Space"], true), sink.Accepted[^1]);
+    }
+
+    [Fact]
+    public void Keyboard_off_release_failure_remains_for_later_stop_retry()
+    {
+        var sink = new RejectingSink { FailedUps = 1 };
+        var binder = new KeyBinder(KeyMap.Default(), sink);
+        binder.OnEvent(Buttons(8, ["click"], []));
+        Assert.False(binder.ReleaseAll()); // KeyboardEnabled = false
+        Assert.True(binder.HasPendingReleases);
+        Assert.True(binder.ReleaseAll()); // Stop, even when keyboard is off
+        Assert.Equal(new[] { (Enter, true), (Enter, false) }, sink.Accepted);
+    }
+
+    [Fact]
+    public void Rejected_key_down_is_not_recorded_as_held()
+    {
+        var sink = new RejectingSink { FailedDowns = 1 };
+        var binder = new KeyBinder(KeyMap.Default(), sink);
+        binder.OnEvent(Buttons(8, ["click"], []));
+        Assert.True(binder.ReleaseAll());
+        binder.OnEvent(Buttons(8, ["click"], []));
+        Assert.True(binder.ReleaseAll());
+        Assert.Equal(new[] { (Enter, true), (Enter, false) }, sink.Accepted);
+    }
+
+    [Fact]
+    public void Rejected_gesture_keyup_can_be_retried_during_stop()
+    {
+        var sink = new RejectingSink { FailedUps = 1 };
+        var binder = new KeyBinder(KeyMap.Default(), sink);
+        binder.OnGesture(new MoveGesture(Direction.Up, MoveSource.Slide));
+        Assert.True(binder.HasPendingReleases);
+        Assert.True(binder.ReleaseAll());
+        Assert.Equal(new[] { (Up, true), (Up, false) }, sink.Accepted);
+    }
 }
+
+

@@ -25,6 +25,8 @@ public sealed partial class KeyChoice(string input, string key, Action<string, s
 
 /// <summary>Settings page: what each input does, adapter drivers, preferences, import / export.
 /// Also runs the actions assigned to the inputs (<see cref="RunBound"/>).</summary>
+public sealed record AssignmentEntry(string Title, string Value);
+
 public sealed partial class SettingsViewModel : ObservableObject, IDisposable
 {
     readonly Settings _settings;
@@ -83,6 +85,123 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
     public ObservableCollection<string> SoftwareChoices { get; } = new();
     /// <summary>Names of the saved macros (one file each).</summary>
     public ObservableCollection<string> MacroChoices { get; } = new(Macro.Names());
+
+
+    // Assignment studio uses the existing persisted KeyChoice bindings.
+    public sealed class AssignmentCategoryChoice(string code, string name) : ObservableObject
+    {
+        public string Code { get; } = code;
+        string _name = name;
+        public string Name { get => _name; set => SetProperty(ref _name, value); }
+    }
+
+    public ObservableCollection<AssignmentCategoryChoice> AssignmentCategories { get; } =
+    [
+        new("commands", Loc.T("Assign.Commands")), new("keys", Loc.T("Assign.Keys")),
+        new("system", Loc.T("Assign.System")), new("macros", Loc.T("Assign.Macros")),
+        new("software", Loc.T("Assign.Programs"))
+    ];
+
+    [ObservableProperty] string _selectedAssignmentInput = "click";
+    [ObservableProperty] string _selectedAssignmentCategory = "commands";
+    [ObservableProperty] string _assignmentSearch = "";
+
+    partial void OnSelectedAssignmentInputChanged(string value)
+    {
+        OnPropertyChanged(nameof(SelectedAssignmentLabel));
+        OnPropertyChanged(nameof(SelectedAssignmentValue));
+    }
+    partial void OnSelectedAssignmentCategoryChanged(string value) =>
+        OnPropertyChanged(nameof(FilteredAssignmentOptions));
+    partial void OnAssignmentSearchChanged(string value) =>
+        OnPropertyChanged(nameof(FilteredAssignmentOptions));
+
+    public string SelectedAssignmentLabel => Loc.T(SelectedAssignmentInput switch
+    {
+        "click" => "A2854.Mapping.Center", "menu" => "A2854.Mapping.Back",
+        "up" => "A2854.Mapping.Up", "down" => "A2854.Mapping.Down",
+        "left" => "A2854.Mapping.Left", "right" => "A2854.Mapping.Right",
+        "playpause" => "A2854.Mapping.PlayPause", "mute" => "A2854.Mapping.Mute",
+        "volup" => "A2854.Mapping.VolUp", "voldown" => "A2854.Mapping.VolDown",
+        _ => "Settings.RemoteKeys"
+    });
+    public string SelectedAssignmentValue => Bindings.TryGetValue(SelectedAssignmentInput, out var choice)
+        ? choice.Key : _noKey;
+
+    public IReadOnlyList<AssignmentEntry> FilteredAssignmentOptions
+    {
+        get
+        {
+            IEnumerable<AssignmentEntry> entries = SelectedAssignmentCategory switch
+            {
+                "commands" => new AssignmentEntry[]
+                {
+                    new("Copy · Ctrl+C", "#Ctrl+C"), new("Paste · Ctrl+V", "#Ctrl+V"),
+                    new("Cut · Ctrl+X", "#Ctrl+X"), new("Undo · Ctrl+Z", "#Ctrl+Z"),
+                    new("Redo · Ctrl+Y", "#Ctrl+Y"), new("Save · Ctrl+S", "#Ctrl+S"),
+                    new("Select all · Ctrl+A", "#Ctrl+A"),
+                    new("Switch window · Alt+Tab", "#Alt+Tab"),
+                    new("Desktop · Win+D", "#Win+D"),
+                    new("Task Manager · Ctrl+Shift+Escape", "#Ctrl+Shift+Escape")
+                },
+                "keys" => Keys.Names.Keys.Where(k => k != "Esc").OrderBy(k => k)
+                    .Select(k => new AssignmentEntry(k, k)),
+                "system" => new[] { "VolumeMute", "VolumeUp", "VolumeDown",
+                    "MediaPlayPause", "MediaNext", "MediaPrev", "MediaStop",
+                    "BrowserBack", "BrowserForward", "BrowserHome", "BrowserRefresh" }
+                    .Select(k => new AssignmentEntry(k, k)),
+                "macros" => MacroChoices.Select(m => new AssignmentEntry(m, Macro.Prefix + m)),
+                "software" => SoftwareChoices.Select(p =>
+                    new AssignmentEntry(SoftwareApps.NameOf(p), SoftwareApps.Prefix + p)),
+                _ => []
+            };
+            string term = AssignmentSearch?.Trim() ?? "";
+            return entries.Where(e => e.Title.Contains(term, StringComparison.OrdinalIgnoreCase) ||
+                e.Value.Contains(term, StringComparison.OrdinalIgnoreCase)).ToArray();
+        }
+    }
+
+    [RelayCommand]
+    void SelectAssignmentInput(string input)
+    {
+        if (KeyMap.Inputs.Contains(input) && input is not ("tv" or "siri" or "power"))
+            SelectedAssignmentInput = input;
+    }
+
+    [RelayCommand]
+    void AssignSelected(AssignmentEntry? entry)
+    {
+        if (entry is null || !Bindings.TryGetValue(SelectedAssignmentInput, out var choice)) return;
+        choice.Key = entry.Value; // existing persistence and input cleanup
+    }
+
+    [RelayCommand]
+    void ClearSelectedAssignment()
+    {
+        if (Bindings.TryGetValue(SelectedAssignmentInput, out var choice))
+            choice.Key = _noKey;
+    }
+
+    [RelayCommand]
+    void ResetSelectedAssignment()
+    {
+        if (!Bindings.TryGetValue(SelectedAssignmentInput, out var choice)) return;
+        choice.Key = KeyMap.Default().TryGet(SelectedAssignmentInput, out var key)
+            ? Keys.NameOf(key) ?? _noKey : _noKey;
+    }
+
+    [RelayCommand]
+    void RecordSelectedAssignment()
+    {
+        if (!Bindings.TryGetValue(SelectedAssignmentInput, out var choice)) return;
+        var dialog = new AppleRemote.App.Views.KeyComboWindow(recordAssignment: true)
+        {
+            Owner = System.Windows.Application.Current?.MainWindow
+        };
+        dialog.ShowDialog();
+        if (CapturedKeyBinding.FromRecordedCombo(dialog.Combo) is { } binding)
+            choice.Key = binding;
+    }
 
     [ObservableProperty] bool _keyboardEnabled;
 
@@ -214,6 +333,13 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
                 "en" => "Language.En",
                 _ => "Language.Auto"
             });
+        foreach (var c in AssignmentCategories)
+            c.Name = Loc.T(c.Code switch
+            {
+                "commands" => "Assign.Commands", "keys" => "Assign.Keys",
+                "system" => "Assign.System", "macros" => "Assign.Macros",
+                _ => "Assign.Programs"
+            });
         LocSource.Instance.Refresh();
         OnPropertyChanged(string.Empty);
         Remote.RefreshTexts();
@@ -279,6 +405,8 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
                 : _settings.Macros.TryGetValue(input, out var macro) ? Macro.Prefix + macro
                 : _session.KeyMap.TryGet(input, out var k) ? Keys.NameOf(k) ?? _noKey : _noKey;
         _syncingBindings = false;
+        OnPropertyChanged(nameof(SelectedAssignmentValue));
+        OnPropertyChanged(nameof(FilteredAssignmentOptions));
     }
 
     void OnBindingChanged(string input, string name)
@@ -319,6 +447,9 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
         }
         _session.KeyMap = map; // releases held keys
         SaveMap(map);
+        if (input == SelectedAssignmentInput)
+            OnPropertyChanged(nameof(SelectedAssignmentValue));
+        OnPropertyChanged(nameof(FilteredAssignmentOptions));
     }
 
     void SaveMap(KeyMap map)

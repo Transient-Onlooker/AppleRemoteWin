@@ -91,6 +91,19 @@ Do not unplug the dongle during the update (about a minute). The dongle checks t
   <data name="Language.Auto" xml:space="preserve"><value>Automatic (Windows language)</value></data>
   <data name="Language.Fr" xml:space="preserve"><value>Français</value></data>
   <data name="Language.En" xml:space="preserve"><value>English</value></data>
+  <data name="Assign.Title" xml:space="preserve"><value>Assignments</value></data>
+  <data name="Assign.Help" xml:space="preserve"><value>Select a remote button in the diagram, then click a command or drag it onto that button. Right-click a button for the original menu.</value></data>
+  <data name="Assign.Selected" xml:space="preserve"><value>Selected button</value></data>
+  <data name="Assign.Search" xml:space="preserve"><value>Search commands</value></data>
+  <data name="Assign.DragHint" xml:space="preserve"><value>Click to assign or drag onto a remote button</value></data>
+  <data name="Assign.Record" xml:space="preserve"><value>Record a keystroke…</value></data>
+  <data name="Assign.Clear" xml:space="preserve"><value>Clear assignment</value></data>
+  <data name="Assign.Default" xml:space="preserve"><value>Restore default</value></data>
+  <data name="Assign.Commands" xml:space="preserve"><value>Commands</value></data>
+  <data name="Assign.Keys" xml:space="preserve"><value>Keys</value></data>
+  <data name="Assign.System" xml:space="preserve"><value>System</value></data>
+  <data name="Assign.Macros" xml:space="preserve"><value>Macros</value></data>
+  <data name="Assign.Programs" xml:space="preserve"><value>Programs</value></data>
   <data name="Pick.RecordKey" xml:space="preserve"><value>Record a keystroke…</value></data>
   <data name="Pick.RecordPrompt" xml:space="preserve"><value>Press the key or shortcut to assign, then select Validate to save it. Close or Cancel to keep the existing assignment.</value></data>
   <data name="Pick.RecordUnavailable" xml:space="preserve"><value>Could not start keyboard capture.</value></data>

@@ -91,6 +91,19 @@
   <data name="Language.Auto" xml:space="preserve"><value>자동(Windows 표시 언어)</value></data>
   <data name="Language.Fr" xml:space="preserve"><value>프랑스어</value></data>
   <data name="Language.En" xml:space="preserve"><value>영어</value></data>
+  <data name="Assign.Title" xml:space="preserve"><value>버튼 할당</value></data>
+  <data name="Assign.Help" xml:space="preserve"><value>리모컨 그림에서 버튼을 선택한 다음 명령을 클릭하거나 버튼 위로 끌어 놓으세요. 오른쪽 클릭으로 기존 할당 메뉴도 열 수 있습니다.</value></data>
+  <data name="Assign.Selected" xml:space="preserve"><value>선택한 버튼</value></data>
+  <data name="Assign.Search" xml:space="preserve"><value>명령 검색</value></data>
+  <data name="Assign.DragHint" xml:space="preserve"><value>클릭하여 할당하거나 리모컨 버튼으로 끌어 놓기</value></data>
+  <data name="Assign.Record" xml:space="preserve"><value>키 입력 녹화…</value></data>
+  <data name="Assign.Clear" xml:space="preserve"><value>할당 해제</value></data>
+  <data name="Assign.Default" xml:space="preserve"><value>기본값 복원</value></data>
+  <data name="Assign.Commands" xml:space="preserve"><value>명령</value></data>
+  <data name="Assign.Keys" xml:space="preserve"><value>키</value></data>
+  <data name="Assign.System" xml:space="preserve"><value>시스템</value></data>
+  <data name="Assign.Macros" xml:space="preserve"><value>매크로</value></data>
+  <data name="Assign.Programs" xml:space="preserve"><value>프로그램</value></data>
   <data name="Pick.RecordKey" xml:space="preserve"><value>키 입력 녹화…</value></data>
   <data name="Pick.RecordPrompt" xml:space="preserve"><value>할당할 키나 단축키를 누르세요. 입력을 확인한 뒤 확인을 누르면 저장됩니다. 창을 닫거나 취소하면 기존 설정이 유지됩니다.</value></data>
   <data name="Pick.RecordUnavailable" xml:space="preserve"><value>키보드 입력 감지를 시작할 수 없습니다.</value></data>
