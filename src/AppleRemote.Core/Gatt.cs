@@ -24,15 +24,20 @@ public sealed class GattClient
     const byte ErrorResponse = 0x01, AttributeNotFound = 0x0A, RequestNotSupported = 0x06;
 
     readonly LeCentral _central;
+    // Optional metadata clients may issue ATT reads, but MUST NOT reply to
+    // peer requests, confirm indications or forward HID notifications twice.
+    readonly bool _handlesServerTraffic;
     ushort _connection;
     readonly SemaphoreSlim _gate = new(1, 1);
     readonly object _stateLock = new();
     (byte Request, TaskCompletionSource<byte[]> Done)? _pending;
     Exception? _closedException;
 
-    public GattClient(LeCentral central, ushort connection)
+    public GattClient(LeCentral central, ushort connection,
+        bool handlesServerTraffic = true)
     {
         _central = central;
+        _handlesServerTraffic = handlesServerTraffic;
         _connection = connection;
         central.L2capData += OnL2cap;
         central.Disconnected += OnDisconnected;
@@ -228,6 +233,15 @@ public sealed class GattClient
             pending = _pending;
         }
         byte opcode = pdu[0];
+        // A temporary battery-only client shares the same central/L2CAP
+        // connection with the main HID client. It receives only responses to
+        // its own requests; main GATT remains the sole ATT server and
+        // notification/indication handler. Its timeout cannot disable HID
+        // notifications or normal CCCD disable during Stop.
+        if (!_handlesServerTraffic && opcode is
+            (0x1B or 0x1D or 0x02 or 0x04 or 0x06 or 0x08 or 0x0A or
+             0x0C or 0x0E or 0x10 or 0x12 or 0x16 or 0x18 or 0x20))
+            return;
         if (opcode is 0x02 or 0x04 or 0x06 or 0x08 or 0x0A or 0x0C or
             0x0E or 0x10 or 0x12 or 0x16 or 0x18 or 0x20)
         {

@@ -17,6 +17,7 @@
   <data name="Remote.Level.Warn" xml:space="preserve"><value>Waiting</value></data>
   <data name="Remote.Level.Idle" xml:space="preserve"><value>Stopped</value></data>
   <data name="Remote.State" xml:space="preserve"><value>STATE</value></data>
+  <data name="A2854.Gesture.NotSupported" xml:space="preserve"><value>Direction and tilt gestures are not supported for A2854. Touch pointer and buttons work separately.</value></data>
   <data name="Remote.Gesture" xml:space="preserve"><value>GESTURE</value></data>
   <data name="Remote.Nearby" xml:space="preserve"><value>NEARBY APPLE HID DEVICES</value></data>
   <data name="Remote.Connected" xml:space="preserve"><value>connected</value></data>

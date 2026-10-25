@@ -17,7 +17,7 @@ namespace AppleRemote.Windows;
 public sealed class A2854RemoteBle(
     HciHost host, Action<byte[]?> onReport, Action<string> onStatus,
     string? protectedBondPath = null, Action? onTerminalCleanup = null,
-    Action? onReady = null)
+    Action? onReady = null, Action<int>? onBattery = null)
 {
     readonly ProtectedBondStore _bonds = new(protectedBondPath ?? ProtectedBondStore.DefaultPath);
 
@@ -193,6 +193,42 @@ public sealed class A2854RemoteBle(
             onReady?.Invoke();
             onStatus(Loc.T("Status.ConnectedDirect"));
             phase = "observe";
+
+            // The HID link is already usable. Battery metadata is optional:
+            // read only the standard 0x180F / 0x2A19 characteristic, with a
+            // short deadline. Never enable a CCCD, guess a handle, touch the
+            // bond, or abort an otherwise healthy input session for battery.
+            GattClient? batteryGatt = null;
+            try
+            {
+                // An optional metadata read can time out and poison that
+                // ATT client's request state. Keep the original HID GATT
+                // client isolated so its notifications AND Stop-time CCCD
+                // disable still work if battery metadata is unavailable.
+                batteryGatt = new GattClient(central, handle.Value,
+                    handlesServerTraffic: false);
+                using var batteryWindow = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                batteryWindow.CancelAfter(TimeSpan.FromSeconds(5));
+                int? battery = await A2854Battery.ReadOnceAsync(batteryGatt, batteryWindow.Token);
+                if (battery is int level && !inputGate.IsClosed && !cancellationToken.IsCancellationRequested)
+                    onBattery?.Invoke(level);
+                else if (!cancellationToken.IsCancellationRequested)
+                    onStatus("A2854: battery level unavailable (standard readable characteristic absent or invalid).");
+            }
+            catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+            {
+                onStatus("A2854: battery read timed out; HID input remains active.");
+            }
+            catch (Exception e) when (!cancellationToken.IsCancellationRequested)
+            {
+                // Log only the exception type; ATT exceptions may contain
+                // sensitive identifiers. Battery failure is never fatal.
+                onStatus($"A2854: battery read unavailable ({e.GetType().Name}); HID input remains active.");
+            }
+            finally
+            {
+                batteryGatt?.Detach();
+            }
 
             // No auto-repair/re-pairing and no fixed polling duration. The existing
             // app's Stop button cancels, or the peer can voluntarily sleep (0x13).

@@ -324,7 +324,8 @@ public sealed class RemoteSession : IDisposable
                     {
                         lock (_gate) _acceptA2854Input = false;
                         ReleaseA2854HeldInputs(); // independent fallback if GUI event callback threw
-                    }, onReady: () => Interlocked.Exchange(ref _a2854HidReady, 1));
+                    }, onReady: () => Interlocked.Exchange(ref _a2854HidReady, 1),
+                    onBattery: level => Battery?.Invoke(level));
                 _driverTask = Task.Run(async () =>
                 {
                     try { await a2854.RunAsync(transportFault.Token); }

@@ -127,7 +127,12 @@ public sealed partial class RemoteViewModel : ObservableObject, IDisposable
     [ObservableProperty] double _tileShiftX;
     [ObservableProperty] double _tileShiftY;
     [ObservableProperty] string _moveArrow = "·";
-    [ObservableProperty] string _gestureText = "—";
+    [ObservableProperty, NotifyPropertyChangedFor(nameof(GestureDisplayText))]
+    string _gestureText = "—";
+
+    public string GestureDisplayText => IsA2854Mode
+        ? Loc.T("A2854.Gesture.NotSupported")
+        : GestureText;
 
     [ObservableProperty] bool _menuPressed;
     [ObservableProperty] bool _tvPressed;
@@ -303,6 +308,7 @@ public sealed partial class RemoteViewModel : ObservableObject, IDisposable
         // The Remote page switches its physical illustration at runtime.
         // A preceding model's button/touch highlights must not leak through.
         OnPropertyChanged(nameof(IsA2854Mode));
+        OnPropertyChanged(nameof(GestureDisplayText));
         BatteryLevel = null;
         A2854LastLinkSummary = Loc.T("A2854.Link.None");
         StatusText = Loc.T("Status.Stopped");
@@ -395,6 +401,7 @@ public sealed partial class RemoteViewModel : ObservableObject, IDisposable
     public void StartSession()
     {
         Interlocked.Increment(ref _visualEpoch);
+        BatteryLevel = null; // never show stale percent from a previous connection
         ClearA2854VisualContacts();
         _calibrationWindow.Clear();
         _calibrationFingerDown = false;
@@ -419,6 +426,7 @@ public sealed partial class RemoteViewModel : ObservableObject, IDisposable
     {
         // Invalidate callbacks that were queued before stopping the session.
         Interlocked.Increment(ref _visualEpoch);
+        BatteryLevel = null;
         _session.Stop();
         ShowButtons(0);
         foreach (var finger in Fingers) finger.IsVisible = false;
@@ -678,7 +686,12 @@ public sealed partial class RemoteViewModel : ObservableObject, IDisposable
     void OnStatus(string message)
     {
         // Battery is optional: its failure is logged but must not hide the connection status.
-        if (Loc.StartsWith(message, "Status.BatteryUnreadable")) { _log(message); return; }
+        if (Loc.StartsWith(message, "Status.BatteryUnreadable") ||
+            message.StartsWith("A2854: battery ", StringComparison.Ordinal))
+        {
+            _log(message);
+            return;
+        }
         StatusText = message;
         _lastStatusKey = PlainStatusKeys.FirstOrDefault(key =>
             string.Equals(message, Loc.T(key), StringComparison.Ordinal));

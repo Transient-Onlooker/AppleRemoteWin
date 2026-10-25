@@ -17,6 +17,7 @@
   <data name="Remote.Level.Warn" xml:space="preserve"><value>En attente</value></data>
   <data name="Remote.Level.Idle" xml:space="preserve"><value>Arrêtée</value></data>
   <data name="Remote.State" xml:space="preserve"><value>ÉTAT</value></data>
+  <data name="A2854.Gesture.NotSupported" xml:space="preserve"><value>Les gestes de direction et d’inclinaison ne sont pas pris en charge sur l’A2854. Le pointeur tactile et les boutons fonctionnent séparément.</value></data>
   <data name="Remote.Gesture" xml:space="preserve"><value>GESTE</value></data>
   <data name="Remote.Nearby" xml:space="preserve"><value>APPAREILS APPLE HID À PROXIMITÉ</value></data>
   <data name="Remote.Connected" xml:space="preserve"><value>connecté</value></data>

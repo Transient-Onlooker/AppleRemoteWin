@@ -17,6 +17,7 @@
   <data name="Remote.Level.Warn" xml:space="preserve"><value>대기 중</value></data>
   <data name="Remote.Level.Idle" xml:space="preserve"><value>중지됨</value></data>
   <data name="Remote.State" xml:space="preserve"><value>상태</value></data>
+  <data name="A2854.Gesture.NotSupported" xml:space="preserve"><value>A2854에서는 방향·기울기 제스처 인식을 지원하지 않습니다. 터치 커서와 버튼 입력은 별도로 동작합니다.</value></data>
   <data name="Remote.Gesture" xml:space="preserve"><value>제스처</value></data>
   <data name="Remote.Nearby" xml:space="preserve"><value>주변 APPLE HID 기기</value></data>
   <data name="Remote.Connected" xml:space="preserve"><value>연결됨</value></data>

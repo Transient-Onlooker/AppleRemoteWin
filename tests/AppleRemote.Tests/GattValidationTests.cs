@@ -150,6 +150,54 @@ public sealed class GattValidationTests
         gatt.Detach();
     }
 
+    [Fact]
+    public async Task Separate_optional_battery_client_timeout_preserves_HID_notifications_and_CCCD_writes()
+    {
+        var acl = new List<byte[]>();
+        var hci = new HciHost(_ => { }, acl.Add);
+        var central = new LeCentral(hci);
+        var hid = new GattClient(central, 0x0040);
+        var metadata = new GattClient(central, 0x0040, handlesServerTraffic: false);
+        var notifications = new List<byte[]>();
+        hid.Notification += (_, value) => notifications.Add(value);
+        using var timeout = new CancellationTokenSource();
+        try
+        {
+            var batteryRead = metadata.ReadAsync(0x0001, timeout.Token);
+            Assert.Single(acl);
+            timeout.Cancel();
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => batteryRead);
+            await Assert.ThrowsAsync<IOException>(() => metadata.ReadAsync(0x0002));
+
+            // Still one live HID input sink, not duplicated by metadata.
+            hci.ReceiveAclBytes([
+                0x40, 0x20, 0x08, 0x00,
+                0x04, 0x00, 0x04, 0x00, 0x1B, 0x39, 0x00, 0x55
+            ]);
+            Assert.Equal(new byte[] { 0x55 }, Assert.Single(notifications));
+
+            // The main GATT alone acknowledges a peer-initiated MTU exchange.
+            hci.ReceiveAclBytes([
+                0x40, 0x20, 0x07, 0x00,
+                0x03, 0x00, 0x04, 0x00, 0x02, 0x17, 0x00
+            ]);
+            Assert.Equal(2, acl.Count);
+
+            // Stop must still be able to write the HID CCCD on main GATT.
+            var disable = hid.WriteAsync(0x003A, 0x00, 0x00);
+            Assert.Equal(3, acl.Count);
+            hci.ReceiveAclBytes([
+                0x40, 0x20, 0x05, 0x00, 0x01, 0x00, 0x04, 0x00, 0x13
+            ]);
+            await disable;
+        }
+        finally
+        {
+            metadata.Detach();
+            hid.Detach();
+        }
+    }
+
     [Theory]
     [InlineData(0x000A, false)] // Value handle outside service ending at 0x0009.
     [InlineData(0x0004, true)] // Value overlaps the next declaration.
