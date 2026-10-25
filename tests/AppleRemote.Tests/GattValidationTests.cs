@@ -151,51 +151,81 @@ public sealed class GattValidationTests
     }
 
     [Fact]
-    public async Task Separate_optional_battery_client_timeout_preserves_HID_notifications_and_CCCD_writes()
+    public async Task Cancelled_battery_ATT_read_blocks_unsafe_CCCD_write_but_keeps_HID_notifications()
     {
         var acl = new List<byte[]>();
         var hci = new HciHost(_ => { }, acl.Add);
         var central = new LeCentral(hci);
-        var hid = new GattClient(central, 0x0040);
-        var metadata = new GattClient(central, 0x0040, handlesServerTraffic: false);
+        var gatt = new GattClient(central, 0x0040);
         var notifications = new List<byte[]>();
-        hid.Notification += (_, value) => notifications.Add(value);
-        using var timeout = new CancellationTokenSource();
+        gatt.Notification += (_, value) => notifications.Add(value);
+        using var cancel = new CancellationTokenSource();
         try
         {
-            var batteryRead = metadata.ReadAsync(0x0001, timeout.Token);
+            Task<byte[]> batteryRead = gatt.ReadAsync(0x0001, cancel.Token);
             Assert.Single(acl);
-            timeout.Cancel();
+            Assert.True(gatt.CanSendRequests);
+            cancel.Cancel();
             await Assert.ThrowsAnyAsync<OperationCanceledException>(() => batteryRead);
-            await Assert.ThrowsAsync<IOException>(() => metadata.ReadAsync(0x0002));
+            Assert.False(gatt.CanSendRequests);
+            await Assert.ThrowsAsync<IOException>(() => gatt.WriteAsync(0x003A, 0x00, 0x00));
+            Assert.Single(acl); // no out-of-order CCCD write
 
-            // Still one live HID input sink, not duplicated by metadata.
+            // A late 0x0B battery response must NEVER re-enable ATT writes.
+            hci.ReceiveAclBytes([
+                0x40, 0x20, 0x06, 0x00,
+                0x02, 0x00, 0x04, 0x00, 0x0B, 0x37
+            ]);
+            Assert.False(gatt.CanSendRequests);
+
+            // Independent HID notifications continue on the still-live link.
             hci.ReceiveAclBytes([
                 0x40, 0x20, 0x08, 0x00,
-                0x04, 0x00, 0x04, 0x00, 0x1B, 0x39, 0x00, 0x55
+                0x04, 0x00, 0x04, 0x00,
+                0x1B, 0x39, 0x00, 0x55
             ]);
             Assert.Equal(new byte[] { 0x55 }, Assert.Single(notifications));
-
-            // The main GATT alone acknowledges a peer-initiated MTU exchange.
-            hci.ReceiveAclBytes([
-                0x40, 0x20, 0x07, 0x00,
-                0x03, 0x00, 0x04, 0x00, 0x02, 0x17, 0x00
-            ]);
-            Assert.Equal(2, acl.Count);
-
-            // Stop must still be able to write the HID CCCD on main GATT.
-            var disable = hid.WriteAsync(0x003A, 0x00, 0x00);
-            Assert.Equal(3, acl.Count);
-            hci.ReceiveAclBytes([
-                0x40, 0x20, 0x05, 0x00, 0x01, 0x00, 0x04, 0x00, 0x13
-            ]);
-            await disable;
+            gatt.Detach();
+            Assert.False(gatt.CanSendRequests);
         }
-        finally
+        finally { gatt.Detach(); }
+    }
+
+    [Fact]
+    public async Task One_GATT_serializes_battery_read_before_successful_CCCD_cleanup()
+    {
+        var acl = new System.Collections.Concurrent.ConcurrentQueue<byte[]>();
+        var hci = new HciHost(_ => { }, acl.Enqueue);
+        var gatt = new GattClient(new LeCentral(hci), 0x0040);
+        try
         {
-            metadata.Detach();
-            hid.Detach();
+            var read = gatt.ReadAsync(0x0001);
+            var cleanup = gatt.WriteAsync(0x003A, 0x00, 0x00);
+            Assert.Single(acl); // CCCD write waits for outstanding battery read
+            Assert.Equal((byte)0x0A, Assert.Single(acl)[8]);
+            hci.ReceiveAclBytes([
+                0x40, 0x20, 0x06, 0x00,
+                0x02, 0x00, 0x04, 0x00, 0x0B, 0x42
+            ]);
+            Assert.Equal(new byte[] { 0x42 }, await read);
+            Assert.True(SpinWait.SpinUntil(() => acl.Count == 2, TimeSpan.FromSeconds(2)),
+                "Queued CCCD write was not sent after battery read completed.");
+            Assert.Equal((byte)0x12, acl.Last()[8]);
+
+            // Stale read response cannot complete an active CCCD write.
+            hci.ReceiveAclBytes([
+                0x40, 0x20, 0x06, 0x00,
+                0x02, 0x00, 0x04, 0x00, 0x0B, 0x43
+            ]);
+            Assert.False(cleanup.IsCompleted);
+            hci.ReceiveAclBytes([
+                0x40, 0x20, 0x05, 0x00,
+                0x01, 0x00, 0x04, 0x00, 0x13
+            ]);
+            await cleanup;
+            Assert.True(gatt.CanSendRequests);
         }
+        finally { gatt.Detach(); }
     }
 
     [Theory]

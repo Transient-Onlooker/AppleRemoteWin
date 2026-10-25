@@ -198,18 +198,16 @@ public sealed class A2854RemoteBle(
             // read only the standard 0x180F / 0x2A19 characteristic, with a
             // short deadline. Never enable a CCCD, guess a handle, touch the
             // bond, or abort an otherwise healthy input session for battery.
-            GattClient? batteryGatt = null;
             try
             {
-                // An optional metadata read can time out and poison that
-                // ATT client's request state. Keep the original HID GATT
-                // client isolated so its notifications AND Stop-time CCCD
-                // disable still work if battery metadata is unavailable.
-                batteryGatt = new GattClient(central, handle.Value,
-                    handlesServerTraffic: false);
+                // Exactly ONE ATT transaction owner per LE connection.
+                // Battery reads share the original serialized GATT client.
+                // If an optional request is cancelled/times out, that client
+                // rejects further ATT writes; Stop must disconnect directly
+                // rather than sending CCCD writes behind an outstanding read.
                 using var batteryWindow = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
                 batteryWindow.CancelAfter(TimeSpan.FromSeconds(5));
-                int? battery = await A2854Battery.ReadOnceAsync(batteryGatt, batteryWindow.Token);
+                int? battery = await A2854Battery.ReadOnceAsync(gatt, batteryWindow.Token);
                 if (battery is int level && !inputGate.IsClosed && !cancellationToken.IsCancellationRequested)
                     onBattery?.Invoke(level);
                 else if (!cancellationToken.IsCancellationRequested)
@@ -225,11 +223,7 @@ public sealed class A2854RemoteBle(
                 // sensitive identifiers. Battery failure is never fatal.
                 onStatus($"A2854: battery read unavailable ({e.GetType().Name}); HID input remains active.");
             }
-            finally
-            {
-                batteryGatt?.Detach();
-            }
-
+            
             // No auto-repair/re-pairing and no fixed polling duration. The existing
             // app's Stop button cancels, or the peer can voluntarily sleep (0x13).
             try
@@ -296,11 +290,22 @@ public sealed class A2854RemoteBle(
                 if (gatt is not null && map is not null && subscribed &&
                     handle is not null && !disconnected.Task.IsCompleted)
                 {
-                    using var cleanup = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-                    var result = await A2854HidCapture.DisableWithResultAsync(gatt, map, cleanup.Token);
-                    onStatus(result.ButtonDisabled && result.TouchDisabled
-                        ? "A2854: both input notifications disabled."
-                        : "A2854: notification cleanup partial; disconnect follows.");
+                    if (!gatt.CanSendRequests)
+                    {
+                        // An interrupted optional ATT read may still receive
+                        // a late response; issuing either CCCD write on that
+                        // same link would violate ATT request ordering.
+                        // Disconnect closes both subscriptions on the link.
+                        onStatus("A2854: ATT response unresolved; skipping unsafe CCCD writes, disconnect follows.");
+                    }
+                    else
+                    {
+                        using var cleanup = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+                        var result = await A2854HidCapture.DisableWithResultAsync(gatt, map, cleanup.Token);
+                        onStatus(result.ButtonDisabled && result.TouchDisabled
+                            ? "A2854: both input notifications disabled."
+                            : "A2854: notification cleanup partial; disconnect follows.");
+                    }
                 }
             }
             catch (Exception)
