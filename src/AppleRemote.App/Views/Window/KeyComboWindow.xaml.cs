@@ -25,7 +25,8 @@ public partial class KeyComboWindow : Wpf.Ui.Controls.FluentWindow
     const int WH_KEYBOARD_LL = 13, WM_KEYDOWN = 0x100, WM_KEYUP = 0x101, WM_SYSKEYDOWN = 0x104, WM_SYSKEYUP = 0x105;
     const uint LLKHF_INJECTED = 0x10;
 
-    readonly HookProc _proc; // gardé en champ : sinon le ramasse-miettes libère le délégué appelé par Windows
+    readonly HookProc _proc; // kept alive while the foreground-only hook is installed
+    readonly bool _recordAssignment;
     readonly HashSet<ushort> _held = new();
     readonly HashSet<string> _mods = new();
     string? _key;
@@ -34,16 +35,35 @@ public partial class KeyComboWindow : Wpf.Ui.Controls.FluentWindow
     /// <summary>Valeur « #Win+D » validée, null si annulée.</summary>
     public string? Combo { get; private set; }
 
-    public KeyComboWindow()
+    public KeyComboWindow() : this(false) { }
+
+    /// <summary>
+    /// Recording mode reuses the existing shortcut capture mechanism, but
+    /// accepts a complete supported key (or key chord), not modifiers alone.
+    /// </summary>
+    public KeyComboWindow(bool recordAssignment)
     {
+        _recordAssignment = recordAssignment;
         InitializeComponent();
         _proc = OnKey;
+        if (_recordAssignment)
+        {
+            Title = Loc.T("Pick.RecordKey");
+            ComboTitleBar.Title = Title;
+            ComboPrompt.Text = Loc.T("Pick.RecordPrompt");
+        }
     }
 
     void Window_Loaded(object sender, RoutedEventArgs e)
     {
         using var m = Process.GetCurrentProcess().MainModule!;
         _hook = SetWindowsHookEx(WH_KEYBOARD_LL, _proc, GetModuleHandle(m.ModuleName), 0);
+        if (_hook == IntPtr.Zero)
+        {
+            // Failed capture must never silently save an old/empty binding.
+            ValidateButton.IsEnabled = false;
+            ComboText.Text = Loc.T("Pick.RecordUnavailable");
+        }
     }
 
     void Window_Closed(object? sender, EventArgs e)
@@ -54,8 +74,11 @@ public partial class KeyComboWindow : Wpf.Ui.Controls.FluentWindow
 
     IntPtr OnKey(int code, IntPtr wParam, IntPtr lParam)
     {
+        if (code < 0 || _hook == IntPtr.Zero || !IsActive)
+            return CallNextHookEx(_hook, code, wParam, lParam);
         var k = Marshal.PtrToStructure<KbdHook>(lParam);
-        if (code < 0 || !IsActive || (k.Flags & LLKHF_INJECTED) != 0) return CallNextHookEx(_hook, code, wParam, lParam);
+        if ((k.Flags & LLKHF_INJECTED) != 0)
+            return CallNextHookEx(_hook, code, wParam, lParam);
 
         int msg = (int)wParam;
         ushort vk = (ushort)k.Vk;
@@ -82,14 +105,19 @@ public partial class KeyComboWindow : Wpf.Ui.Controls.FluentWindow
         string c = KeyCombos.Build(_mods, _key);
         bool any = c.Length > KeyCombos.Prefix.Length;
         ComboText.Text = any ? KeyCombos.Display(c) : "";
-        ValidateButton.IsEnabled = any;
+        ValidateButton.IsEnabled = _recordAssignment ? _key is not null : any;
     }
 
     void Reset_Click(object sender, RoutedEventArgs e) { _held.Clear(); Clear(); }
 
+    void Cancel_Click(object sender, RoutedEventArgs e) => Close();
+
     void Validate_Click(object sender, RoutedEventArgs e)
     {
-        Combo = KeyCombos.Build(_mods, _key);
+        string captured = KeyCombos.Build(_mods, _key);
+        if (_recordAssignment && CapturedKeyBinding.FromRecordedCombo(captured) is null)
+            return; // modifiers only or unsupported keys are not assignments
+        Combo = captured;
         Close();
     }
 }

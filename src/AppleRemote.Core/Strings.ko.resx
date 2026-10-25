@@ -91,6 +91,10 @@
   <data name="Language.Auto" xml:space="preserve"><value>자동(Windows 표시 언어)</value></data>
   <data name="Language.Fr" xml:space="preserve"><value>프랑스어</value></data>
   <data name="Language.En" xml:space="preserve"><value>영어</value></data>
+  <data name="Pick.RecordKey" xml:space="preserve"><value>키 입력 녹화…</value></data>
+  <data name="Pick.RecordPrompt" xml:space="preserve"><value>할당할 키나 단축키를 누르세요. 입력을 확인한 뒤 확인을 누르면 저장됩니다. 창을 닫거나 취소하면 기존 설정이 유지됩니다.</value></data>
+  <data name="Pick.RecordUnavailable" xml:space="preserve"><value>키보드 입력 감지를 시작할 수 없습니다.</value></data>
+  <data name="Combo.Cancel" xml:space="preserve"><value>취소</value></data>
   <data name="Pick.Key" xml:space="preserve"><value>키</value></data>
   <data name="Pick.KeyCombo" xml:space="preserve"><value>키 조합</value></data>
   <data name="Pick.Software" xml:space="preserve"><value>프로그램</value></data>

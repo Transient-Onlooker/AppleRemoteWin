@@ -18,6 +18,12 @@ UI: Settings → A2854 mouse card → **Use center clickpad button as a keyboard
 
 **New source is not Windows-built, WPF-verified, or physically field-tested yet.** Request a read-only Release build/full tests, focused `A2854ButtonRoutingTests`, localization consistency, and offline WPF Settings binding checks. Physical mouse/keyboard `SendInput` and BLE may only be tested after separate user approval, and the default mouse-click behavior must not regress.
 
+## 2026-10-25 — G HUB-inspired press-to-assign key capture (new source, QA pending)
+
+The user asked for a straightforward Settings key assignment workflow: click a remote input, select **Record a keystroke…**, physically press the desired key (or chord), preview it, and confirm. Proprietary Logitech G HUB assets or implementation were **not** copied. The existing first-party `KeyPicker` now exposes this workflow for **all mapped remote buttons** (A2854 and first-gen); it reuses the pre-existing `KeyComboWindow` foreground-only low-level keyboard hook, with a capture-specific localized prompt/title, Cancel button, and modifier-only rejection. A single supported key (e.g. F5 or Space) persists as a **normal KeyMap binding** (press=down, release=up); combinations such as Ctrl+C or Win+D persist as existing one-shot `#Ctrl+C`/ `#Win+D` mappings. An explicit confirmation is required; closing or cancellation leaves prior mappings unchanged. Unsupported/unrecognized capture is not saved. `CapturedKeyBinding` is a pure portable translator covered by new offline tests.
+
+**No new background keyboard listener**, no Bluetooth/GATT/bond change, no automatic A2854 Start, no new Windows input injection except previously opt-in mappings. The A2854 center keyboard routing still requires the separately enabled keyboard input and `A2854ClickAsKeyboard` when pointer movement is on. Verify Release builds, complete tests, new capture tests, WPF language text, and actual focused-dialog capture via an offline local interactive QA; distinguish such UI capture from an actual remote BLE test. The new source is **not yet independently Windows-tested**.
+
 ## 0. Quick resume / ownership
 
 - GitHub: `Transient-Onlooker/AppleRemoteWin`; work branch: `feat/a2854-support`.

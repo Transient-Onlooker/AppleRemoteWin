@@ -66,6 +66,18 @@ public sealed class KeyPicker : Button
             keys.Items.Add(item);
         }
         var menu = new ContextMenu { PlacementTarget = this, Placement = PlacementMode.Bottom, MinWidth = ActualWidth };
+        // Familiar "press a key to assign it" workflow. Reuse the existing
+        // foreground-only keyboard capture dialog; no permanent keyboard hook.
+        var record = new MenuItem { Header = Loc.T("Pick.RecordKey") };
+        record.Click += (_, _) =>
+        {
+            var dlg = new Views.KeyComboWindow(recordAssignment: true) { Owner = Window.GetWindow(this) };
+            dlg.ShowDialog();
+            if (CapturedKeyBinding.FromRecordedCombo(dlg.Combo) is { } binding)
+                Key = binding; // updates the existing key/shortcut persistence path
+        };
+        menu.Items.Add(record);
+        menu.Items.Add(new Separator());
         menu.Items.Add(keys);
         var combo = new MenuItem { Header = Loc.T("Pick.KeyCombo"), IsChecked = Key.StartsWith(KeyCombos.Prefix) };
         combo.Click += (_, _) =>

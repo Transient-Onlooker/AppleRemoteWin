@@ -91,6 +91,10 @@ Ne débranchez pas le dongle pendant la mise à jour (environ une minute). Le do
   <data name="Language.Auto" xml:space="preserve"><value>Automatique (langue de Windows)</value></data>
   <data name="Language.Fr" xml:space="preserve"><value>Français</value></data>
   <data name="Language.En" xml:space="preserve"><value>English</value></data>
+  <data name="Pick.RecordKey" xml:space="preserve"><value>Enregistrer une touche…</value></data>
+  <data name="Pick.RecordPrompt" xml:space="preserve"><value>Appuyez sur la touche ou le raccourci à affecter, puis validez pour enregistrer. Fermez ou annulez pour conserver l'affectation actuelle.</value></data>
+  <data name="Pick.RecordUnavailable" xml:space="preserve"><value>Impossible de démarrer la capture clavier.</value></data>
+  <data name="Combo.Cancel" xml:space="preserve"><value>Annuler</value></data>
   <data name="Pick.Key" xml:space="preserve"><value>Touche</value></data>
   <data name="Pick.KeyCombo" xml:space="preserve"><value>Combinaison de touches</value></data>
   <data name="Pick.Software" xml:space="preserve"><value>Logiciel</value></data>

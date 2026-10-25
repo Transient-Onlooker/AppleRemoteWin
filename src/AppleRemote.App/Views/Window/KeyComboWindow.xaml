@@ -12,14 +12,14 @@
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
-        <ui:TitleBar Title="{l:T Combo.Title}" ShowMinimize="False" ShowMaximize="False" />
+        <ui:TitleBar x:Name="ComboTitleBar" Title="{l:T Combo.Title}" ShowMinimize="False" ShowMaximize="False" />
         <Grid Grid.Row="1" Margin="16,4,16,16">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="*" />
                 <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
-            <TextBlock Text="{l:T Combo.Prompt}" TextWrapping="Wrap" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+            <TextBlock x:Name="ComboPrompt" Text="{l:T Combo.Prompt}" TextWrapping="Wrap" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
             <Border Grid.Row="1" Margin="0,12" CornerRadius="6" Background="{DynamicResource ControlFillColorDefaultBrush}"
                     BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}" BorderThickness="1">
                 <TextBlock x:Name="ComboText" FontSize="22" FontWeight="SemiBold" TextWrapping="Wrap"
@@ -27,6 +27,7 @@
             </Border>
             <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right">
                 <Button Content="{l:T Combo.Reset}" Click="Reset_Click" Padding="12,6" Margin="0,0,8,0" />
+                <Button Content="{l:T Combo.Cancel}" Click="Cancel_Click" Padding="12,6" Margin="0,0,8,0" />
                 <ui:Button x:Name="ValidateButton" Content="{l:T Combo.Validate}" Click="Validate_Click" IsEnabled="False"
                         Appearance="Primary" Padding="12,6" />
             </StackPanel>

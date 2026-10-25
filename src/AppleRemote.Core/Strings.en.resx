@@ -91,6 +91,10 @@ Do not unplug the dongle during the update (about a minute). The dongle checks t
   <data name="Language.Auto" xml:space="preserve"><value>Automatic (Windows language)</value></data>
   <data name="Language.Fr" xml:space="preserve"><value>Français</value></data>
   <data name="Language.En" xml:space="preserve"><value>English</value></data>
+  <data name="Pick.RecordKey" xml:space="preserve"><value>Record a keystroke…</value></data>
+  <data name="Pick.RecordPrompt" xml:space="preserve"><value>Press the key or shortcut to assign, then select Validate to save it. Close or Cancel to keep the existing assignment.</value></data>
+  <data name="Pick.RecordUnavailable" xml:space="preserve"><value>Could not start keyboard capture.</value></data>
+  <data name="Combo.Cancel" xml:space="preserve"><value>Cancel</value></data>
   <data name="Pick.Key" xml:space="preserve"><value>Key</value></data>
   <data name="Pick.KeyCombo" xml:space="preserve"><value>Key Combo</value></data>
   <data name="Pick.Software" xml:space="preserve"><value>Software</value></data>
