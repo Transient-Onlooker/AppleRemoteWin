@@ -24,12 +24,24 @@ public sealed class GattClient
     const byte ErrorResponse = 0x01, AttributeNotFound = 0x0A, RequestNotSupported = 0x06;
 
     readonly LeCentral _central;
-    ushort _connection;
+    // ATT requests are serialized by _gate. Transport callbacks, cancellation
+    // and Detach can run on unrelated threads, so their shared state is
+    // published atomically, never guarded by a monitor that can stall during
+    // external callbacks or shutdown.
+    int _connection;
     readonly SemaphoreSlim _gate = new(1, 1);
-    readonly object _stateLock = new();
-    (byte Request, TaskCompletionSource<byte[]> Done)? _pending;
+    PendingRequest? _pending;
     Exception? _closedException;
-    bool _linkEnded; // ATT request failure does not itself disconnect HID notifications
+    int _linkEnded; // ATT cancellation does not itself end HID notifications
+
+    sealed class PendingRequest(byte request, TaskCompletionSource<byte[]> done)
+    {
+        public byte Request { get; } = request;
+        public TaskCompletionSource<byte[]> Done { get; } = done;
+    }
+
+    Exception CloseRequests(Exception failure) =>
+        Interlocked.CompareExchange(ref _closedException, failure, null) ?? failure;
 
     /// <summary>
     /// Safe to send a subsequent ATT request only if the previous request
@@ -39,12 +51,9 @@ public sealed class GattClient
     /// </summary>
     public bool CanSendRequests
     {
-        get
-        {
-            lock (_stateLock)
-                return !_linkEnded && _closedException is null &&
-                       _connection != ushort.MaxValue;
-        }
+        get => Volatile.Read(ref _linkEnded) == 0 &&
+            Volatile.Read(ref _closedException) is null &&
+            Volatile.Read(ref _connection) != ushort.MaxValue;
     }
 
     public GattClient(LeCentral central, ushort connection)
@@ -68,11 +77,9 @@ public sealed class GattClient
     void OnLinkEstablished(LeConnectionUpdateTrace trace)
     {
         if (trace.Phase != LeConnectionUpdatePhase.LinkEstablished) return;
-        lock (_stateLock)
-        {
-            if (_closedException is null && _connection == ushort.MaxValue)
-                _connection = trace.Handle;
-        }
+        if (Volatile.Read(ref _closedException) is null &&
+            Volatile.Read(ref _linkEnded) == 0)
+            Interlocked.CompareExchange(ref _connection, trace.Handle, ushort.MaxValue);
     }
 
     public TimeSpan RequestTimeout { get; init; } = TimeSpan.FromSeconds(10);
@@ -89,19 +96,16 @@ public sealed class GattClient
     /// <summary>Call when the connection ends: stops listening to the channel.</summary>
     public void Detach()
     {
+        // Publish the terminal state FIRST: unsubscribe cannot revoke an
+        // event handler which has already been copied for dispatch.
+        Interlocked.Exchange(ref _linkEnded, 1);
+        var reason = CloseRequests(new InvalidOperationException("GATT client detached."));
         _central.L2capData -= OnL2cap;
         _central.Disconnected -= OnDisconnected;
         _central.ConnectionUpdateTrace -= OnLinkEstablished;
-        (TaskCompletionSource<byte[]> Done, Exception Reason)? pending = null;
-        lock (_stateLock)
-        {
-            _linkEnded = true;
-            _closedException ??= new InvalidOperationException("GATT client detached.");
-            if (_pending is { } request)
-                pending = (request.Done, _closedException);
-        }
-        // Never complete callbacks or invoke transport code under _stateLock.
-        if (pending is { } p) p.Done.TrySetException(p.Reason);
+        // No monitor or synchronous wait for a blocked transport callback.
+        // RequestAsync's own finally also clears the pending reference.
+        Volatile.Read(ref _pending)?.Done.TrySetException(reason);
     }
 
     public static bool Is(byte[] uuid, ushort uuid16) => uuid.Length == 2 && (uuid[0] | uuid[1] << 8) == uuid16;
@@ -205,67 +209,61 @@ public sealed class GattClient
         try
         {
             var done = new TaskCompletionSource<byte[]>(TaskCreationOptions.RunContinuationsAsynchronously);
-            ushort connection;
-            lock (_stateLock)
-            {
-                if (_closedException is not null) throw _closedException;
-                if (_connection == ushort.MaxValue)
-                    throw new InvalidOperationException("GATT connection not established.");
-                cancellationToken.ThrowIfCancellationRequested();
-                _pending = (pdu[0], done);
-                connection = _connection;
-            }
-            // External transports can synchronously trigger callbacks or
-            // coordinate with another thread which needs _stateLock
-            // (OnL2cap/Detach/OnDisconnected). Holding the state monitor
-            // across SendL2cap deadlocks under Stop/read cancellation races.
-            // _gate still serializes client-initiated ATT requests, while a
-            // cancelled/failed transaction poisons all subsequent requests.
+            var pending = new PendingRequest(pdu[0], done);
+            var failure = Volatile.Read(ref _closedException);
+            if (failure is not null) throw failure;
+            int connection = Volatile.Read(ref _connection);
+            if (connection == ushort.MaxValue)
+                throw new InvalidOperationException("GATT connection not established.");
             cancellationToken.ThrowIfCancellationRequested();
-            _central.SendL2cap(connection, LeCentral.CidAtt, pdu);
+
+            // An inbound callback or terminal cleanup may run before the send.
+            // Publish a single pending request, then recheck termination before
+            // invoking the external transport. On shutdown no monitor can be
+            // retained by this thread or any transport callback.
+            Volatile.Write(ref _pending, pending);
+            failure = Volatile.Read(ref _closedException);
+            if (failure is not null) throw failure;
+            if (Volatile.Read(ref _linkEnded) != 0)
+                throw new IOException("GATT link ended before ATT request dispatch.");
+            cancellationToken.ThrowIfCancellationRequested();
+            _central.SendL2cap((ushort)connection, LeCentral.CidAtt, pdu);
             return await done.Task.WaitAsync(RequestTimeout, cancellationToken);
         }
         catch (Exception e) when (e is OperationCanceledException or TimeoutException)
         {
             // ATT has no transaction IDs. A late response must not complete a
             // subsequent request on this client after an interrupted exchange.
-            lock (_stateLock)
-                _closedException ??= new IOException("ATT exchange interrupted; disconnect before creating a new client.");
+            CloseRequests(new IOException("ATT exchange interrupted; disconnect before creating a new client."));
             throw;
         }
         finally
         {
-            lock (_stateLock) _pending = null;
+            // Do not erase a later request's identity from an old callback.
+            // _gate ensures at most one producer request is in flight.
+            Volatile.Write(ref _pending, null);
             _gate.Release();
         }
     }
 
     void OnDisconnected(ushort connection, byte reason)
     {
-        (TaskCompletionSource<byte[]> Done, Exception Reason)? pending = null;
-        lock (_stateLock)
-        {
-            if (connection != _connection) return;
-            _linkEnded = true;
-            _closedException ??= new IOException($"GATT connection disconnected (reason 0x{reason:X2}).");
-            if (_pending is { } request)
-                pending = (request.Done, _closedException);
-        }
-        if (pending is { } p) p.Done.TrySetException(p.Reason);
+        if (connection != Volatile.Read(ref _connection)) return;
+        Interlocked.Exchange(ref _linkEnded, 1);
+        var failure = CloseRequests(new IOException($"GATT connection disconnected (reason 0x{reason:X2})."));
+        Volatile.Read(ref _pending)?.Done.TrySetException(failure);
     }
 
     void OnL2cap(ushort connection, ushort cid, byte[] pdu)
     {
         if (cid != LeCentral.CidAtt || pdu.Length == 0) return;
-        (byte Request, TaskCompletionSource<byte[]> Done)? pending;
-        lock (_stateLock)
-        {
-            if (_linkEnded || connection != _connection) return;
-            // A cancelled/expired optional metadata request poisons only ATT
-            // request sequencing. Unsolicited 0xFB/0xFC notifications and peer
-            // ATT requests still belong to the healthy encrypted link.
-            pending = _closedException is null ? _pending : null;
-        }
+        if (Volatile.Read(ref _linkEnded) != 0 ||
+            connection != Volatile.Read(ref _connection)) return;
+        // A cancelled/expired optional metadata request poisons only ATT
+        // request sequencing. HID notifications and peer ATT requests remain
+        // available until the actual link is detached/disconnected.
+        PendingRequest? pending = Volatile.Read(ref _closedException) is null
+            ? Volatile.Read(ref _pending) : null;
         byte opcode = pdu[0];
         if (opcode is 0x02 or 0x04 or 0x06 or 0x08 or 0x0A or 0x0C or
             0x0E or 0x10 or 0x12 or 0x16 or 0x18 or 0x20)
@@ -294,9 +292,7 @@ public sealed class GattClient
                 if (pending is { Request: 0x12 } write && opcode == 0x13 && pdu.Length != 1)
                 {
                     var malformedWrite = new InvalidDataException("Malformed ATT Write Response; disconnect before further requests.");
-                    lock (_stateLock)
-                        _closedException ??= malformedWrite;
-                    write.Done.TrySetException(malformedWrite);
+                    write.Done.TrySetException(CloseRequests(malformedWrite));
                     break;
                 }
                 if (pending is { } q && opcode == q.Request + 1) q.Done.TrySetResult(pdu);   // response = request + 1

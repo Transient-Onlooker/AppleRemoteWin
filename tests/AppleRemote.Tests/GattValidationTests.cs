@@ -301,6 +301,86 @@ public sealed class GattValidationTests
         finally { gatt.Detach(); }
     }
 
+
+    [Fact]
+    public async Task Repeated_cancel_queued_CCCD_and_Detach_never_leave_a_pending_cleanup()
+    {
+        const int iterations = 128;
+        for (int i = 0; i < iterations; i++)
+        {
+            var sent = new System.Collections.Concurrent.ConcurrentQueue<byte[]>();
+            var hci = new HciHost(_ => { }, sent.Enqueue);
+            var gatt = new GattClient(new LeCentral(hci), 0x0040);
+            using var cancel = new CancellationTokenSource();
+
+            try
+            {
+                // Read is outstanding and keeps the single ATT _gate.
+                var read = gatt.ReadAsync(0x0001, cancel.Token);
+                var queuedCccd = gatt.WriteAsync(0x003A, 0x00, 0x00);
+                Assert.Single(sent); // 0x0A read, no premature 0x12 write
+
+                cancel.Cancel();
+                await Assert.ThrowsAnyAsync<OperationCanceledException>(
+                    () => read.WaitAsync(TimeSpan.FromSeconds(2)));
+
+                // Complete cleanup must be bounded even if another caller
+                // is still waiting for the same ATT serialization gate.
+                await Task.Run(gatt.Detach).WaitAsync(TimeSpan.FromSeconds(2));
+                await Assert.ThrowsAnyAsync<Exception>(
+                    () => queuedCccd.WaitAsync(TimeSpan.FromSeconds(2)));
+
+                Assert.False(gatt.CanSendRequests);
+                Assert.Single(sent);
+                Assert.Equal((byte)0x0A, Assert.Single(sent)[8]);
+            }
+            finally
+            {
+                gatt.Detach();
+            }
+        }
+    }
+
+    [Fact]
+    public async Task Detach_while_dispatch_is_blocked_and_read_cancels_remains_bounded()
+    {
+        using var dispatchStarted = new ManualResetEventSlim();
+        using var unblock = new ManualResetEventSlim();
+        var sent = new System.Collections.Concurrent.ConcurrentQueue<byte[]>();
+        var hci = new HciHost(_ => { }, frame =>
+        {
+            sent.Enqueue(frame);
+            dispatchStarted.Set();
+            if (!unblock.Wait(TimeSpan.FromSeconds(5)))
+                throw new TimeoutException("Fake HCI dispatch not released.");
+        });
+        var gatt = new GattClient(new LeCentral(hci), 0x0040);
+        using var cancel = new CancellationTokenSource();
+        Task<byte[]>? read = null;
+        Task? queuedCccd = null;
+        try
+        {
+            read = Task.Run(() => gatt.ReadAsync(0x0001, cancel.Token));
+            Assert.True(dispatchStarted.Wait(TimeSpan.FromSeconds(2)));
+            queuedCccd = gatt.WriteAsync(0x003A, 0x00, 0x00);
+            cancel.Cancel();
+            await Task.Run(gatt.Detach).WaitAsync(TimeSpan.FromSeconds(2));
+            Assert.False(gatt.CanSendRequests);
+            unblock.Set();
+
+            await Assert.ThrowsAnyAsync<Exception>(
+                () => read.WaitAsync(TimeSpan.FromSeconds(2)));
+            await Assert.ThrowsAnyAsync<Exception>(
+                () => queuedCccd.WaitAsync(TimeSpan.FromSeconds(2)));
+            Assert.Single(sent);
+        }
+        finally
+        {
+            unblock.Set();
+            gatt.Detach();
+        }
+    }
+
     [Theory]
     [InlineData(0x000A, false)] // Value handle outside service ending at 0x0009.
     [InlineData(0x0004, true)] // Value overlaps the next declaration.
