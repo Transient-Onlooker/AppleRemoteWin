@@ -92,12 +92,16 @@ public sealed class GattClient
         _central.L2capData -= OnL2cap;
         _central.Disconnected -= OnDisconnected;
         _central.ConnectionUpdateTrace -= OnLinkEstablished;
+        (TaskCompletionSource<byte[]> Done, Exception Reason)? pending = null;
         lock (_stateLock)
         {
             _linkEnded = true;
             _closedException ??= new InvalidOperationException("GATT client detached.");
-            _pending?.Done.TrySetException(_closedException);
+            if (_pending is { } request)
+                pending = (request.Done, _closedException);
         }
+        // Never complete callbacks or invoke transport code under _stateLock.
+        if (pending is { } p) p.Done.TrySetException(p.Reason);
     }
 
     public static bool Is(byte[] uuid, ushort uuid16) => uuid.Length == 2 && (uuid[0] | uuid[1] << 8) == uuid16;
@@ -201,14 +205,24 @@ public sealed class GattClient
         try
         {
             var done = new TaskCompletionSource<byte[]>(TaskCreationOptions.RunContinuationsAsynchronously);
+            ushort connection;
             lock (_stateLock)
             {
                 if (_closedException is not null) throw _closedException;
                 if (_connection == ushort.MaxValue)
                     throw new InvalidOperationException("GATT connection not established.");
+                cancellationToken.ThrowIfCancellationRequested();
                 _pending = (pdu[0], done);
-                _central.SendL2cap(_connection, LeCentral.CidAtt, pdu);
+                connection = _connection;
             }
+            // External transports can synchronously trigger callbacks or
+            // coordinate with another thread which needs _stateLock
+            // (OnL2cap/Detach/OnDisconnected). Holding the state monitor
+            // across SendL2cap deadlocks under Stop/read cancellation races.
+            // _gate still serializes client-initiated ATT requests, while a
+            // cancelled/failed transaction poisons all subsequent requests.
+            cancellationToken.ThrowIfCancellationRequested();
+            _central.SendL2cap(connection, LeCentral.CidAtt, pdu);
             return await done.Task.WaitAsync(RequestTimeout, cancellationToken);
         }
         catch (Exception e) when (e is OperationCanceledException or TimeoutException)
@@ -228,13 +242,16 @@ public sealed class GattClient
 
     void OnDisconnected(ushort connection, byte reason)
     {
+        (TaskCompletionSource<byte[]> Done, Exception Reason)? pending = null;
         lock (_stateLock)
         {
             if (connection != _connection) return;
             _linkEnded = true;
             _closedException ??= new IOException($"GATT connection disconnected (reason 0x{reason:X2}).");
-            _pending?.Done.TrySetException(_closedException);
+            if (_pending is { } request)
+                pending = (request.Done, _closedException);
         }
+        if (pending is { } p) p.Done.TrySetException(p.Reason);
     }
 
     void OnL2cap(ushort connection, ushort cid, byte[] pdu)
@@ -278,10 +295,8 @@ public sealed class GattClient
                 {
                     var malformedWrite = new InvalidDataException("Malformed ATT Write Response; disconnect before further requests.");
                     lock (_stateLock)
-                    {
                         _closedException ??= malformedWrite;
-                        write.Done.TrySetException(malformedWrite);
-                    }
+                    write.Done.TrySetException(malformedWrite);
                     break;
                 }
                 if (pending is { } q && opcode == q.Request + 1) q.Done.TrySetResult(pdu);   // response = request + 1

@@ -228,6 +228,79 @@ public sealed class GattValidationTests
         finally { gatt.Detach(); }
     }
 
+    [Fact]
+    public async Task Detach_does_not_wait_for_state_monitor_held_by_inflight_ATT_send()
+    {
+        using var dispatchEntered = new ManualResetEventSlim(false);
+        using var allowSendReturn = new ManualResetEventSlim(false);
+        var packets = new System.Collections.Concurrent.ConcurrentQueue<byte[]>();
+        var hci = new HciHost(_ => { }, packet =>
+        {
+            packets.Enqueue(packet);
+            dispatchEntered.Set();
+            if (!allowSendReturn.Wait(TimeSpan.FromSeconds(5)))
+                throw new TimeoutException("Fake ACL send was not released.");
+        });
+        var gatt = new GattClient(new LeCentral(hci), 0x0040);
+        using var cancel = new CancellationTokenSource();
+        try
+        {
+            // Force an ATT read to be in synchronous transport dispatch.
+            Task<byte[]> reading = Task.Run(() => gatt.ReadAsync(0x0001, cancel.Token));
+            Assert.True(dispatchEntered.Wait(TimeSpan.FromSeconds(2)));
+
+            // A queued cleanup has not yet sent its write. Read cancellation
+            // and Detach must not get stuck waiting for an external transport
+            // callback to return while it needs the state monitor.
+            Task cleanup = gatt.WriteAsync(0x003A, 0x00, 0x00);
+            cancel.Cancel();
+            Task detached = Task.Run(gatt.Detach);
+            await detached.WaitAsync(TimeSpan.FromSeconds(2));
+            Assert.False(gatt.CanSendRequests);
+
+            allowSendReturn.Set();
+            await Assert.ThrowsAnyAsync<Exception>(() =>
+                reading.WaitAsync(TimeSpan.FromSeconds(2)));
+            await Assert.ThrowsAnyAsync<Exception>(() =>
+                cleanup.WaitAsync(TimeSpan.FromSeconds(2)));
+            Assert.Single(packets); // no out-of-order CCCD write after detach
+        }
+        finally
+        {
+            allowSendReturn.Set(); // never strand the fake dispatch task
+            gatt.Detach();
+        }
+    }
+
+    [Fact]
+    public async Task ATT_send_callback_can_synchronize_with_a_different_state_reader_thread()
+    {
+        GattClient? gatt = null;
+        HciHost? hci = null;
+        hci = new HciHost(_ => { }, packet =>
+        {
+            if (packet.Length < 9 || packet[8] != 0x0A) return;
+            // Emulate an external transport layer waiting for another
+            // callback that queries the very same GATT instance.
+            Task<bool> inspection = Task.Run(() => gatt!.CanSendRequests);
+            if (!inspection.Wait(TimeSpan.FromSeconds(2)) || !inspection.Result)
+                throw new InvalidOperationException("GATT state lock held while dispatching ATT.");
+            hci!.ReceiveAclBytes([
+                0x40, 0x20, 0x06, 0x00,
+                0x02, 0x00, 0x04, 0x00,
+                0x0B, 0x5A
+            ]);
+        });
+        gatt = new GattClient(new LeCentral(hci), 0x0040);
+        try
+        {
+            Assert.Equal(new byte[] { 0x5A },
+                await gatt.ReadAsync(0x0001).WaitAsync(TimeSpan.FromSeconds(3)));
+            Assert.True(gatt.CanSendRequests);
+        }
+        finally { gatt.Detach(); }
+    }
+
     [Theory]
     [InlineData(0x000A, false)] // Value handle outside service ending at 0x0009.
     [InlineData(0x0004, true)] // Value overlaps the next declaration.
