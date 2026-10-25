@@ -16,9 +16,20 @@ public sealed class KeyboardInjector : IConfirmedKeySink
 {
     const uint MAPVK_VK_TO_VSC = 0, KEYEVENTF_UNICODE = 0x0004;
 
+    // KeyBinder calls TryKey() directly and manages physical button ownership.
+    // Shortcut and macro callers use Key(), whose independent ledger keeps
+    // rejected key-ups retryable on Stop/Keyboard OFF.
+    readonly RetryableShortcutSink _shortcutSink;
+
+    public KeyboardInjector() => _shortcutSink = new RetryableShortcutSink(this);
+
     public string? LastError { get; private set; }
 
-    public void Key(KeyCode key, bool down) => _ = TryKey(key, down);
+    public bool HasPendingShortcutReleases => _shortcutSink.HasPendingReleases;
+
+    public bool ReleaseShortcutKeys() => _shortcutSink.ReleaseAll();
+
+    public void Key(KeyCode key, bool down) => _shortcutSink.Key(key, down);
 
     public bool TryKey(KeyCode key, bool down)
     {

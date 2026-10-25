@@ -51,7 +51,11 @@ public sealed class RemoteSession : IDisposable
 
     void ReportKeyboardReleaseResult()
     {
-        if (!_binder.ReleaseAll())
+        // These are separate producers: physical KeyBinder and shortcut/macro
+        // calls through KeyboardInjector.Key(). Both must finish cleanup.
+        bool physicalReleased = _binder.ReleaseAll();
+        bool shortcutsReleased = _injector.ReleaseShortcutKeys();
+        if (!physicalReleased || !shortcutsReleased)
         {
             try { Status?.Invoke("A2854: Windows rejected a keyboard key-up; release remains pending for cleanup retry."); }
             catch { /* diagnostics must not prevent cleanup */ }
@@ -406,7 +410,7 @@ public sealed class RemoteSession : IDisposable
                 // restarting BLE, sending extra input or repeating teardown.
                 lock (_gate)
                 {
-                    if (_binder.HasPendingReleases)
+                    if (_binder.HasPendingReleases || _injector.HasPendingShortcutReleases)
                         ReportKeyboardReleaseResult();
                 }
                 return;
