@@ -153,10 +153,14 @@ public sealed class KeyMap
 public sealed class KeyBinder
 {
     readonly IKeySink _sink;
-    // Remember the key sent for each physical input. Remapping while held
-    // must release its ORIGINAL key, never the replacement mapping.
-    readonly Dictionary<string, KeyCode> _held = new();
-    readonly HashSet<string> _pendingReleases = new();
+    // Each physical/gesture input owns the actual VK captured on key-down.
+    // Multiple owners may share a key; the final owner alone sends key-up.
+    readonly Dictionary<string, KeyCode> _owners = new();
+
+    // These represent accepted OS key-downs without accepted key-ups. Failed
+    // key-up requests are retried by Stop, remapping, or subsequent input.
+    readonly HashSet<KeyCode> _downKeys = new();
+    readonly HashSet<KeyCode> _pendingKeyUps = new();
     KeyMap _map;
 
     public KeyBinder(KeyMap map, IKeySink sink)
@@ -165,20 +169,20 @@ public sealed class KeyBinder
         _sink = sink;
     }
 
-    public bool HasPendingReleases => _pendingReleases.Count > 0;
+    public bool HasPendingReleases => _pendingKeyUps.Count != 0;
 
     public KeyMap Map
     {
         get => _map;
         set
         {
-            ReleaseAll();
+            ReleaseAll(); // release original keys, not new map's key codes
             _map = value;
         }
     }
 
-    // False means a rejected key transition. Legacy fake sinks that cannot
-    // acknowledge an operation preserve their historical successful semantics.
+    // Portable IKeySink fakes without acknowledgments retain the original
+    // success-on-no-throw behavior; Windows uses IConfirmedKeySink.
     bool Send(KeyCode key, bool down)
     {
         try
@@ -188,64 +192,86 @@ public sealed class KeyBinder
             _sink.Key(key, down);
             return true;
         }
-        catch
-        {
-            return false;
-        }
+        catch { return false; }
     }
 
-    bool Release(string name, KeyCode key)
+    bool TryRelease(KeyCode key)
     {
+        if (!_downKeys.Contains(key)) return true;
         if (Send(key, false))
         {
-            _held.Remove(name);
-            _pendingReleases.Remove(name);
+            _downKeys.Remove(key);
+            _pendingKeyUps.Remove(key);
             return true;
         }
-        _pendingReleases.Add(name);
+        _pendingKeyUps.Add(key);
         return false;
     }
 
-    void Press(string name, KeyCode key)
+    bool RetryPendingKeyUps()
     {
-        if (_held.TryGetValue(name, out var prior))
+        foreach (var key in _pendingKeyUps.ToArray())
+            if (!_owners.ContainsValue(key))
+                TryRelease(key);
+        return _pendingKeyUps.Count == 0;
+    }
+
+    void Release(string input)
+    {
+        if (!_owners.Remove(input, out var key)) return;
+        if (!_owners.ContainsValue(key))
+            TryRelease(key);
+    }
+
+    void Press(string input, KeyCode key)
+    {
+        if (_owners.ContainsKey(input)) return; // ignore duplicate down
+
+        // Avoid a new key-down while any previous rejected key-up might
+        // still be physically held by Windows. A new press retries cleanup.
+        if (!RetryPendingKeyUps()) return;
+
+        if (_downKeys.Contains(key))
         {
-            if (!_pendingReleases.Contains(name) || !Release(name, prior))
-                return; // prevent a duplicate down while a key-up is pending
+            _owners[input] = key; // key already held by another input
+            return;
         }
+
         if (Send(key, true))
-            _held[name] = key;
+        {
+            _downKeys.Add(key);
+            _owners[input] = key;
+        }
     }
 
     public void OnEvent(RemoteEvent ev)
     {
-        if (ev is not ButtonsEvent b) return;
-        foreach (var name in b.Released)
-            if (_held.TryGetValue(name, out var key))
-                Release(name, key);
-        foreach (var name in b.Pressed)
+        if (ev is not ButtonsEvent buttons) return;
+        foreach (var name in buttons.Released)
+            Release(name);
+        foreach (var name in buttons.Pressed)
             if (_map.TryGet(name, out var key))
                 Press(name, key);
     }
 
-    public void OnGesture(GestureEvent g)
+    public void OnGesture(GestureEvent gesture)
     {
-        if (g is not MoveGesture m) return;
-        string name = "$gesture:" + m.Dir;
-        if (!_map.TryGet(m.Dir.ToString().ToLowerInvariant(), out var key)) return;
-        Press(name, key);
-        if (_held.TryGetValue(name, out var sent))
-            Release(name, sent);
+        if (gesture is not MoveGesture move) return;
+        string input = "$gesture:" + move.Dir;
+        if (!_map.TryGet(move.Dir.ToString().ToLowerInvariant(), out var key)) return;
+        Press(input, key);
+        Release(input); // cannot lift a physical owner of the same key
     }
 
     /// <summary>
-    /// Try to release every recorded key once. Failure preserves the held key
-    /// and its original VK for a subsequent Stop/fault/mode-change retry.
+    /// Release each distinct OS-down key once, regardless of owner count.
+    /// Rejected key-ups remain pending for the next cleanup attempt.
     /// </summary>
     public bool ReleaseAll()
     {
-        foreach (var (name, key) in _held.ToArray())
-            Release(name, key);
-        return _held.Count == 0;
+        _owners.Clear();
+        foreach (var key in _downKeys.ToArray())
+            TryRelease(key);
+        return _downKeys.Count == 0;
     }
 }

@@ -245,6 +245,127 @@ public class KeyTests
         Assert.True(binder.ReleaseAll());
         Assert.Equal(new[] { (Up, true), (Up, false) }, sink.Accepted);
     }
+    [Fact]
+    public void Shared_F5_does_not_release_on_first_button_up_or_duplicate_keydown()
+    {
+        var sink = new FakeSink();
+        var binder = new KeyBinder(KeyMap.FromJson("""{"click":"F5","menu":"F5"}"""), sink);
+        binder.OnEvent(Buttons(1, ["click"], []));
+        binder.OnEvent(Buttons(3, ["menu"], []));
+        binder.OnEvent(Buttons(3, ["menu", "click"], []));
+        Assert.Equal(new[] { (Keys.Names["F5"], true) }, sink.Log);
+        binder.OnEvent(Buttons(2, [], ["click"]));
+        Assert.Single(sink.Log);
+        binder.OnEvent(Buttons(0, [], ["menu"]));
+        Assert.Equal(new[] { (Keys.Names["F5"], true), (Keys.Names["F5"], false) }, sink.Log);
+        Assert.False(binder.HasPendingReleases);
+    }
+
+    [Fact]
+    public void Shared_F5_release_order_can_be_reversed()
+    {
+        var sink = new FakeSink();
+        var binder = new KeyBinder(KeyMap.FromJson("""{"click":"F5","menu":"F5"}"""), sink);
+        binder.OnEvent(Buttons(2, ["menu"], []));
+        binder.OnEvent(Buttons(3, ["click"], []));
+        binder.OnEvent(Buttons(1, [], ["menu"]));
+        Assert.Single(sink.Log);
+        binder.OnEvent(Buttons(0, [], ["click"]));
+        Assert.Equal(new[] { (Keys.Names["F5"], true), (Keys.Names["F5"], false) }, sink.Log);
+    }
+
+    [Fact]
+    public void Shared_key_Stop_sends_only_one_keyup()
+    {
+        var sink = new FakeSink();
+        var binder = new KeyBinder(KeyMap.FromJson("""{"click":"F5","menu":"F5"}"""), sink);
+        binder.OnEvent(Buttons(1, ["click"], []));
+        binder.OnEvent(Buttons(3, ["menu"], []));
+        Assert.True(binder.ReleaseAll());
+        Assert.True(binder.ReleaseAll());
+        Assert.Equal(new[] { (Keys.Names["F5"], true), (Keys.Names["F5"], false) }, sink.Log);
+    }
+
+    [Fact]
+    public void Shared_key_last_release_rejection_survives_until_Stop_retry()
+    {
+        var sink = new RejectingSink { FailedUps = 1 };
+        var binder = new KeyBinder(KeyMap.FromJson("""{"click":"F5","menu":"F5"}"""), sink);
+        binder.OnEvent(Buttons(1, ["click"], []));
+        binder.OnEvent(Buttons(3, ["menu"], []));
+        binder.OnEvent(Buttons(2, [], ["click"]));
+        Assert.False(binder.HasPendingReleases); // menu still owns F5
+        binder.OnEvent(Buttons(0, [], ["menu"])); // reject final key-up
+        Assert.True(binder.HasPendingReleases);
+        Assert.Equal(new[] { (Keys.Names["F5"], true) }, sink.Accepted);
+        Assert.True(binder.ReleaseAll());
+        Assert.False(binder.HasPendingReleases);
+        Assert.Equal(new[] { (Keys.Names["F5"], true), (Keys.Names["F5"], false) }, sink.Accepted);
+    }
+
+    [Fact]
+    public void Remap_with_shared_held_key_retries_original_vk_not_new_mapping()
+    {
+        var sink = new RejectingSink { FailedUps = 2 };
+        var binder = new KeyBinder(KeyMap.FromJson("""{"click":"F5","menu":"F5"}"""), sink);
+        binder.OnEvent(Buttons(1, ["click"], []));
+        binder.OnEvent(Buttons(3, ["menu"], []));
+        binder.Map = KeyMap.FromJson("""{"click":"Space","menu":"F5"}""");
+        Assert.True(binder.HasPendingReleases);
+        Assert.False(binder.ReleaseAll());
+        Assert.True(binder.ReleaseAll());
+        Assert.Equal(new[] { (Keys.Names["F5"], true), (Keys.Names["F5"], false) }, sink.Accepted);
+        binder.OnEvent(Buttons(1, ["click"], []));
+        Assert.Equal((Keys.Names["Space"], true), sink.Accepted[^1]);
+        Assert.True(binder.ReleaseAll());
+    }
+
+    [Fact]
+    public void Gesture_Up_must_not_release_physically_held_Up()
+    {
+        var sink = new FakeSink();
+        var binder = new KeyBinder(KeyMap.FromJson("""{"click":"Up"}"""), sink);
+        binder.OnEvent(Buttons(1, ["click"], []));
+        binder.OnGesture(new MoveGesture(Direction.Up, MoveSource.Slide));
+        Assert.Equal(new[] { (Up, true) }, sink.Log);
+        binder.OnEvent(Buttons(0, [], ["click"]));
+        Assert.Equal(new[] { (Up, true), (Up, false) }, sink.Log);
+    }
+
+    [Fact]
+    public void Failed_up_must_be_retried_before_new_different_keydown()
+    {
+        var sink = new RejectingSink { FailedUps = 2 };
+        var binder = new KeyBinder(KeyMap.FromJson("""{"click":"F5","menu":"Space"}"""), sink);
+        binder.OnEvent(Buttons(1, ["click"], []));
+        binder.OnEvent(Buttons(0, [], ["click"]));
+        binder.OnEvent(Buttons(2, ["menu"], []));
+        Assert.True(binder.HasPendingReleases);
+        Assert.Equal(new[] { (Keys.Names["F5"], true) }, sink.Accepted);
+        binder.OnEvent(Buttons(2, ["menu"], []));
+        binder.OnEvent(Buttons(0, [], ["menu"]));
+        Assert.Equal(new[] {
+            (Keys.Names["F5"], true), (Keys.Names["F5"], false),
+            (Keys.Names["Space"], true), (Keys.Names["Space"], false)
+        }, sink.Accepted);
+        Assert.False(binder.HasPendingReleases);
+    }
+
+    [Fact]
+    public void Different_keys_still_have_independent_keydown_and_keyup()
+    {
+        var sink = new FakeSink();
+        var binder = new KeyBinder(KeyMap.FromJson("""{"click":"F5","menu":"Space"}"""), sink);
+        binder.OnEvent(Buttons(1, ["click"], []));
+        binder.OnEvent(Buttons(3, ["menu"], []));
+        binder.OnEvent(Buttons(2, [], ["click"]));
+        binder.OnEvent(Buttons(0, [], ["menu"]));
+        Assert.Equal(new[] {
+            (Keys.Names["F5"], true), (Keys.Names["Space"], true),
+            (Keys.Names["F5"], false), (Keys.Names["Space"], false)
+        }, sink.Log);
+    }
+
 }
 
 
