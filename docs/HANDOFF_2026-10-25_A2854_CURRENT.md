@@ -2,6 +2,21 @@
 
 > **START HERE when this conversation is lost.** This is the current, concise operational truth. The long chronological record is [HANDOFF_2026-10-23_A2854.md](HANDOFF_2026-10-23_A2854.md). Prior dated README/QA statements are **historical** where they conflict with this page. Check the GitHub branch HEAD again before making a code change. Do **not** treat this documentation commit as a Windows-build or hardware QA pass.
 
+## 2026-10-25 — Latest independent Windows QA PASS: `d6d97e0`
+
+**Validated application HEAD:** `d6d97e01ff099a7ba95b59f17187e3107e214d47` on `feat/a2854-support`, clean working tree. The user reported independent **overall PASS** for the requested release-build, core regression and offline session/UI mock scope:
+
+- Release build: **0 warnings / 0 errors**.
+- Entire suite: **432/432**; `KeyTests`: **34/34**.
+- Actual `RemoteSession` exercised with mock/fake devices plus WPF checks: **233/233**.
+- Repeated `Stop()` with all key-ups initially rejected: pending retained; later stopped-session `Stop()` retries; rejection persists without losing pending; a later accepted release clears it. **Five more Stop calls after success caused zero extra key-ups**.
+- Shared F5 owner ordering, duplicate keydown prevention, map changes and Keyboard OFF cleanup remained passing.
+- Settings: both remote models × three languages × every tested viewport width, **0 DIP horizontal overflow**.
+- **No defects found in this validation scope**. No source/user setting/DPAPI bond/five-point calibration changes, no BLE or actual Windows pointer/keyboard injection, and no leftover processes.
+- Detailed local-only report: `AppleRemoteWin-Validation/stop-retry-d6d97e0/QA_REPORT_KO.md` (not retrieved from GitHub).
+
+**Scope boundary and next work:** This PASS is for simulated input and WPF regression, **not** a field claim about real A2854 input dispatch. Earlier independent QA explicitly left the **foreground keyboard-capture hook**, **right-click KeyPicker context menu**, and **full real mouse drag-and-drop sequence** as unverified interactive UX behaviors. These are the next safe, separate, offline manual/UI-only validation targets. Do not trigger real BLE, keyboard/mouse `SendInput`, driver modifications or changes to protected bond/calibration without explicit user approval. Documentation-only commits after this validated SHA do not change the application build/test baseline.
+
 ## 2026-10-25 post-handoff QA and follow-up source (current)
 
 The user reported **independent Windows QA at application commit `85f20a7`**: clean worktree, Release **0 errors / 0 warnings**, **387/387** full tests and **26/26** pointer tests. In a bounded real A2854 session, normal movement, clicking, click wobble/release stabilization and dragging were subjectively **PASS**. **37 mouse-down/up pairs** were observed, both HID CCCDs were disabled on **the on-screen Stop path**, Disconnect was accepted and the **actual local termination reason was 0x16**. Original preferences and the DPAPI bond / five-point calibration file were unchanged, with zero residual processes. This was a practical assessment rather than precise pointer-motion instrumentation. The user-local detailed report is `AppleRemoteWin-Validation/pressure-click-85f20a7/QA_REPORT_KO.md`; it is not in GitHub. **Subsequent Start/reconnect was not separately confirmed in this report.**
