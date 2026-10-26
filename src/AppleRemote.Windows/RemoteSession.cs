@@ -13,8 +13,9 @@ public sealed class RemoteSession : IDisposable
     readonly object _lifecycleGate = new(); // serialize Start/Stop across UI/device-change callbacks
     readonly RemotePipeline _pipeline = new();
     readonly A2854Decoder _a2854Decoder = new();
+    readonly A2854TouchDiagnostics _touchDiagnostics = new();
     readonly KeyboardInjector _injector = new();
-    readonly A2854PointerMapper _pointer = new(new WindowsPointerSink());
+    readonly A2854PointerMapper _pointer;
     readonly KeyBinder _binder;
     bool _a2854Mode, _a2854PointerEnabled, _acceptA2854Input;
     bool _a2854PointerUseCalibration, _a2854ClickAsKeyboard;
@@ -34,6 +35,8 @@ public sealed class RemoteSession : IDisposable
 
     public RemoteSession(KeyMap? map = null)
     {
+        _pointer = new A2854PointerMapper(new A2854DiagnosticPointerSink(_touchDiagnostics));
+        _pointer.NoMoveObserved = _touchDiagnostics.Suppressed;
         // Both producers must share a VK owner registry; otherwise Ctrl+C
         // can lift a held physical C when the shortcut completes.
         _binder = new KeyBinder(map ?? KeyMap.Default(), _injector.PhysicalKeys);
@@ -50,6 +53,9 @@ public sealed class RemoteSession : IDisposable
     }
 
     public KeyboardInjector Injector => _injector;
+
+    /// <summary>Aggregate-only A2854 touch telemetry; passive until Start.</summary>
+    public A2854TouchDiagnostics TouchDiagnostics => _touchDiagnostics;
 
     void ReportKeyboardReleaseResult()
     {
@@ -267,6 +273,7 @@ public sealed class RemoteSession : IDisposable
                 }
             }
             _a2854CleanupTask = null;
+            if (_a2854Mode) _touchDiagnostics.Reset();
             Interlocked.Exchange(ref _a2854HidReady, 0);
             _cts = new CancellationTokenSource();
             var ct = _cts.Token;
@@ -325,7 +332,8 @@ public sealed class RemoteSession : IDisposable
                         lock (_gate) _acceptA2854Input = false;
                         ReleaseA2854HeldInputs(); // independent fallback if GUI event callback threw
                     }, onReady: () => Interlocked.Exchange(ref _a2854HidReady, 1),
-                    onBattery: level => Battery?.Invoke(level));
+                    onBattery: level => Battery?.Invoke(level),
+                    touchDiagnostics: _touchDiagnostics);
                 _driverTask = Task.Run(async () =>
                 {
                     try { await a2854.RunAsync(transportFault.Token); }
@@ -511,11 +519,17 @@ public sealed class RemoteSession : IDisposable
             {
                 foreach (RemoteEvent ev in _a2854Decoder.Decode(report))
                 {
+                    if (ev is TouchEvent) _touchDiagnostics.SessionDecoded();
                     if (_a2854PointerEnabled &&
                         (ev is not ButtonsEvent ||
                          A2854ButtonRouting.PointerOwnsClick(_a2854PointerEnabled, _a2854ClickAsKeyboard)))
                     {
-                        _pointer.OnEvent(ev);
+                        long pointerBegan = ev is TouchEvent ? System.Diagnostics.Stopwatch.GetTimestamp() : 0;
+                        try { _pointer.OnEvent(ev); }
+                        finally
+                        {
+                            if (ev is TouchEvent) _touchDiagnostics.PointerProcessed(pointerBegan);
+                        }
                         if (ev is ButtonsEvent transition &&
                             (transition.Pressed.Contains("click") || transition.Released.Contains("click")) &&
                             !_pointer.LastButtonTransitionSucceeded)

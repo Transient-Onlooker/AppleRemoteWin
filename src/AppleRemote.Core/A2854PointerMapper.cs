@@ -32,6 +32,9 @@ public sealed class A2854PointerMapper(IRelativePointerSink sink, double sensiti
     const int ClickDragDistance = 90;
 
     readonly IRelativePointerSink _sink = sink ?? throw new ArgumentNullException(nameof(sink));
+
+    /// <summary>Optional in-memory diagnostic. Never logs touch coordinates.</summary>
+    public Action<A2854TouchDiagnostics.NoMoveReason>? NoMoveObserved { get; set; }
     double _sensitivity = CheckSensitivity(sensitivity);
     bool _tracking, _held, _dragging, _clickAnchored;
     int _previousX, _previousY, _clickAnchorX, _clickAnchorY;
@@ -115,6 +118,7 @@ public sealed class A2854PointerMapper(IRelativePointerSink sink, double sensiti
             // explicitly reset the anchor so resuming never causes a jump.
             if (!touch.Down || touch.Fingers.Count != 1 || touch.Fingers[0].State == 7)
             {
+                NoMoveObserved?.Invoke(A2854TouchDiagnostics.NoMoveReason.NotSingleContact);
                 ResetTracking();
                 return;
             }
@@ -132,6 +136,7 @@ public sealed class A2854PointerMapper(IRelativePointerSink sink, double sensiti
                     _clickAnchorY = touch.Y;
                     _clickAnchored = true;
                 }
+                NoMoveObserved?.Invoke(A2854TouchDiagnostics.NoMoveReason.FirstContact);
                 return; // never move on first touch
             }
 
@@ -160,6 +165,7 @@ public sealed class A2854PointerMapper(IRelativePointerSink sink, double sensiti
                     _clickAnchorY = touch.Y;
                     _clickAnchored = true;
                 }
+                NoMoveObserved?.Invoke(A2854TouchDiagnostics.NoMoveReason.Discontinuity);
                 return; // tracking restarts at the new position, no jump
             }
 
@@ -177,12 +183,14 @@ public sealed class A2854PointerMapper(IRelativePointerSink sink, double sensiti
                     (long)ClickDragDistance * ClickDragDistance)
                 {
                     _remainderX = _remainderY = 0;
+                    NoMoveObserved?.Invoke(A2854TouchDiagnostics.NoMoveReason.ClickWobble);
                     return; // physical click wobble: no cursor movement
                 }
                 // Deliberate movement while held becomes a drag. Do not
                 // replay suppressed wobble in a sudden one-frame jump.
                 _dragging = true;
                 _remainderX = _remainderY = 0;
+                NoMoveObserved?.Invoke(A2854TouchDiagnostics.NoMoveReason.DragAnchor);
                 return;
             }
             if (!_held && (_pressureGuardRemaining > 0 || _postClickGuardRemaining > 0))
@@ -190,6 +198,7 @@ public sealed class A2854PointerMapper(IRelativePointerSink sink, double sensiti
                 if (_pressureGuardRemaining > 0) _pressureGuardRemaining--;
                 if (_postClickGuardRemaining > 0) _postClickGuardRemaining--;
                 _remainderX = _remainderY = 0;
+                NoMoveObserved?.Invoke(A2854TouchDiagnostics.NoMoveReason.PressureGuard);
                 return;
             }
 
@@ -210,6 +219,7 @@ public sealed class A2854PointerMapper(IRelativePointerSink sink, double sensiti
             _remainderX = Math.Abs(movementX) >= MaxStep ? 0 : movementX - pixelsX;
             _remainderY = Math.Abs(movementY) >= MaxStep ? 0 : movementY - pixelsY;
             if (pixelsX != 0 || pixelsY != 0) _sink.Move(pixelsX, pixelsY);
+            else NoMoveObserved?.Invoke(A2854TouchDiagnostics.NoMoveReason.BelowPixel);
         }
     }
 

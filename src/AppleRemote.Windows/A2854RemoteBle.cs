@@ -17,7 +17,8 @@ namespace AppleRemote.Windows;
 public sealed class A2854RemoteBle(
     HciHost host, Action<byte[]?> onReport, Action<string> onStatus,
     string? protectedBondPath = null, Action? onTerminalCleanup = null,
-    Action? onReady = null, Action<int>? onBattery = null)
+    Action? onReady = null, Action<int>? onBattery = null,
+    A2854TouchDiagnostics? touchDiagnostics = null)
 {
     readonly ProtectedBondStore _bonds = new(protectedBondPath ?? ProtectedBondStore.DefaultPath);
 
@@ -165,6 +166,11 @@ public sealed class A2854RemoteBle(
             object decoderLock = new();
             gatt.Notification += (valueHandle, value) =>
             {
+                // Count raw delivery BEFORE decoderLock acquisition. Otherwise
+                // a decoder/UI callback backlog would look like missing BLE
+                // notifications instead of local processing congestion.
+                bool touch = valueHandle == inputMap.TouchValue;
+                if (touch) touchDiagnostics?.RawTouch();
                 lock (decoderLock)
                 {
                     if (inputGate.IsClosed) return;
@@ -173,8 +179,21 @@ public sealed class A2854RemoteBle(
                         return; // drop microphone/unknown/malformed without printing raw payloads
                     Interlocked.Exchange(ref lastInputAt, Stopwatch.GetTimestamp());
                     if (id == A2854Decoder.ButtonsReportId) Interlocked.Increment(ref buttonFrames);
-                    else if (id == A2854Decoder.TouchReportId) Interlocked.Increment(ref touchFrames);
-                    inputGate.TryForward([id, .. value]);
+                    else if (id == A2854Decoder.TouchReportId)
+                    {
+                        Interlocked.Increment(ref touchFrames);
+                        touchDiagnostics?.HidAccepted();
+                    }
+                    long began = touch ? Stopwatch.GetTimestamp() : 0;
+                    try
+                    {
+                        if (inputGate.TryForward([id, .. value]) && touch)
+                            touchDiagnostics?.InputGateDelivered();
+                    }
+                    finally
+                    {
+                        if (touch) touchDiagnostics?.ReceiverFinished(began);
+                    }
                 }
             };
 

@@ -42,6 +42,7 @@ public sealed partial class RemoteViewModel : ObservableObject, IDisposable
     readonly BleScanner _scanner = new();
     readonly IDialogs _dialogs;
     readonly DispatcherTimer _scanTimer = new() { Interval = TimeSpan.FromSeconds(1) };
+    int _touchDiagnosticsTicks;
     readonly DispatcherTimer _trailTimer = new() { Interval = TimeSpan.FromMilliseconds(30) };
     readonly DispatcherTimer _gestureTimer = new() { Interval = TimeSpan.FromMilliseconds(TrailLifeMs) };
     bool _wasDown;
@@ -186,10 +187,21 @@ public sealed partial class RemoteViewModel : ObservableObject, IDisposable
         _session.Event += ev =>
         {
             long epoch = Interlocked.Read(ref _visualEpoch);
+            // A2854 only: measure queue-to-handler delay without per-frame
+            // logging or retaining raw touch coordinates.
+            bool traceTouch = _session.A2854Mode && ev is TouchEvent;
+            long enqueued = traceTouch ? _session.TouchDiagnostics.UiQueued() : 0;
             _ = _ui.InvokeAsync(() =>
             {
                 if (epoch == Interlocked.Read(ref _visualEpoch) && _session.IsRunning)
-                    OnEvent(ev);
+                {
+                    try { OnEvent(ev); }
+                    finally
+                    {
+                        if (traceTouch) _session.TouchDiagnostics.UiApplied(enqueued);
+                    }
+                }
+                else if (traceTouch) _session.TouchDiagnostics.UiDropped();
             }, DispatcherPriority.Render);
         };
         _session.Gesture += g =>
@@ -227,6 +239,16 @@ public sealed partial class RemoteViewModel : ObservableObject, IDisposable
             // Native A2854 finishes USB cleanup asynchronously after the peer
             // disconnects. Refresh its manual Reconnect action when ready.
             OnPropertyChanged(nameof(StartStopText));
+            if (_session.A2854Mode && _session.IsRunning)
+            {
+                _session.TouchDiagnostics.UiHeartbeat();
+                if (++_touchDiagnosticsTicks >= 5)
+                {
+                    _touchDiagnosticsTicks = 0;
+                    _log(_session.TouchDiagnostics.DrainSummary());
+                }
+            }
+            else _touchDiagnosticsTicks = 0;
             var all = await Task.Run(() =>
             {
                 try { return HidEnumerator.ListAll(); }
