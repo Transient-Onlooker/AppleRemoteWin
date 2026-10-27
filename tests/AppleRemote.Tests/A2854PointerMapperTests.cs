@@ -45,6 +45,42 @@ public sealed class A2854PointerMapperTests
     }
 
     [Fact]
+    public void Changing_sensitivity_while_touch_moves_does_not_drop_the_next_frame()
+    {
+        var sink = new FakePointer();
+        var pointer = new A2854PointerMapper(sink, 0.2);
+        pointer.OnEvent(Touch(0, 0, true, Contact(0, 0)));
+        pointer.OnEvent(Touch(50, 0, true, Contact(50, 0)));
+        Assert.Equal((10, 0), Assert.Single(sink.Moves));
+
+        pointer.Sensitivity = 0.4;
+        pointer.OnEvent(Touch(60, 0, true, Contact(60, 0)));
+        // Before the fix, changing sensitivity reset _tracking and silently
+        // discarded this next frame, causing visible stutter while dragging
+        // the sensitivity slider with the remote itself.
+        Assert.Equal((4, 0), sink.Moves[^1]);
+        Assert.Equal(2, sink.Moves.Count);
+        pointer.OnEvent(Touch(70, 0, true, Contact(70, 0)));
+        Assert.Equal(3, sink.Moves.Count);
+    }
+
+    [Fact]
+    public void Sensitivity_change_during_held_click_preserves_drag_anchor_and_release()
+    {
+        var sink = new FakePointer();
+        var pointer = new A2854PointerMapper(sink, 0.2);
+        pointer.OnEvent(Touch(0, 0, true, Contact(0, 0)));
+        pointer.OnEvent(Press("click"));
+        pointer.Sensitivity = 0.4;
+        pointer.OnEvent(Touch(100, 0, true, Contact(100, 0)));
+        pointer.OnEvent(Touch(120, 0, true, Contact(120, 0)));
+        Assert.Equal((8, 0), Assert.Single(sink.Moves));
+        pointer.OnEvent(Release("click"));
+        Assert.Equal(new[] { true, false }, sink.Clicks);
+        Assert.False(pointer.HasHeldClick);
+    }
+
+    [Fact]
     public void Physical_click_prevents_pointer_wobble_and_post_release_tail()
     {
         var sink = new FakePointer();

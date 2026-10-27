@@ -12,6 +12,7 @@ using AppleRemote.Windows;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Win32;
+using System.Windows.Threading;
 
 namespace AppleRemote.App.ViewModels;
 
@@ -35,6 +36,11 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
     readonly Action<string> _log;
     CancellationTokenSource? _macroCts;
     bool _syncingBindings;
+    // Sensitivity changes live while dragging. Do not synchronously rewrite
+    // settings JSON for every mouse movement / every touch report.
+    readonly DispatcherTimer _sensitivitySaveTimer = new()
+        { Interval = TimeSpan.FromMilliseconds(400) };
+    bool _sensitivitySavePending;
 
     /// <summary>Live remote, for the drawing behind the key pickers.</summary>
     public RemoteViewModel Remote { get; }
@@ -249,7 +255,9 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
     {
         _session.A2854PointerSensitivity = value;
         _settings.A2854PointerSensitivity = value;
-        _settings.Save();
+        _sensitivitySavePending = true;
+        _sensitivitySaveTimer.Stop();
+        _sensitivitySaveTimer.Start(); // save after drag settles
     }
 
     partial void OnKeyboardEnabledChanged(bool value)
@@ -348,6 +356,13 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
     public SettingsViewModel(Settings settings, RemoteSession session, IDialogs dialogs, Action<string> log, RemoteViewModel remote)
     {
         _settings = settings;
+        _sensitivitySaveTimer.Tick += (_, _) =>
+        {
+            _sensitivitySaveTimer.Stop();
+            if (!_sensitivitySavePending) return;
+            _sensitivitySavePending = false;
+            _settings.Save();
+        };
         _session = session;
         _dialogs = dialogs;
         _log = log;
@@ -398,6 +413,12 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
         // shuts down. Macro.RunAsync's finally and RemoteSession.Stop will
         // both attempt the same idempotent shortcut cleanup.
         _macroCts?.Cancel();
+        _sensitivitySaveTimer.Stop();
+        if (_sensitivitySavePending)
+        {
+            _sensitivitySavePending = false;
+            _settings.Save(); // flush last user selection on Quit
+        }
         Macro.Renamed -= OnMacroRenamed;
     }
 

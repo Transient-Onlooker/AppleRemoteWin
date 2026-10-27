@@ -291,9 +291,10 @@
                 <TextBlock Text="{l:T A2854.Settings.AxesHint}" Style="{StaticResource A2854Secondary}" />
                 <TextBlock Text="{l:T A2854.Settings.Sensitivity}" Style="{StaticResource A2854Status}"
                            Margin="0,12,0,6" />
-                <Slider Minimum="0.02" Maximum="3.0" TickFrequency="0.05"
-                        IsSnapToTickEnabled="False"
-                        Value="{Binding A2854PointerSensitivity, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                <c:TrackDragSlider Minimum="0.02" Maximum="3.0"
+                                   IsMoveToPointEnabled="True" IsSnapToTickEnabled="False"
+                                   AutoToolTipPlacement="TopLeft" AutoToolTipPrecision="2"
+                                   Value="{Binding A2854PointerSensitivity, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
             </StackPanel>
         </Border>
 

@@ -66,8 +66,15 @@ public sealed class A2854PointerMapper(IRelativePointerSink sink, double sensiti
         get => _sensitivity;
         set
         {
-            _sensitivity = CheckSensitivity(value);
-            ResetTracking();
+            double next = CheckSensitivity(value);
+            if (next == _sensitivity) return;
+            _sensitivity = next;
+            // The sensitivity slider may be dragged with the A2854 pointer
+            // itself. Clearing tracking on *every* value change discarded the
+            // next touch frame and made live adjustment visibly stutter.
+            // Preserve the previous contact and button/drag ownership; only
+            // discard subpixel remainder accumulated at the old gain.
+            _remainderX = _remainderY = 0;
         }
     }
 
