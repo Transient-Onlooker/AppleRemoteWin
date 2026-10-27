@@ -143,6 +143,9 @@
                                        Padding="8,4" />
                         </StackPanel>
                     </Grid>
+                    <ui:Button Content="{l:T A2854.Remote.CopyTouchBoundary}"
+                               Command="{Binding CopyA2854TouchBoundaryCommand}"
+                               HorizontalAlignment="Left" Margin="0,2,0,6" Padding="8,4" />
                     <TextBlock Text="{l:T A2854.Remote.Bond}"
                                FontSize="12" TextWrapping="Wrap"
                                Foreground="{DynamicResource TextFillColorSecondaryBrush}" />

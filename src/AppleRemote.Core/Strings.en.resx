@@ -294,6 +294,7 @@ An administrator confirmation (UAC) will appear.</value></data>
   <data name="A2854.Remote.Title" xml:space="preserve"><value>Siri Remote A2854</value></data>
   <data name="A2854.Remote.CopyResult" xml:space="preserve"><value>Copy result</value></data>
   <data name="A2854.Remote.CopyTimeline" xml:space="preserve"><value>Copy timeline</value></data>
+  <data name="A2854.Remote.CopyTouchBoundary" xml:space="preserve"><value>Copy recent touch trace</value></data>
   <data name="A2854.Remote.Bond" xml:space="preserve"><value>External Barrot USB · existing protected bond</value></data>
   <data name="A2854.Remote.ReconnectHint" xml:space="preserve"><value>Reconnect requires a previously active HID link and completed USB cleanup. No automatic retries or pairing.</value></data>
   <data name="A2854.Mapping.Up" xml:space="preserve"><value>Up</value></data>

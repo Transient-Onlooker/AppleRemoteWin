@@ -13,6 +13,15 @@ public interface IRelativePointerSink
     bool LeftButton(bool down);
 }
 
+public enum A2854TouchObservationKind
+{
+    None, TrackingReset, Anchor, JumpReanchor, ClickGuard, DragStarted,
+    PressureGuard, PostClickGuard, PressureAndPostClickGuard, NoPixelMove, Move
+}
+
+/// <summary>Touch outcome and signs of emitted relative pixels; no touch coordinates are exposed.</summary>
+public readonly record struct A2854TouchObservation(A2854TouchObservationKind Kind, int XSign = 0, int YSign = 0);
+
 /// <summary>
 /// One-contact touchpad movement and click-button state for an A2854.
 /// Hover/multitouch, first touch, release and discontinuities never jump the cursor.
@@ -60,6 +69,9 @@ public sealed class A2854PointerMapper(IRelativePointerSink sink, double sensiti
 
     /// <summary>Last requested mouse button transition was accepted by its sink.</summary>
     public bool LastButtonTransitionSucceeded { get; private set; } = true;
+
+    /// <summary>Outcome of the most recent touch event; button events leave it unchanged.</summary>
+    public A2854TouchObservation LastTouchObservation { get; private set; }
 
     public double Sensitivity
     {
@@ -118,11 +130,13 @@ public sealed class A2854PointerMapper(IRelativePointerSink sink, double sensiti
         }
         else if (ev is TouchEvent touch)
         {
+            LastTouchObservation = default;
             // Only one actual contact drives the cursor. All other states
             // explicitly reset the anchor so resuming never causes a jump.
             if (!touch.Down || touch.Fingers.Count != 1 || touch.Fingers[0].State == 7)
             {
                 ResetTracking();
+                LastTouchObservation = new(A2854TouchObservationKind.TrackingReset);
                 return;
             }
 
@@ -139,6 +153,7 @@ public sealed class A2854PointerMapper(IRelativePointerSink sink, double sensiti
                     _clickAnchorY = touch.Y;
                     _clickAnchored = true;
                 }
+                LastTouchObservation = new(A2854TouchObservationKind.Anchor);
                 return; // never move on first touch
             }
 
@@ -167,6 +182,7 @@ public sealed class A2854PointerMapper(IRelativePointerSink sink, double sensiti
                     _clickAnchorY = touch.Y;
                     _clickAnchored = true;
                 }
+                LastTouchObservation = new(A2854TouchObservationKind.JumpReanchor);
                 return; // tracking restarts at the new position, no jump
             }
 
@@ -184,16 +200,21 @@ public sealed class A2854PointerMapper(IRelativePointerSink sink, double sensiti
                     (long)ClickDragDistance * ClickDragDistance)
                 {
                     _remainderX = _remainderY = 0;
+                    LastTouchObservation = new(A2854TouchObservationKind.ClickGuard);
                     return; // physical click wobble: no cursor movement
                 }
                 // Deliberate movement while held becomes a drag. Do not
                 // replay suppressed wobble in a sudden one-frame jump.
                 _dragging = true;
                 _remainderX = _remainderY = 0;
+                LastTouchObservation = new(A2854TouchObservationKind.DragStarted);
                 return;
             }
             if (!_held && (_pressureGuardRemaining > 0 || _postClickGuardRemaining > 0))
             {
+                LastTouchObservation = new(_pressureGuardRemaining > 0
+                    ? (_postClickGuardRemaining > 0 ? A2854TouchObservationKind.PressureAndPostClickGuard : A2854TouchObservationKind.PressureGuard)
+                    : A2854TouchObservationKind.PostClickGuard);
                 if (_pressureGuardRemaining > 0) _pressureGuardRemaining--;
                 if (_postClickGuardRemaining > 0) _postClickGuardRemaining--;
                 _remainderX = _remainderY = 0;
@@ -216,7 +237,12 @@ public sealed class A2854PointerMapper(IRelativePointerSink sink, double sensiti
             // later zero-delta frame (a very visible touchpad jump bug).
             _remainderX = Math.Abs(movementX) >= MaxStep ? 0 : movementX - pixelsX;
             _remainderY = Math.Abs(movementY) >= MaxStep ? 0 : movementY - pixelsY;
-            if (pixelsX != 0 || pixelsY != 0) _sink.Move(pixelsX, pixelsY);
+            if (pixelsX != 0 || pixelsY != 0)
+            {
+                _sink.Move(pixelsX, pixelsY);
+                LastTouchObservation = new(A2854TouchObservationKind.Move, Math.Sign(pixelsX), Math.Sign(pixelsY));
+            }
+            else LastTouchObservation = new(A2854TouchObservationKind.NoPixelMove);
         }
     }
 

@@ -15,7 +15,7 @@ namespace AppleRemote.Windows;
 /// A remote-initiated disconnect ends this session; restarting is an explicit user action.
 /// </summary>
 public sealed class A2854RemoteBle(
-    HciHost host, Action<byte[]?> onReport, Action<string> onStatus,
+    HciHost host, Action<byte[]?, long> onReport, Action<string> onStatus,
     string? protectedBondPath = null, Action? onTerminalCleanup = null,
     Action? onReady = null, Action<int>? onBattery = null)
 {
@@ -37,7 +37,9 @@ public sealed class A2854RemoteBle(
         int encryptionCompleted = 0, earlyAttRequests = 0;
         var disconnected = new TaskCompletionSource<(ushort Handle, byte Reason)>(
             TaskCreationOptions.RunContinuationsAsynchronously);
-        var inputGate = new A2854InputGate(onReport, onTerminalCleanup);
+        long reportArrival = 0;
+        var inputGate = new A2854InputGate(
+            report => onReport(report, Volatile.Read(ref reportArrival)), onTerminalCleanup);
         try
         {
             // Fail closed: never fall back to SMP PairAsync or the gen-1 plaintext BondStore.
@@ -165,6 +167,7 @@ public sealed class A2854RemoteBle(
             object decoderLock = new();
             gatt.Notification += (valueHandle, value) =>
             {
+                long notificationArrival = Stopwatch.GetTimestamp();
                 lock (decoderLock)
                 {
                     if (inputGate.IsClosed) return;
@@ -174,6 +177,7 @@ public sealed class A2854RemoteBle(
                     Interlocked.Exchange(ref lastInputAt, Stopwatch.GetTimestamp());
                     if (id == A2854Decoder.ButtonsReportId) Interlocked.Increment(ref buttonFrames);
                     else if (id == A2854Decoder.TouchReportId) Interlocked.Increment(ref touchFrames);
+                    Volatile.Write(ref reportArrival, notificationArrival);
                     inputGate.TryForward([id, .. value]);
                 }
             };

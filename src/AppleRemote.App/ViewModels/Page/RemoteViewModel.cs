@@ -847,6 +847,22 @@ public sealed partial class RemoteViewModel : ObservableObject, IDisposable
         }
     }
 
+    [RelayCommand]
+    void CopyA2854TouchBoundary()
+    {
+        if (!_session.A2854Mode) return;
+        try
+        {
+            var lines = _session.A2854TouchBoundarySnapshot();
+            Clipboard.SetText("A2854 touch boundary: last 2 seconds; age_ms relative to snapshot" +
+                Environment.NewLine + string.Join(Environment.NewLine, lines));
+        }
+        catch (Exception e)
+        {
+            _log($"A2854: unable to copy touch boundary trace ({e.GetType().Name}).");
+        }
+    }
+
     /// <summary>Copy only locally measured X/Y landmarks for support/QA.</summary>
     [RelayCommand]
     void CopyTouchCalibrationPoints()

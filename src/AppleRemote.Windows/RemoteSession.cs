@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 AnthoDingo
 
+using System.Diagnostics;
+
 namespace AppleRemote.Windows;
 
 /// <summary>
@@ -13,6 +15,7 @@ public sealed class RemoteSession : IDisposable
     readonly object _lifecycleGate = new(); // serialize Start/Stop across UI/device-change callbacks
     readonly RemotePipeline _pipeline = new();
     readonly A2854Decoder _a2854Decoder = new();
+    readonly A2854TouchBoundaryTrace _touchBoundaryTrace = new();
     readonly KeyboardInjector _injector = new();
     readonly A2854PointerMapper _pointer;
     readonly KeyBinder _binder;
@@ -51,6 +54,9 @@ public sealed class RemoteSession : IDisposable
     }
 
     public KeyboardInjector Injector => _injector;
+
+    public IReadOnlyList<string> A2854TouchBoundarySnapshot() =>
+        _touchBoundaryTrace.Snapshot(Stopwatch.GetElapsedTime(0));
 
     void ReportKeyboardReleaseResult()
     {
@@ -277,6 +283,7 @@ public sealed class RemoteSession : IDisposable
             // override it or silently initiate new SMP pairing.
             if (_a2854Mode)
             {
+                _touchBoundaryTrace.Reset();
                 UsbHci? a2854Hci;
                 try { a2854Hci = UsbHci.OpenForUsbId(new UsbHci.UsbId(0x33FA, 0x0001)); }
                 catch (Exception e)
@@ -320,7 +327,7 @@ public sealed class RemoteSession : IDisposable
                 var usbCleanup = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
                 _a2854CleanupTask = usbCleanup.Task;
                 var a2854 = new A2854RemoteBle(a2854Hci.Host,
-                    report => FeedA2854(report, transportFault),
+                    (report, arrival) => FeedA2854(report, transportFault, arrival),
                     status => Status?.Invoke(status), onTerminalCleanup: () =>
                     {
                         lock (_gate) _acceptA2854Input = false;
@@ -498,7 +505,7 @@ public sealed class RemoteSession : IDisposable
         }
     }
 
-    void FeedA2854(byte[]? report, A2854SessionFaultGate? faultGate = null)
+    void FeedA2854(byte[]? report, A2854SessionFaultGate? faultGate = null, long arrival = 0)
     {
         bool receiverFailed = false;
         lock (_gate)
@@ -514,15 +521,31 @@ public sealed class RemoteSession : IDisposable
             {
                 foreach (RemoteEvent ev in _a2854Decoder.Decode(report))
                 {
+                    var observation = default(A2854TouchObservation);
                     if (_a2854PointerEnabled &&
                         (ev is not ButtonsEvent ||
                          A2854ButtonRouting.PointerOwnsClick(_a2854PointerEnabled, _a2854ClickAsKeyboard)))
                     {
                         _pointer.OnEvent(ev);
+                        if (ev is TouchEvent) observation = _pointer.LastTouchObservation;
                         if (ev is ButtonsEvent transition &&
                             (transition.Pressed.Contains("click") || transition.Released.Contains("click")) &&
                             !_pointer.LastButtonTransitionSucceeded)
                             Status?.Invoke("A2854: Windows rejected a mouse button transition; mouse-up is still pending.");
+                    }
+
+                    if (ev is TouchEvent touch && report is { Length: > 1 } &&
+                        report[0] == A2854Decoder.TouchReportId &&
+                        A2854Decoder.ParseTouch(report.AsSpan(1)) is { } frame)
+                    {
+                        var contact = touch.Fingers.Count == 0 ? A2854TraceContact.Release
+                            : !touch.Down ? A2854TraceContact.Hover
+                            : touch.Fingers.Count == 1 ? A2854TraceContact.Single
+                            : A2854TraceContact.Multi;
+                        _touchBoundaryTrace.Record(frame.Sequence,
+                            Stopwatch.GetElapsedTime(0, arrival > 0 ? arrival : Stopwatch.GetTimestamp()),
+                            contact, observation.Kind, (A2854TraceSign)observation.XSign,
+                            (A2854TraceSign)observation.YSign, Stopwatch.GetElapsedTime(0));
                     }
 
                     if (_keyboardEnabled)
