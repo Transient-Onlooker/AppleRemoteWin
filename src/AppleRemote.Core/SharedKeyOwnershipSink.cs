@@ -48,6 +48,9 @@ public sealed class SharedKeyOwnershipSink
     {
         lock (_gate)
         {
+            if (WheelActions.TryDelta(key, out _))
+                return !down || Send(key, true);
+
             bool heldElsewhere = _owners.Any(o => !ReferenceEquals(o, own) && o.Contains(key));
 
             if (down)

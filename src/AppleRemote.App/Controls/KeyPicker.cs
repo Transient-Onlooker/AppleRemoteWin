@@ -18,7 +18,8 @@ public sealed class KeyPicker : Button
         DependencyProperty.Register(nameof(SelectedInput), typeof(string), typeof(KeyPicker),
             new PropertyMetadata("", (d, _) => ((KeyPicker)d).RefreshSelection()));
     public static readonly DependencyProperty SelectInputCommandProperty =
-        DependencyProperty.Register(nameof(SelectInputCommand), typeof(ICommand), typeof(KeyPicker));
+        DependencyProperty.Register(nameof(SelectInputCommand), typeof(ICommand), typeof(KeyPicker),
+            new PropertyMetadata(null, (d, e) => ((KeyPicker)d).UpdateChevron(e.NewValue is not null)));
 
     public string InputId { get => (string)GetValue(InputIdProperty); set => SetValue(InputIdProperty, value); }
     public string SelectedInput { get => (string)GetValue(SelectedInputProperty); set => SetValue(SelectedInputProperty, value); }
@@ -57,6 +58,12 @@ public sealed class KeyPicker : Button
     public IEnumerable<string> Choices { get => (IEnumerable<string>)GetValue(ChoicesProperty); set => SetValue(ChoicesProperty, value); }
 
     readonly TextBlock _label = new() { Text = Display(""), TextTrimming = TextTrimming.CharacterEllipsis };
+    TextBlock? _chevron;
+
+    void UpdateChevron(bool selectionOnly)
+    {
+        if (_chevron is not null) _chevron.Visibility = selectionOnly ? Visibility.Collapsed : Visibility.Visible;
+    }
 
     public KeyPicker()
     {
@@ -68,6 +75,8 @@ public sealed class KeyPicker : Button
             Text = "", FontFamily = new FontFamily("Segoe Fluent Icons, Segoe MDL2 Assets"), FontSize = 10,
             VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 0, 0),
         };
+        _chevron = chevron;
+        UpdateChevron(SelectInputCommand is not null);
         chevron.SetResourceReference(TextBlock.ForegroundProperty, "TextFillColorSecondaryBrush");
         var grid = new Grid { ColumnDefinitions = { new ColumnDefinition(), new ColumnDefinition { Width = GridLength.Auto } } };
         Grid.SetColumn(chevron, 1);
@@ -76,8 +85,10 @@ public sealed class KeyPicker : Button
         Content = grid;
         Click += (_, _) =>
         {
-            if (SelectInputCommand?.CanExecute(InputId) == true)
-                SelectInputCommand.Execute(InputId);
+            if (SelectInputCommand is { } command)
+            {
+                if (command.CanExecute(InputId)) command.Execute(InputId);
+            }
             else Open();
         };
         MouseRightButtonUp += (_, e) =>

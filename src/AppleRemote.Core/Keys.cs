@@ -22,6 +22,45 @@ public interface IConfirmedKeySink : IKeySink
     bool TryKey(KeyCode key, bool down);
 }
 
+/// <summary>Schedules bounded-frequency held-wheel callbacks; disposable handles cancel future ticks.</summary>
+public interface IWheelRepeatScheduler
+{
+    IDisposable Schedule(Action tick, TimeSpan dueTime, TimeSpan period);
+}
+
+sealed class ThreadingWheelRepeatScheduler : IWheelRepeatScheduler
+{
+    sealed class RepeatTimer : IDisposable
+    {
+        readonly Action _tick;
+        readonly Timer _timer;
+        int _running, _disposed;
+
+        public RepeatTimer(Action tick, TimeSpan dueTime, TimeSpan period)
+        {
+            _tick = tick;
+            _timer = new Timer(OnTick, null, dueTime, period);
+        }
+
+        void OnTick(object? state)
+        {
+            if (Volatile.Read(ref _disposed) != 0 || Interlocked.Exchange(ref _running, 1) != 0)
+                return;
+            try { _tick(); }
+            finally { Volatile.Write(ref _running, 0); }
+        }
+
+        public void Dispose()
+        {
+            Interlocked.Exchange(ref _disposed, 1);
+            _timer.Dispose();
+        }
+    }
+
+    public IDisposable Schedule(Action tick, TimeSpan dueTime, TimeSpan period) =>
+        new RepeatTimer(tick, dueTime, period);
+}
+
 /// <summary>Key names accepted in the JSON mapping file. Portable table (VK_* values).</summary>
 public static class Keys
 {
@@ -39,6 +78,7 @@ public static class Keys
             // the legal VK range (1..254); WindowsWheelInput handles them
             // instead of passing them through KEYBDINPUT.
             ["ScrollUp"] = WheelActions.Up, ["ScrollDown"] = WheelActions.Down,
+            ["MouseLeft"] = MouseActions.Left, ["MouseRight"] = MouseActions.Right,
             ["Enter"] = new(0x0D), ["Escape"] = new(0x1B), ["Esc"] = new(0x1B), ["Space"] = new(0x20),
             ["Tab"] = new(0x09), ["Backspace"] = new(0x08),
             ["Home"] = new(0x24, true), ["End"] = new(0x23, true),
@@ -56,10 +96,15 @@ public static class Keys
     }
 }
 
+public static class MouseActions
+{
+    public static readonly KeyCode Left = new(0x102);
+    public static readonly KeyCode Right = new(0x103);
+}
+
 /// <summary>
 /// Virtual action identifiers for mouse wheel steps in KeyMap's existing
 /// persisted string format. They cannot collide with Windows VK codes.
-/// Wheel input is a one-shot action on button-down: key-up performs no IO.
 /// </summary>
 public static class WheelActions
 {
@@ -193,23 +238,39 @@ public sealed class KeyBinder
     // key-up requests are retried by Stop, remapping, or subsequent input.
     readonly HashSet<KeyCode> _downKeys = new();
     readonly HashSet<KeyCode> _pendingKeyUps = new();
+    sealed class WheelRepeatState(KeyCode key)
+    {
+        public KeyCode Key { get; } = key;
+        public IDisposable? Timer { get; set; }
+    }
+
+    readonly Dictionary<string, WheelRepeatState> _wheelRepeats = new();
+    readonly object _gate = new();
+    readonly IWheelRepeatScheduler _wheelScheduler;
     KeyMap _map;
 
-    public KeyBinder(KeyMap map, IKeySink sink)
+    static readonly TimeSpan WheelRepeatDelay = TimeSpan.FromMilliseconds(400);
+    static readonly TimeSpan WheelRepeatPeriod = TimeSpan.FromMilliseconds(80);
+
+    public KeyBinder(KeyMap map, IKeySink sink, IWheelRepeatScheduler? wheelScheduler = null)
     {
         _map = map;
         _sink = sink;
+        _wheelScheduler = wheelScheduler ?? new ThreadingWheelRepeatScheduler();
     }
 
-    public bool HasPendingReleases => _pendingKeyUps.Count != 0;
+    public bool HasPendingReleases { get { lock (_gate) return _pendingKeyUps.Count != 0; } }
 
     public KeyMap Map
     {
-        get => _map;
+        get { lock (_gate) return _map; }
         set
         {
-            ReleaseAll(); // release original keys, not new map's key codes
-            _map = value;
+            lock (_gate)
+            {
+                ReleaseAllCore(); // release original keys, not new map's key codes
+                _map = value;
+            }
         }
     }
 
@@ -250,9 +311,27 @@ public sealed class KeyBinder
 
     void Release(string input)
     {
+        CancelWheelRepeat(input);
         if (!_owners.Remove(input, out var key)) return;
+        if (WheelActions.TryDelta(key, out _)) return;
         if (!_owners.ContainsValue(key))
             TryRelease(key);
+    }
+
+    void CancelWheelRepeat(string input)
+    {
+        if (_wheelRepeats.Remove(input, out var repeat)) repeat.Timer?.Dispose();
+    }
+
+    void RepeatWheel(string input, WheelRepeatState repeat)
+    {
+        lock (_gate)
+        {
+            if (!_wheelRepeats.TryGetValue(input, out var current) || !ReferenceEquals(current, repeat) ||
+                !_owners.TryGetValue(input, out var heldKey) || heldKey != repeat.Key)
+                return;
+            Send(repeat.Key, true);
+        }
     }
 
     void Press(string input, KeyCode key)
@@ -262,6 +341,18 @@ public sealed class KeyBinder
         // Avoid a new key-down while any previous rejected key-up might
         // still be physically held by Windows. A new press retries cleanup.
         if (!RetryPendingKeyUps()) return;
+
+        if (WheelActions.TryDelta(key, out _))
+        {
+            // A rejected initial notch must not start a background repeat.
+            _owners[input] = key;
+            if (!Send(key, true)) return;
+            var repeat = new WheelRepeatState(key);
+            _wheelRepeats[input] = repeat;
+            repeat.Timer = _wheelScheduler.Schedule(
+                () => RepeatWheel(input, repeat), WheelRepeatDelay, WheelRepeatPeriod);
+            return;
+        }
 
         if (_downKeys.Contains(key))
         {
@@ -278,21 +369,27 @@ public sealed class KeyBinder
 
     public void OnEvent(RemoteEvent ev)
     {
-        if (ev is not ButtonsEvent buttons) return;
-        foreach (var name in buttons.Released)
-            Release(name);
-        foreach (var name in buttons.Pressed)
-            if (_map.TryGet(name, out var key))
-                Press(name, key);
+        lock (_gate)
+        {
+            if (ev is not ButtonsEvent buttons) return;
+            foreach (var name in buttons.Released)
+                Release(name);
+            foreach (var name in buttons.Pressed)
+                if (_map.TryGet(name, out var key))
+                    Press(name, key);
+        }
     }
 
     public void OnGesture(GestureEvent gesture)
     {
-        if (gesture is not MoveGesture move) return;
-        string input = "$gesture:" + move.Dir;
-        if (!_map.TryGet(move.Dir.ToString().ToLowerInvariant(), out var key)) return;
-        Press(input, key);
-        Release(input); // cannot lift a physical owner of the same key
+        lock (_gate)
+        {
+            if (gesture is not MoveGesture move) return;
+            string input = "$gesture:" + move.Dir;
+            if (!_map.TryGet(move.Dir.ToString().ToLowerInvariant(), out var key)) return;
+            Press(input, key);
+            Release(input); // cannot lift a physical owner of the same key
+        }
     }
 
     /// <summary>
@@ -301,6 +398,13 @@ public sealed class KeyBinder
     /// </summary>
     public bool ReleaseAll()
     {
+        lock (_gate) return ReleaseAllCore();
+    }
+
+    bool ReleaseAllCore()
+    {
+        foreach (var repeat in _wheelRepeats.Values) repeat.Timer?.Dispose();
+        _wheelRepeats.Clear();
         _owners.Clear();
         foreach (var key in _downKeys.ToArray())
             TryRelease(key);

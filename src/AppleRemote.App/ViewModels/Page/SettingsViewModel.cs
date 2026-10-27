@@ -152,7 +152,7 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
                 },
                 "keys" => Keys.Names.Keys.Where(k => k != "Esc").OrderBy(k => k)
                     .Select(k => new AssignmentEntry(k, k)),
-                "system" => new[] { "ScrollUp", "ScrollDown",
+                "system" => new[] { "MouseLeft", "MouseRight", "ScrollUp", "ScrollDown",
                     "VolumeMute", "VolumeUp", "VolumeDown",
                     "MediaPlayPause", "MediaNext", "MediaPrev", "MediaStop",
                     "BrowserBack", "BrowserForward", "BrowserHome", "BrowserRefresh" }
@@ -220,6 +220,7 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
     {
         _session.A2854Mode = value; // explicitly selected; no automatic pairing
         _settings.A2854Mode = value;
+        KeyboardEnabled = value ? _settings.A2854KeyboardEnabled ?? _settings.KeyboardEnabled : _settings.KeyboardEnabled;
         _settings.Save();
         Remote.OnRemoteModeChanged(value); // stop internal Windows BLE scanning in A2854 mode
         Remote.RefreshTexts();
@@ -264,7 +265,8 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
     partial void OnKeyboardEnabledChanged(bool value)
     {
         _session.KeyboardEnabled = value;
-        _settings.KeyboardEnabled = value;
+        if (A2854Mode) _settings.A2854KeyboardEnabled = value;
+        else _settings.KeyboardEnabled = value;
         _settings.Save();
         _log(Loc.T(value ? "Log.KeyboardOn" : "Log.KeyboardOff"));
     }
@@ -378,7 +380,8 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
         foreach (var input in KeyMap.Inputs) Bindings[input] = new KeyChoice(input, _noKey, OnBindingChanged);
         SyncBindings();
 
-        _keyboardEnabled = _settings.KeyboardEnabled;
+        _keyboardEnabled = _settings.A2854Mode
+            ? _settings.A2854KeyboardEnabled ?? _settings.KeyboardEnabled : _settings.KeyboardEnabled;
         _a2854Mode = _settings.A2854Mode;
         _a2854PointerEnabled = _settings.A2854PointerEnabled;
         _a2854ClickAsKeyboard = _settings.A2854ClickAsKeyboard;
@@ -394,7 +397,7 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
         UpdateService.Checked += () => System.Windows.Application.Current?.Dispatcher.InvokeAsync(ShowLastChecked);
         _ = FetchLatestReleases();
         ShowLastChecked();
-        _session.KeyboardEnabled = _settings.KeyboardEnabled;
+        _session.KeyboardEnabled = _keyboardEnabled;
         _session.A2854Mode = _a2854Mode;
         _session.A2854PointerSensitivity = _a2854PointerSensitivity;
         _session.A2854PointerUseCalibration = _a2854PointerUseCalibration;
@@ -907,7 +910,11 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
             if (!SoftwareChoices.Contains(app, StringComparer.OrdinalIgnoreCase)) { SoftwareChoices.Add(app); _settings.Apps.Add(app); }
         foreach (var m in Macro.Names().Where(m => !MacroChoices.Contains(m))) MacroChoices.Add(m);
         ApplyMap(map, s.Software, s.Combos, s.Macros);
-        KeyboardEnabled = s.KeyboardEnabled;
+        s.ApplyKeyboardDefaults(existingSettings: true);
+        _settings.KeyboardEnabled = s.KeyboardEnabled;
+        _settings.A2854KeyboardEnabled = s.A2854KeyboardEnabled;
+        KeyboardEnabled = A2854Mode ? s.A2854KeyboardEnabled!.Value : s.KeyboardEnabled;
+        _settings.Save();
         CloseToTray = s.CloseToTray;
         Language = s.Language;
         _log(Loc.T("Log.MapImported", dlg.FileName));

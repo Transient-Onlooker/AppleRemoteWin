@@ -93,6 +93,7 @@ Ne débranchez pas le dongle pendant la mise à jour (environ une minute). Le do
   <data name="Language.Fr" xml:space="preserve"><value>Français</value></data>
   <data name="Language.En" xml:space="preserve"><value>English</value></data>
   <data name="Assign.Title" xml:space="preserve"><value>Affectations</value></data>
+  <data name="Assign.InputHint" xml:space="preserve"><value>Sélectionnez un bouton, puis une action ci-dessous. Activez le clavier virtuel pour les affectations, y compris les clics et le défilement. Le pointeur est une option distincte. Un clic droit ouvre le menu d’affectation.</value></data>
   <data name="Assign.Help" xml:space="preserve"><value>Sélectionnez un bouton sur la télécommande, puis cliquez sur une commande ou faites-la glisser sur le bouton. Un clic droit ouvre le menu précédent.</value></data>
   <data name="Assign.Selected" xml:space="preserve"><value>Bouton sélectionné</value></data>
   <data name="Assign.Search" xml:space="preserve"><value>Rechercher des commandes</value></data>

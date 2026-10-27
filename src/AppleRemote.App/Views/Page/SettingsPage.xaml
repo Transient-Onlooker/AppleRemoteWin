@@ -127,6 +127,24 @@
                     <local:A2854RemoteDrawing DataContext="{Binding Remote}" IsEnabled="False" />
                 </Viewbox>
             </Grid>
+            <Canvas Grid.Row="0" IsHitTestVisible="False" Opacity="0.65">
+                <Canvas.Resources>
+                    <Style TargetType="Line">
+                        <Setter Property="Stroke" Value="{DynamicResource TextFillColorSecondaryBrush}" />
+                        <Setter Property="StrokeThickness" Value="1" />
+                    </Style>
+                </Canvas.Resources>
+                <Line X1="199" Y1="42" X2="345" Y2="60" />
+                <Line X1="199" Y1="139" X2="287" Y2="118" />
+                <Line X1="199" Y1="236" X2="313" Y2="214" />
+                <Line X1="199" Y1="333" X2="313" Y2="276" />
+                <Line X1="199" Y1="430" X2="313" Y2="338" />
+                <Line X1="492" Y1="42" X2="403" Y2="118" />
+                <Line X1="492" Y1="139" X2="345" Y2="118" />
+                <Line X1="492" Y1="236" X2="345" Y2="175" />
+                <Line X1="492" Y1="333" X2="376" Y2="276" />
+                <Line X1="492" Y1="430" X2="376" Y2="338" />
+            </Canvas>
             <Canvas Grid.Row="0">
                 <StackPanel Canvas.Left="15" Canvas.Top="14" Width="188">
                     <TextBlock Text="{l:T A2854.Mapping.Up}" Style="{StaticResource A2854MappingCaption}" />

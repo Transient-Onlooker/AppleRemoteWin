@@ -93,6 +93,7 @@ Do not unplug the dongle during the update (about a minute). The dongle checks t
   <data name="Language.Fr" xml:space="preserve"><value>Français</value></data>
   <data name="Language.En" xml:space="preserve"><value>English</value></data>
   <data name="Assign.Title" xml:space="preserve"><value>Assignments</value></data>
+  <data name="Assign.InputHint" xml:space="preserve"><value>Select a remote button, then choose an action below. Enable Virtual keyboard to run assigned actions, including mouse clicks and scrolling. Pointer movement is a separate option. Right-click a button to open its assignment menu.</value></data>
   <data name="Assign.Help" xml:space="preserve"><value>Select a remote button in the diagram, then click a command or drag it onto that button. Right-click a button for the original menu.</value></data>
   <data name="Assign.Selected" xml:space="preserve"><value>Selected button</value></data>
   <data name="Assign.Search" xml:space="preserve"><value>Search commands</value></data>

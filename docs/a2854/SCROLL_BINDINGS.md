@@ -1,7 +1,7 @@
 # Remote directional buttons: mouse wheel mapping
 
-Branch: `feat/a2854-scroll-mapping`, based on sensitivity slider fix
-`443daeaef00f3e02c9320fe2bbf01809574d59bf`.
+The mapping UX follow-up builds on `a8ca438edb24ec4c6d74f8e1a60739532a839f2c`,
+which already includes the sensitivity slider fix `443daea`.
 
 ## Requested behavior
 
@@ -29,20 +29,24 @@ its System category (and general keys catalogue), with the existing
 assignment/persistence callback. No schema migration or change to saved
 bond / calibration / USB drivers / BLE / touch handling.
 
-**Input gating:** wheel actions follow existing remapped keyboard input
-settings. Enable the app's **keyboard input** toggle to activate remote
-key mapping. Pointer mode is not required. Center-click ownership and mouse
-drag are unchanged. A held arrow currently scrolls one notch per distinct
-press, not continuous autorepeat; if held-repeat is requested later, add it
-separately with a cancel-on-release/Stop policy.
+**Input gating:** wheel and assigned `MouseLeft`/`MouseRight` actions follow
+the remapped keyboard input setting. Enable **Virtual keyboard** for button
+assignments. Pointer movement is separately controlled. Fresh settings use
+keyboard input by default for A2854; legacy settings preserve the existing
+choice, and an explicit A2854 opt-out remains saved. The first-generation
+default is unchanged. A held wheel button sends an initial notch, then repeats
+after 400 ms every 80 ms. Release, remapping, input disable and Stop cancel
+repeats. Mapped mouse buttons share ownership with the physical center click,
+so releasing one owner does not release a button held by another.
 
 ## Verification
 
-Source contains five new portable Core tests for named actions, true
-VK-arrow defaults, wheel signs, JSON round-trip, distinct physical press
-behavior, and rejected-wheel send retry. These don't invoke Windows
-`SendInput`; Windows Codex must independently Release-build and run
-the complete suite before considering merge.
+The earlier `a8ca438` Windows offline QA passed 486/486 full tests and
+86/86 focused tests, with Release build 0 warnings/errors. The follow-up
+Windows offline QA passed 501/501 full and 117/117 focused tests, with
+Release build 0 warnings/errors. Tests use fake sinks and schedulers; they
+do not invoke actual Windows `SendInput` or BLE. An independent review of
+the earlier click-ownership change found no confirmed defect.
 
 Offline UI inspection with **no actual remote connected**:
 - Confirm Up/Down selectors expose `Up`, `Down`, `ScrollUp`, `ScrollDown`.
@@ -52,12 +56,14 @@ Offline UI inspection with **no actual remote connected**:
 For a later **separately approved** real-device test on an innocuous
 scrollable document, enable keyboard injection, map Up=ScrollUp,
 Down=ScrollDown and verify positive/negative wheel direction; release
-must not produce a second notch and holding must not generate unbounded
-repeats. Stop and Quit should cleanly restore original settings and bond.
+must stop repetition and Stop must prevent further wheel events. Verify
+mapped left/right clicks and shared ownership separately. Stop and Quit
+should cleanly restore original settings and bond.
 
 ## Build status
 
-Source-only feature branch created for Windows Codex independent QA. This
-author has not compiled Windows/.NET code in the present environment, so
-no new PASS claim is made. Production `feat/a2854-support` remains
-untouched.
+The follow-up has not had independent physical-device QA for long-press
+repetition or mapped mouse buttons. The user observed scrolling with the
+prior one-notch build after enabling Virtual keyboard. Do not infer that
+the new repeat or click paths have passed hardware testing. Production
+`feat/a2854-support` and its local uncommitted changes remain untouched.

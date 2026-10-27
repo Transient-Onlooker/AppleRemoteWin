@@ -44,6 +44,8 @@
                     </Style>
                 </ListBox.ItemContainerStyle>
             </ListBox>
+            <TextBlock Text="{l:T Assign.InputHint}" TextWrapping="Wrap"
+                       Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,10"/>
             <TextBlock Text="{l:T Assign.Search}" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,5"/>
             <TextBox Text="{Binding AssignmentSearch, UpdateSourceTrigger=PropertyChanged}"
                      Padding="10,8" Margin="0,0,0,8" />

@@ -44,6 +44,8 @@ public sealed class KeyboardInjector : IConfirmedKeySink
 
     public IConfirmedKeySink PhysicalKeys => _physicalKeys;
 
+    public IConfirmedKeySink CreatePointerClickProducer() => _sharedKeys.CreateProducer();
+
     public string? LastError { get; private set; }
 
     public bool HasPendingShortcutReleases => _shortcutSink.HasPendingReleases;
@@ -54,6 +56,19 @@ public sealed class KeyboardInjector : IConfirmedKeySink
 
     public bool TryKey(KeyCode key, bool down)
     {
+        if (key == MouseActions.Left || key == MouseActions.Right)
+        {
+            uint flag = key == MouseActions.Left ? (down ? 0x0002u : 0x0004u)
+                : (down ? 0x0008u : 0x0010u);
+            var mouse = new INPUT
+            {
+                type = 0,
+                U = new INPUT_UNION { mi = new MOUSEINPUT { dwFlags = flag } }
+            };
+            uint count = SendInput(1, [mouse], Marshal.SizeOf<INPUT>());
+            LastError = count == 1 ? null : new Win32Exception(Marshal.GetLastWin32Error()).Message;
+            return count == 1;
+        }
         if (WheelActions.TryDelta(key, out int wheelDelta))
         {
             // Wheel movement has no key-held state at the OS level: one notch

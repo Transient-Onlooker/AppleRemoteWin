@@ -10,6 +10,7 @@ namespace AppleRemote.App.Models;
 public sealed class Settings
 {
     public bool KeyboardEnabled { get; set; }
+    public bool? A2854KeyboardEnabled { get; set; }
     /// <summary>Explicit opt-in for third-generation Siri Remote via dedicated Barrot 33FA:0001 WinUSB.</summary>
     public bool A2854Mode { get; set; }
     /// <summary>Opt-in Windows mouse movement/click synthesis, off by default.</summary>
@@ -62,6 +63,7 @@ public sealed class Settings
             {
                 var settings = JsonSerializer.Deserialize<Settings>(File.ReadAllText(FilePath)) ?? new Settings();
                 settings.ApplyCalibrationDefaults();
+                settings.ApplyKeyboardDefaults(existingSettings: true);
                 return settings;
             }
         }
@@ -71,7 +73,14 @@ public sealed class Settings
         }
         var defaults = new Settings();
         defaults.ApplyCalibrationDefaults();
+        defaults.ApplyKeyboardDefaults(existingSettings: File.Exists(FilePath));
         return defaults;
+    }
+
+    internal void ApplyKeyboardDefaults(bool existingSettings)
+    {
+        // Legacy files cannot distinguish a default OFF from an explicit OFF.
+        A2854KeyboardEnabled ??= existingSettings ? KeyboardEnabled : true;
     }
 
     internal void ApplyCalibrationDefaults()

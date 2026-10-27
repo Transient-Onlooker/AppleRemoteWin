@@ -14,7 +14,7 @@ public sealed class RemoteSession : IDisposable
     readonly RemotePipeline _pipeline = new();
     readonly A2854Decoder _a2854Decoder = new();
     readonly KeyboardInjector _injector = new();
-    readonly A2854PointerMapper _pointer = new(new WindowsPointerSink());
+    readonly A2854PointerMapper _pointer;
     readonly KeyBinder _binder;
     bool _a2854Mode, _a2854PointerEnabled, _acceptA2854Input;
     bool _a2854PointerUseCalibration, _a2854ClickAsKeyboard;
@@ -34,6 +34,7 @@ public sealed class RemoteSession : IDisposable
 
     public RemoteSession(KeyMap? map = null)
     {
+        _pointer = new A2854PointerMapper(new SharedPointerSink(new WindowsPointerSink(), _injector.CreatePointerClickProducer()));
         // Both producers must share a VK owner registry; otherwise Ctrl+C
         // can lift a held physical C when the shortcut completes.
         _binder = new KeyBinder(map ?? KeyMap.Default(), _injector.PhysicalKeys);
@@ -415,6 +416,8 @@ public sealed class RemoteSession : IDisposable
                 {
                     if (_binder.HasPendingReleases || _injector.HasPendingShortcutReleases)
                         ReportKeyboardReleaseResult();
+                    if (_pointer.HasHeldClick && !_pointer.Reset())
+                        Status?.Invoke("A2854: Windows rejected mouse-up; held click retained for cleanup retry.");
                 }
                 return;
             }

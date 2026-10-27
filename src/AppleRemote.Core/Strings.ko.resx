@@ -93,6 +93,7 @@
   <data name="Language.Fr" xml:space="preserve"><value>프랑스어</value></data>
   <data name="Language.En" xml:space="preserve"><value>영어</value></data>
   <data name="Assign.Title" xml:space="preserve"><value>버튼 할당</value></data>
+  <data name="Assign.InputHint" xml:space="preserve"><value>리모컨 버튼을 선택한 뒤 아래에서 동작을 지정하세요. 마우스 클릭·스크롤을 포함한 할당 동작은 ‘가상 키보드 사용’을 켜야 실행됩니다. 포인터 이동은 별도 옵션입니다. 버튼을 우클릭하면 할당 메뉴가 열립니다.</value></data>
   <data name="Assign.Help" xml:space="preserve"><value>리모컨 그림에서 버튼을 선택한 다음 명령을 클릭하거나 버튼 위로 끌어 놓으세요. 오른쪽 클릭으로 기존 할당 메뉴도 열 수 있습니다.</value></data>
   <data name="Assign.Selected" xml:space="preserve"><value>선택한 버튼</value></data>
   <data name="Assign.Search" xml:space="preserve"><value>명령 검색</value></data>
