@@ -35,6 +35,10 @@ public static class Keys
         var d = new Dictionary<string, KeyCode>(StringComparer.OrdinalIgnoreCase)
         {
             ["Left"] = new(0x25, true), ["Up"] = new(0x26, true), ["Right"] = new(0x27, true), ["Down"] = new(0x28, true),
+            // Special mouse wheel actions. These IDs are deliberately OUTSIDE
+            // the legal VK range (1..254); WindowsWheelInput handles them
+            // instead of passing them through KEYBDINPUT.
+            ["ScrollUp"] = WheelActions.Up, ["ScrollDown"] = WheelActions.Down,
             ["Enter"] = new(0x0D), ["Escape"] = new(0x1B), ["Esc"] = new(0x1B), ["Space"] = new(0x20),
             ["Tab"] = new(0x09), ["Backspace"] = new(0x08),
             ["Home"] = new(0x24, true), ["End"] = new(0x23, true),
@@ -49,6 +53,34 @@ public static class Keys
         for (int i = 0; i <= 9; i++) d[$"D{i}"] = new((ushort)('0' + i));
         for (int i = 1; i <= 12; i++) d[$"F{i}"] = new((ushort)(0x6F + i));
         return d;
+    }
+}
+
+/// <summary>
+/// Virtual action identifiers for mouse wheel steps in KeyMap's existing
+/// persisted string format. They cannot collide with Windows VK codes.
+/// Wheel input is a one-shot action on button-down: key-up performs no IO.
+/// </summary>
+public static class WheelActions
+{
+    public static readonly KeyCode Up = new(0x100);
+    public static readonly KeyCode Down = new(0x101);
+    public const int DeltaPerNotch = 120;
+
+    public static bool TryDelta(KeyCode key, out int delta)
+    {
+        if (key == Up)
+        {
+            delta = DeltaPerNotch;
+            return true;
+        }
+        if (key == Down)
+        {
+            delta = -DeltaPerNotch;
+            return true;
+        }
+        delta = 0;
+        return false;
     }
 }
 

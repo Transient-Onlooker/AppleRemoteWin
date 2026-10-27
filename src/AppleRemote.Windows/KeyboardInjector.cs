@@ -54,6 +54,13 @@ public sealed class KeyboardInjector : IConfirmedKeySink
 
     public bool TryKey(KeyCode key, bool down)
     {
+        if (WheelActions.TryDelta(key, out int wheelDelta))
+        {
+            // Wheel movement has no key-held state at the OS level: one notch
+            // on button-down and no synthetic event on button-up.
+            if (!down) return true;
+            return TryWheel(wheelDelta);
+        }
         uint flags = down ? 0u : KEYEVENTF_KEYUP;
         if (key.Extended) flags |= KEYEVENTF_EXTENDEDKEY;
 
@@ -74,6 +81,28 @@ public sealed class KeyboardInjector : IConfirmedKeySink
         };
 
         uint sent = SendInput(1, new[] { input }, Marshal.SizeOf<INPUT>());
+        LastError = sent == 1 ? null : new Win32Exception(Marshal.GetLastWin32Error()).Message;
+        return sent == 1;
+    }
+
+    bool TryWheel(int delta)
+    {
+        // Windows MOUSEEVENTF_WHEEL. Positive = up, negative = down;
+        // signed wheel delta is represented in the DWORD mouseData field.
+        const uint InputMouse = 0, MouseWheel = 0x0800;
+        var input = new INPUT
+        {
+            type = InputMouse,
+            U = new INPUT_UNION
+            {
+                mi = new MOUSEINPUT
+                {
+                    dx = 0, dy = 0, mouseData = unchecked((uint)delta),
+                    dwFlags = MouseWheel, time = 0, dwExtraInfo = IntPtr.Zero
+                }
+            }
+        };
+        uint sent = SendInput(1, [input], Marshal.SizeOf<INPUT>());
         LastError = sent == 1 ? null : new Win32Exception(Marshal.GetLastWin32Error()).Message;
         return sent == 1;
     }

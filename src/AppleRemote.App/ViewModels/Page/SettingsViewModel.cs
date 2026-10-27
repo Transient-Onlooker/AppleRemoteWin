@@ -152,7 +152,8 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
                 },
                 "keys" => Keys.Names.Keys.Where(k => k != "Esc").OrderBy(k => k)
                     .Select(k => new AssignmentEntry(k, k)),
-                "system" => new[] { "VolumeMute", "VolumeUp", "VolumeDown",
+                "system" => new[] { "ScrollUp", "ScrollDown",
+                    "VolumeMute", "VolumeUp", "VolumeDown",
                     "MediaPlayPause", "MediaNext", "MediaPrev", "MediaStop",
                     "BrowserBack", "BrowserForward", "BrowserHome", "BrowserRefresh" }
                     .Select(k => new AssignmentEntry(k, k)),
