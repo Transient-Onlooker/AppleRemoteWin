@@ -2,13 +2,28 @@
 // Copyright (C) 2026 AnthoDingo
 
 using System.IO;
+using System.ComponentModel;
+using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace AppleRemote.App.Models;
 
+public enum SettingsPersistenceError { None, LoadFailed, SaveFailed }
+
 /// <summary>Preferences in %AppData%\AppleRemote\settings.json.</summary>
-public sealed class Settings
+public sealed class Settings : INotifyPropertyChanged
 {
+    readonly object _saveLock = new();
+    string? _filePath;
+    bool _saveBlocked;
+
+    [JsonIgnore]
+    public SettingsPersistenceError LastPersistenceError { get; private set; }
+    [JsonIgnore]
+    public Exception? PersistenceException { get; private set; }
+    public event PropertyChangedEventHandler? PropertyChanged;
+
     public bool KeyboardEnabled { get; set; }
     public bool? A2854KeyboardEnabled { get; set; }
     /// <summary>Explicit opt-in for third-generation Siri Remote via dedicated Barrot 33FA:0001 WinUSB.</summary>
@@ -55,26 +70,41 @@ public sealed class Settings
     public static string FilePath => System.IO.Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "AppleRemote", "settings.json");
 
-    public static Settings Load()
+    public static Settings Load() => Load(FilePath);
+
+    internal static Settings Load(string path)
     {
         try
         {
-            if (File.Exists(FilePath))
-            {
-                var settings = JsonSerializer.Deserialize<Settings>(File.ReadAllText(FilePath)) ?? new Settings();
-                settings.ApplyCalibrationDefaults();
-                settings.ApplyKeyboardDefaults(existingSettings: true);
-                return settings;
-            }
+            var settings = JsonSerializer.Deserialize<Settings>(File.ReadAllText(path))
+                ?? throw new JsonException("Settings must be a JSON object.");
+            settings._filePath = path;
+            settings.ApplyCalibrationDefaults();
+            settings.ApplyKeyboardDefaults(existingSettings: true);
+            return settings;
         }
-        catch
+        catch (FileNotFoundException)
         {
-            // unreadable file: defaults
+            var defaults = new Settings { _filePath = path };
+            defaults.ApplyCalibrationDefaults();
+            defaults.ApplyKeyboardDefaults(existingSettings: false);
+            return defaults;
         }
-        var defaults = new Settings();
-        defaults.ApplyCalibrationDefaults();
-        defaults.ApplyKeyboardDefaults(existingSettings: File.Exists(FilePath));
-        return defaults;
+        catch (DirectoryNotFoundException)
+        {
+            var defaults = new Settings { _filePath = path };
+            defaults.ApplyCalibrationDefaults();
+            defaults.ApplyKeyboardDefaults(existingSettings: false);
+            return defaults;
+        }
+        catch (Exception e)
+        {
+            var defaults = new Settings { _filePath = path, _saveBlocked = true,
+                LastPersistenceError = SettingsPersistenceError.LoadFailed, PersistenceException = e };
+            defaults.ApplyCalibrationDefaults();
+            defaults.ApplyKeyboardDefaults(existingSettings: true);
+            return defaults;
+        }
     }
 
     internal void ApplyKeyboardDefaults(bool existingSettings)
@@ -94,14 +124,54 @@ public sealed class Settings
 
     public void Save()
     {
-        try
+        SettingsPersistenceError error;
+        Exception? failure;
+        bool errorChanged, exceptionChanged;
+        lock (_saveLock)
         {
-            Directory.CreateDirectory(System.IO.Path.GetDirectoryName(FilePath)!);
-            File.WriteAllText(FilePath, JsonSerializer.Serialize(this, new JsonSerializerOptions { WriteIndented = true }));
+            if (_saveBlocked) return;
+            string? temporary = null;
+            try
+            {
+                string path = _filePath ?? FilePath;
+                string directory = Path.GetDirectoryName(Path.GetFullPath(path))!;
+                Directory.CreateDirectory(directory);
+                string json = JsonSerializer.Serialize(this, new JsonSerializerOptions { WriteIndented = true });
+                temporary = Path.Combine(directory, $".{Path.GetFileName(path)}.{Guid.NewGuid():N}.tmp");
+                using (var stream = new FileStream(temporary, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+                {
+                    using (var writer = new StreamWriter(stream, new UTF8Encoding(false), leaveOpen: true))
+                    {
+                        writer.Write(json);
+                        writer.Flush();
+                    }
+                    stream.Flush(flushToDisk: true);
+                }
+                if (File.Exists(path)) File.Replace(temporary, path, path + ".bak");
+                else File.Move(temporary, path);
+                error = SettingsPersistenceError.None;
+                failure = null;
+            }
+            catch (Exception e)
+            {
+                error = SettingsPersistenceError.SaveFailed;
+                failure = e;
+            }
+            finally
+            {
+                if (temporary is not null)
+                {
+                    try { File.Delete(temporary); }
+                    catch (IOException) { }
+                    catch (UnauthorizedAccessException) { }
+                }
+            }
+            errorChanged = LastPersistenceError != error;
+            exceptionChanged = PersistenceException != failure;
+            LastPersistenceError = error;
+            PersistenceException = failure;
         }
-        catch
-        {
-            // non-critical preferences
-        }
+        if (errorChanged) PropertyChanged?.Invoke(this, new(nameof(LastPersistenceError)));
+        if (exceptionChanged) PropertyChanged?.Invoke(this, new(nameof(PersistenceException)));
     }
 }

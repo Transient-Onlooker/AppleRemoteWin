@@ -6,6 +6,7 @@ using AppleRemote.App.ViewModels;
 using System.Windows;
 using System.Windows.Interop;
 using System.Windows.Threading;
+using Microsoft.Win32;
 using Wpf.Ui.Abstractions;
 
 namespace AppleRemote.App.Views;
@@ -33,6 +34,18 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
         // Each page gets its own view-model and keeps its state between visits.
         RootNavigation.SetPageProviderService(new PageProvider(_viewModel));
         Application.Current.SessionEnding += (_, _) => _quitting = true;   // Windows shutdown: don't hold back the close
+        SystemEvents.PowerModeChanged += SystemEvents_PowerModeChanged;
+        SystemEvents.SessionSwitch += SystemEvents_SessionSwitch;
+    }
+
+    void SystemEvents_PowerModeChanged(object sender, PowerModeChangedEventArgs e)
+    {
+        if (e.Mode == PowerModes.Suspend) _viewModel.StopA2854ForPowerOrLock();
+    }
+
+    void SystemEvents_SessionSwitch(object sender, SessionSwitchEventArgs e)
+    {
+        if (e.Reason == SessionSwitchReason.SessionLock) _viewModel.StopA2854ForPowerOrLock();
     }
 
     void Window_Loaded(object sender, RoutedEventArgs e)
@@ -68,6 +81,8 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
             Hide();
             return;
         }
+        SystemEvents.PowerModeChanged -= SystemEvents_PowerModeChanged;
+        SystemEvents.SessionSwitch -= SystemEvents_SessionSwitch;
         _viewModel.Dispose();
     }
 

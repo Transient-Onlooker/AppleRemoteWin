@@ -42,6 +42,22 @@ public sealed partial class RemoteViewModel : ObservableObject, IDisposable
     readonly BleScanner _scanner = new();
     readonly IDialogs _dialogs;
     readonly DispatcherTimer _scanTimer = new() { Interval = TimeSpan.FromSeconds(1) };
+    TimeSpan _lastTouchSummary;
+    readonly Queue<string> _touchSummaries = new();
+    [ObservableProperty] bool _touchIncidentCaptureEnabled;
+    public string TouchIncidentStatus => Loc.T(_session.TouchIncidentState switch
+    {
+        A2854TraceIncidentState.Capturing => "A2854.Remote.IncidentCollecting",
+        A2854TraceIncidentState.Ready => "A2854.Remote.IncidentReady",
+        A2854TraceIncidentState.None when TouchIncidentCaptureEnabled => "A2854.Remote.IncidentWaiting",
+        _ => "A2854.Remote.IncidentOff"
+    });
+
+    partial void OnTouchIncidentCaptureEnabledChanged(bool value)
+    {
+        _session.EnableTouchIncidentCapture(value);
+        OnPropertyChanged(nameof(TouchIncidentStatus));
+    }
     readonly DispatcherTimer _trailTimer = new() { Interval = TimeSpan.FromMilliseconds(30) };
     readonly DispatcherTimer _gestureTimer = new() { Interval = TimeSpan.FromMilliseconds(TrailLifeMs) };
     bool _wasDown;
@@ -90,6 +106,7 @@ public sealed partial class RemoteViewModel : ObservableObject, IDisposable
     // A queued Dispatcher callback must never display data from a previous
     // connection or remote model after Start/Stop/model switching.
     long _visualEpoch;
+    public long SessionGeneration => Interlocked.Read(ref _visualEpoch);
 
     /// <summary>BLE devices seen advertising with Apple manufacturer data + HID service ("Apple HID").</summary>
     [ObservableProperty] IReadOnlyList<NearbyRow> _nearbyDevices = [];
@@ -170,8 +187,13 @@ public sealed partial class RemoteViewModel : ObservableObject, IDisposable
     public string BatteryText => BatteryLevel is { } level ? Loc.T("Remote.Battery", level) : Loc.T("Remote.BatteryUnknown");
 
     public string StartStopText => Loc.T(
+        !_session.IsRunning && _session.A2854UsbCleanupState == A2854CleanupState.Pending ? "Remote.Closing" :
         _session.CanRestartEndedA2854 ? "Remote.Reconnect" :
         _session.IsRunning ? "Remote.Stop" : "Remote.Start");
+
+    bool CanStartStop() => _session.IsRunning ||
+        A2854CleanupPolicy.CanStart(_session.A2854UsbCleanupState);
+    A2854CleanupState _observedCleanupState;
 
     /// <param name="runBound">Runs what is assigned to a remote input (key, software, combo, macro).</param>
     public RemoteViewModel(RemoteSession session, IDialogs dialogs, Action<string> log, Action<string> runBound)
@@ -186,10 +208,16 @@ public sealed partial class RemoteViewModel : ObservableObject, IDisposable
         _session.Event += ev =>
         {
             long epoch = Interlocked.Read(ref _visualEpoch);
+            bool traceTouch = _session.A2854Mode && ev is TouchEvent;
+            long enqueued = traceTouch ? _session.TouchDiagnostics.UiQueued() : 0;
             _ = _ui.InvokeAsync(() =>
             {
                 if (epoch == Interlocked.Read(ref _visualEpoch) && _session.IsRunning)
-                    OnEvent(ev);
+                {
+                    try { OnEvent(ev); }
+                    finally { if (traceTouch) _session.TouchDiagnostics.UiApplied(enqueued); }
+                }
+                else if (traceTouch) _session.TouchDiagnostics.UiDropped();
             }, DispatcherPriority.Render);
         };
         _session.Gesture += g =>
@@ -227,6 +255,23 @@ public sealed partial class RemoteViewModel : ObservableObject, IDisposable
             // Native A2854 finishes USB cleanup asynchronously after the peer
             // disconnects. Refresh its manual Reconnect action when ready.
             OnPropertyChanged(nameof(StartStopText));
+            StartStopCommand.NotifyCanExecuteChanged();
+            RefreshCleanupState();
+            if (TouchIncidentCaptureEnabled) OnPropertyChanged(nameof(TouchIncidentStatus));
+            if (_session.A2854Mode && _session.IsRunning)
+            {
+                _session.TouchDiagnostics.UiHeartbeat();
+                var elapsed = _session.TouchDiagnosticElapsed;
+                if (elapsed - _lastTouchSummary >= TimeSpan.FromSeconds(5))
+                {
+                    if (_touchSummaries.Count == 12) _touchSummaries.Dequeue();
+                    _touchSummaries.Enqueue(_session.TouchDiagnostics.DrainSummary() +
+                        FormattableString.Invariant($" elapsed_ms={elapsed.TotalMilliseconds:F0} window_ms={(elapsed - _lastTouchSummary).TotalMilliseconds:F0}"));
+                    _lastTouchSummary = elapsed;
+                }
+            }
+            // Dedicated native A2854 sessions do not use the Windows HID/nearby list.
+            if (_session.A2854Mode) return;
             var all = await Task.Run(() =>
             {
                 try { return HidEnumerator.ListAll(); }
@@ -349,7 +394,7 @@ public sealed partial class RemoteViewModel : ObservableObject, IDisposable
     // translations rather than attempting to parse the old UI language.
     static readonly string[] PlainStatusKeys =
     [
-        "Status.Stopped", "Status.WaitHid", "Status.WaitBonded",
+        "Status.Stopped", "Status.UsbClosing", "Status.UsbCleanupFailed", "Status.WaitHid", "Status.WaitBonded",
         "Status.WaitPairing", "Status.Disconnected", "Status.WaitDongle",
         "Status.DongleIdle", "Status.PairingFirst", "Status.ConnectedDirect",
         "Status.ConnectedDongle", "Status.Relocked"
@@ -400,6 +445,10 @@ public sealed partial class RemoteViewModel : ObservableObject, IDisposable
 
     public void StartSession()
     {
+        // Do not discard the previous timeline or visual state on a blocked Start.
+        if (!A2854CleanupPolicy.CanStart(_session.A2854UsbCleanupState)) return;
+        _lastTouchSummary = TimeSpan.Zero;
+        _touchSummaries.Clear();
         Interlocked.Increment(ref _visualEpoch);
         BatteryLevel = null; // never show stale percent from a previous connection
         ClearA2854VisualContacts();
@@ -428,6 +477,9 @@ public sealed partial class RemoteViewModel : ObservableObject, IDisposable
         Interlocked.Increment(ref _visualEpoch);
         BatteryLevel = null;
         _session.Stop();
+        OnPropertyChanged(nameof(TouchIncidentStatus));
+        RefreshCleanupState();
+        RefreshButtons();
         ShowButtons(0);
         foreach (var finger in Fingers) finger.IsVisible = false;
         _trail.Clear();
@@ -689,6 +741,7 @@ public sealed partial class RemoteViewModel : ObservableObject, IDisposable
         if (Loc.StartsWith(message, "Status.BatteryUnreadable") ||
             message.StartsWith("A2854: battery ", StringComparison.Ordinal))
         {
+            RecordA2854Timeline(message);
             _log(message);
             return;
         }
@@ -707,8 +760,7 @@ public sealed partial class RemoteViewModel : ObservableObject, IDisposable
                 break;
             }
         }
-        if (_session.A2854Mode && _sessionTimeline.Record(message))
-            A2854TimelineCount = Loc.T("A2854.Link.EventsCount", _sessionTimeline.Snapshot().Count);
+        RecordA2854Timeline(message);
         if (_session.A2854Mode && IsA2854OutcomeMessage(message))
         {
             // Copy result and the on-screen outcome use exactly the same
@@ -717,11 +769,23 @@ public sealed partial class RemoteViewModel : ObservableObject, IDisposable
             A2854LastLinkSummary = A2854SessionTimeline.Redact(message)
                 ?? Loc.T("A2854.Link.Fallback");
         }
+        if (!_session.IsRunning)
+        {
+            var cleanup = _session.A2854UsbCleanupState;
+            if (cleanup is A2854CleanupState.Pending or A2854CleanupState.Failed)
+            {
+                _lastStatusKey = cleanup == A2854CleanupState.Pending ? "Status.UsbClosing" : "Status.UsbCleanupFailed";
+                _lastStatusArguments = [];
+                StatusText = Loc.T(_lastStatusKey);
+            }
+        }
         bool ok = new[] { "Status.ConnectedHid", "Status.ConnectedDirect", "Status.ConnectedDongle" }.Any(k => Loc.StartsWith(message, k));
         bool warn = new[] { "Status.WaitHid", "Status.WaitBonded", "Status.WaitPairing", "Status.Unreachable", "Status.Disconnected", "Status.DisconnectedReason", "Status.WaitDongle", "Status.DongleIdle" }
             .Any(k => Loc.StartsWith(message, k));
         // "Stopped" only if the session is really stopped: an unknown message keeps the current level.
-        StatusLevel = ok ? StatusLevel.Ok : warn ? StatusLevel.Warn : _session.IsRunning ? StatusLevel : StatusLevel.Idle;
+        StatusLevel = !_session.IsRunning && _session.A2854UsbCleanupState == A2854CleanupState.Failed
+            ? StatusLevel.Warn
+            : ok ? StatusLevel.Ok : warn ? StatusLevel.Warn : _session.IsRunning ? StatusLevel : StatusLevel.Idle;
         _log(message);
     }
 
@@ -737,6 +801,31 @@ public sealed partial class RemoteViewModel : ObservableObject, IDisposable
         message.StartsWith("A2854: previous USB", StringComparison.Ordinal) ||
         message.StartsWith("A2854: transport error (", StringComparison.Ordinal) ||
         message.StartsWith("A2854: link cleanup incomplete", StringComparison.Ordinal);
+
+    void RecordA2854Timeline(string message)
+    {
+        if (_session.A2854Mode && _sessionTimeline.Record(message))
+            A2854TimelineCount = Loc.T("A2854.Link.EventsCount", _sessionTimeline.Snapshot().Count);
+    }
+
+    void RefreshCleanupState()
+    {
+        var state = _session.A2854UsbCleanupState;
+        if (state == _observedCleanupState) return;
+        _observedCleanupState = state;
+        RecordA2854Timeline(state switch
+        {
+            A2854CleanupState.Pending => "A2854: USB cleanup pending.",
+            A2854CleanupState.Succeeded => "A2854: USB cleanup completed.",
+            A2854CleanupState.Failed => "A2854: USB cleanup failed.",
+            _ => ""
+        });
+        if (!_session.IsRunning && state != A2854CleanupState.None)
+            OnStatus(Loc.T(state == A2854CleanupState.Succeeded ? "Status.Stopped" :
+                state == A2854CleanupState.Failed ? "Status.UsbCleanupFailed" : "Status.UsbClosing"));
+        StartStopCommand.NotifyCanExecuteChanged();
+        OnPropertyChanged(nameof(StartStopText));
+    }
 
     /// <summary>
     /// Raw 0xFC geometry is stored apart from settings and the protected bond.
@@ -855,12 +944,34 @@ public sealed partial class RemoteViewModel : ObservableObject, IDisposable
         {
             var lines = _session.A2854TouchBoundarySnapshot();
             Clipboard.SetText("A2854 touch boundary: last 2 seconds; age_ms relative to snapshot" +
-                Environment.NewLine + string.Join(Environment.NewLine, lines));
+                Environment.NewLine + string.Join(Environment.NewLine, lines) + Environment.NewLine +
+                string.Join(Environment.NewLine, _touchSummaries));
         }
         catch (Exception e)
         {
             _log($"A2854: unable to copy touch boundary trace ({e.GetType().Name}).");
         }
+    }
+
+    [RelayCommand]
+    void CopyA2854TouchIncident()
+    {
+        var incident = _session.TouchIncidentSnapshot();
+        if (incident is null) return;
+        try
+        {
+            Clipboard.SetText(FormattableString.Invariant($"A2854 incident: trigger={incident.Trigger} elapsed_ms={incident.TriggerElapsed.TotalMilliseconds:F0} collecting={incident.Capturing} truncated={incident.Truncated}") +
+                Environment.NewLine + string.Join(Environment.NewLine, incident.Lines) + Environment.NewLine +
+                string.Join(Environment.NewLine, _touchSummaries));
+        }
+        catch (Exception e) { _log($"A2854: unable to copy touch incident ({e.GetType().Name})."); }
+    }
+
+    [RelayCommand]
+    void ClearA2854TouchIncident()
+    {
+        _session.ClearTouchIncident();
+        OnPropertyChanged(nameof(TouchIncidentStatus));
     }
 
     /// <summary>Copy only locally measured X/Y landmarks for support/QA.</summary>
@@ -904,7 +1015,7 @@ public sealed partial class RemoteViewModel : ObservableObject, IDisposable
 
     // ---- commands -----------------------------------------------------------------------
 
-    [RelayCommand]
+    [RelayCommand(CanExecute = nameof(CanStartStop))]
     void StartStop()
     {
         if (_session.CanRestartEndedA2854)
@@ -922,6 +1033,7 @@ public sealed partial class RemoteViewModel : ObservableObject, IDisposable
     void RefreshButtons()
     {
         OnPropertyChanged(nameof(StartStopText));
+        StartStopCommand.NotifyCanExecuteChanged();
         Preferences?.SessionChanged();
         if (!_session.IsRunning)
         {

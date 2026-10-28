@@ -10,18 +10,16 @@ namespace AppleRemote.Windows;
 /// Mouse-only SendInput backend. Constructed by RemoteSession but never called
 /// unless the user explicitly enables A2854 pointer injection in the GUI.
 /// </summary>
-public sealed class WindowsPointerSink : IRelativePointerSink
+public sealed class WindowsPointerSink : IConfirmedRelativePointerSink
 {
     const uint InputMouse = 0;
     const uint MouseMove = 0x0001, LeftDown = 0x0002, LeftUp = 0x0004;
 
     public string? LastError { get; private set; }
 
-    public void Move(int dx, int dy)
-    {
-        if (dx == 0 && dy == 0) return;
-        _ = Send(dx, dy, MouseMove);
-    }
+    public void Move(int dx, int dy) => _ = TryMove(dx, dy);
+
+    public bool TryMove(int dx, int dy) => (dx == 0 && dy == 0) || Send(dx, dy, MouseMove);
 
     public bool LeftButton(bool down) => Send(0, 0, down ? LeftDown : LeftUp);
 

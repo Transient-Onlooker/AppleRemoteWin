@@ -14,6 +14,7 @@ public sealed class MainViewModel : IDisposable
     readonly Settings _settings = Settings.Load();
     readonly RemoteSession _session;
     readonly Dispatcher _ui = Dispatcher.CurrentDispatcher;
+    A2854PowerStopCoordinator? _powerStopCoordinator;
     UpdateService? _updates;
 
     public DebugViewModel Debug { get; }
@@ -46,6 +47,10 @@ public sealed class MainViewModel : IDisposable
         // registry as the active RemoteSession, never a disconnected injector.
         Macros = new MacrosViewModel(Preferences.MacroChoices, Preferences.SoftwareChoices,
             dialogs, _session.Injector);
+        _powerStopCoordinator = new A2854PowerStopCoordinator(
+            () => _session.A2854Mode && _session.IsRunning,
+            action => _ui.BeginInvoke(DispatcherPriority.Send, action),
+            Remote.StopSession, () => Remote.SessionGeneration);
     }
 
     public bool CloseQuits => Preferences.CloseQuits;
@@ -58,6 +63,8 @@ public sealed class MainViewModel : IDisposable
 
     public void Dispose()
     {
+        _powerStopCoordinator?.Dispose();
+        _powerStopCoordinator = null;
         // A macro editor test may be cancelled by application quit rather
         // than the Test button. Attempt its input cleanup before shutdown.
         Macros.CancelTestAndRelease();
@@ -67,4 +74,6 @@ public sealed class MainViewModel : IDisposable
         _settings.Save();
         _session.Dispose();
     }
+
+    public void StopA2854ForPowerOrLock() => _powerStopCoordinator?.RequestStop();
 }

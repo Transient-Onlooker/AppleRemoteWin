@@ -143,9 +143,19 @@
                                        Padding="8,4" />
                         </StackPanel>
                     </Grid>
-                    <ui:Button Content="{l:T A2854.Remote.CopyTouchBoundary}"
-                               Command="{Binding CopyA2854TouchBoundaryCommand}"
-                               HorizontalAlignment="Left" Margin="0,2,0,6" Padding="8,4" />
+                    <Expander Header="{l:T A2854.Remote.Diagnostics}" Margin="0,2,0,6">
+                        <StackPanel>
+                            <ui:Button Content="{l:T A2854.Remote.CopyTouchBoundary}"
+                                       Command="{Binding CopyA2854TouchBoundaryCommand}"
+                                       HorizontalAlignment="Left" Margin="0,2,0,6" Padding="8,4" />
+                            <CheckBox Content="{l:T A2854.Remote.IncidentCapture}" IsChecked="{Binding TouchIncidentCaptureEnabled}" />
+                            <TextBlock Text="{Binding TouchIncidentStatus}" FontSize="11" TextWrapping="Wrap" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                            <StackPanel Orientation="Horizontal" Margin="0,4,0,6">
+                                <ui:Button Content="{l:T A2854.Remote.CopyIncident}" Command="{Binding CopyA2854TouchIncidentCommand}" Padding="8,4" />
+                                <ui:Button Content="{l:T A2854.Remote.ClearIncident}" Command="{Binding ClearA2854TouchIncidentCommand}" Margin="6,0,0,0" Padding="8,4" />
+                            </StackPanel>
+                        </StackPanel>
+                    </Expander>
                     <TextBlock Text="{l:T A2854.Remote.Bond}"
                                FontSize="12" TextWrapping="Wrap"
                                Foreground="{DynamicResource TextFillColorSecondaryBrush}" />

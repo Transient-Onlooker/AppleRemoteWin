@@ -131,6 +131,22 @@ public sealed class A2854SessionTimeline
                 : "Host disconnect unverified";
         }
 
+        if (message.StartsWith("A2854: battery query outcome=", StringComparison.Ordinal))
+        {
+            var m = MatchNumeric(message,
+                @"\AA2854: battery query outcome=(success|battery_service_missing|battery_service_ambiguous|battery_level_missing|battery_level_ambiguous|battery_level_unreadable|invalid_payload|read_rejected|query_failed|timeout); level=(unknown|[0-9]{1,3})\.\z");
+            if (!m.Success) return "Battery query (details withheld)";
+            string outcome = m.Groups[1].Value, level = m.Groups[2].Value;
+            if (outcome == "success")
+            {
+                if (!int.TryParse(level, out int percent) || percent > 100)
+                    return "Battery query (details withheld)";
+                return $"Battery query=success; level={percent}%";
+            }
+            return level == "unknown" ? $"Battery query={outcome}; level=unknown"
+                : "Battery query (details withheld)";
+        }
+
         // Exact, independently authored constants: do not return arbitrary
         // tail text from a StartsWith match.
         string[] constants =
@@ -139,6 +155,11 @@ public sealed class A2854SessionTimeline
             "A2854: encrypted LTK connection established.",
             "A2854: connection or operation timed out. Existing bond was preserved.",
             "A2854: both input notifications disabled.",
+            "A2854: USB cleanup pending.",
+            "A2854: USB cleanup completed.",
+            "A2854: USB cleanup failed.",
+            "A2854: native USB cleanup completed.",
+            "A2854: native USB cleanup failed.",
             "A2854: notification cleanup partial; disconnect follows.",
             "A2854: notification cleanup interrupted; closing link.",
             "A2854: host disconnect completed with normal local reason 0x16.",

@@ -367,4 +367,20 @@ An administrator confirmation (UAC) will appear.</value></data>
   <data name="A2854.Cal.Top" xml:space="preserve"><value>Top</value></data>
   <data name="A2854.Cal.Bottom" xml:space="preserve"><value>Bottom</value></data>
   <data name="A2854.Touch.Live" xml:space="preserve"><value>Live 0xFC: X={0}, Y={1}</value></data>
+  <data name="Status.UsbClosing" xml:space="preserve"><value>Stopping — waiting for USB cleanup</value></data>
+  <data name="Status.UsbCleanupFailed" xml:space="preserve"><value>USB cleanup failed — restart blocked</value></data>
+  <data name="Remote.Closing" xml:space="preserve"><value>Closing…</value></data>
+  <data name="A2854.Remote.IncidentCapture" xml:space="preserve"><value>Capture touch incidents (memory only)</value></data>
+  <data name="A2854.Remote.CopyIncident" xml:space="preserve"><value>Copy incident</value></data>
+  <data name="A2854.Remote.ClearIncident" xml:space="preserve"><value>Clear incident</value></data>
+  <data name="A2854.Settings.InputEnable" xml:space="preserve"><value>Enable button assignments</value></data>
+  <data name="A2854.Settings.InputEnableHint" xml:space="preserve"><value>Turning this off disables assigned keys, shortcuts, mouse buttons and scrolling. Pointer movement is controlled separately.</value></data>
+  <data name="Settings.KeyboardHint" xml:space="preserve"><value>Enable keyboard input assigned to the remote.</value></data>
+  <data name="Settings.LoadFailed" xml:space="preserve"><value>Settings could not be read. Saving is blocked to protect the original file.</value></data>
+  <data name="Settings.SaveFailed" xml:space="preserve"><value>Settings could not be saved. Changes may be lost on restart.</value></data>
+  <data name="A2854.Remote.IncidentCollecting" xml:space="preserve"><value>Collecting incident context</value></data>
+  <data name="A2854.Remote.IncidentReady" xml:space="preserve"><value>Incident captured — this does not confirm a fault</value></data>
+  <data name="A2854.Remote.IncidentWaiting" xml:space="preserve"><value>Waiting for a diagnostic signal</value></data>
+  <data name="A2854.Remote.IncidentOff" xml:space="preserve"><value>Incident capture off</value></data>
+  <data name="A2854.Remote.Diagnostics" xml:space="preserve"><value>Touch diagnostics</value></data>
 </root>

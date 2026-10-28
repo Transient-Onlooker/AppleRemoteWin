@@ -367,4 +367,20 @@ WinUSB가 제거되고 Windows가 해당 어댑터를 다시 사용합니다(직
   <data name="A2854.Cal.Top" xml:space="preserve"><value>위쪽</value></data>
   <data name="A2854.Cal.Bottom" xml:space="preserve"><value>아래쪽</value></data>
   <data name="A2854.Touch.Live" xml:space="preserve"><value>실시간 0xFC: X={0}, Y={1}</value></data>
+  <data name="Status.UsbClosing" xml:space="preserve"><value>중지 중 — USB 정리 완료 대기</value></data>
+  <data name="Status.UsbCleanupFailed" xml:space="preserve"><value>USB 정리 실패 — 다시 시작할 수 없음</value></data>
+  <data name="Remote.Closing" xml:space="preserve"><value>정리 중…</value></data>
+  <data name="A2854.Remote.IncidentCapture" xml:space="preserve"><value>터치 이상 전후 기록 (메모리에만 보관)</value></data>
+  <data name="A2854.Remote.CopyIncident" xml:space="preserve"><value>기록 복사</value></data>
+  <data name="A2854.Remote.ClearIncident" xml:space="preserve"><value>기록 지우기</value></data>
+  <data name="A2854.Settings.InputEnable" xml:space="preserve"><value>버튼 할당 실행</value></data>
+  <data name="A2854.Settings.InputEnableHint" xml:space="preserve"><value>끄면 할당한 키, 단축키, 마우스 버튼과 스크롤이 실행되지 않습니다. 포인터 이동은 별도 설정입니다.</value></data>
+  <data name="Settings.KeyboardHint" xml:space="preserve"><value>리모컨에 할당된 키보드 입력을 실행합니다.</value></data>
+  <data name="Settings.LoadFailed" xml:space="preserve"><value>설정을 읽지 못해 원본을 보호하고 저장을 중단했습니다. 설정 파일을 확인해 주세요.</value></data>
+  <data name="Settings.SaveFailed" xml:space="preserve"><value>설정을 저장하지 못했습니다. 변경 내용은 재시작 후 사라질 수 있습니다.</value></data>
+  <data name="A2854.Remote.IncidentCollecting" xml:space="preserve"><value>이상 전후 기록 중</value></data>
+  <data name="A2854.Remote.IncidentReady" xml:space="preserve"><value>기록 준비됨 — 오류가 확정된 것은 아닙니다</value></data>
+  <data name="A2854.Remote.IncidentWaiting" xml:space="preserve"><value>의심 신호 대기 중</value></data>
+  <data name="A2854.Remote.IncidentOff" xml:space="preserve"><value>이상 기록 꺼짐</value></data>
+  <data name="A2854.Remote.Diagnostics" xml:space="preserve"><value>터치 진단</value></data>
 </root>

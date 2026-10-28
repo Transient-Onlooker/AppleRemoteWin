@@ -24,7 +24,8 @@ public sealed class A2854PointerTraceTests
     }
 
     static void Expect(A2854PointerMapper mapper, A2854TouchObservationKind kind, int x = 0, int y = 0) =>
-        Assert.Equal(new A2854TouchObservation(kind, x, y), mapper.LastTouchObservation);
+        Assert.Equal(new A2854TouchObservation(kind, x, y,
+            kind == A2854TouchObservationKind.Move ? A2854MoveAcceptance.Unknown : A2854MoveAcceptance.NotAttempted), mapper.LastTouchObservation);
 
     [Fact]
     public void Touch_outcomes_distinguish_reset_anchor_jump_and_output_signs()

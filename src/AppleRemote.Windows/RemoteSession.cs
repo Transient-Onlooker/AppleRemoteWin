@@ -16,6 +16,8 @@ public sealed class RemoteSession : IDisposable
     readonly RemotePipeline _pipeline = new();
     readonly A2854Decoder _a2854Decoder = new();
     readonly A2854TouchBoundaryTrace _touchBoundaryTrace = new();
+    readonly A2854TouchDiagnostics _touchDiagnostics = new();
+    long _touchSessionStart = Stopwatch.GetTimestamp();
     readonly KeyboardInjector _injector = new();
     readonly A2854PointerMapper _pointer;
     readonly KeyBinder _binder;
@@ -56,7 +58,14 @@ public sealed class RemoteSession : IDisposable
     public KeyboardInjector Injector => _injector;
 
     public IReadOnlyList<string> A2854TouchBoundarySnapshot() =>
-        _touchBoundaryTrace.Snapshot(Stopwatch.GetElapsedTime(0));
+        _touchBoundaryTrace.Snapshot(TouchDiagnosticElapsed);
+
+    public A2854TouchDiagnostics TouchDiagnostics => _touchDiagnostics;
+    public TimeSpan TouchDiagnosticElapsed => Stopwatch.GetElapsedTime(Interlocked.Read(ref _touchSessionStart));
+    public void EnableTouchIncidentCapture(bool enabled) => _touchBoundaryTrace.SetIncidentCaptureEnabled(enabled);
+    public A2854TraceIncidentSnapshot? TouchIncidentSnapshot() => _touchBoundaryTrace.SnapshotIncident(TouchDiagnosticElapsed);
+    public A2854TraceIncidentState TouchIncidentState => _touchBoundaryTrace.IncidentState(TouchDiagnosticElapsed);
+    public void ClearTouchIncident() => _touchBoundaryTrace.ClearIncident();
 
     void ReportKeyboardReleaseResult()
     {
@@ -209,6 +218,11 @@ public sealed class RemoteSession : IDisposable
 
     public bool IsRunning => _cts is not null;
 
+    public A2854CleanupState A2854UsbCleanupState
+    {
+        get { lock (_lifecycleGate) return A2854CleanupPolicy.Assess(_a2854CleanupTask); }
+    }
+
     /// <summary>
     /// Peer disconnect leaves an explicit running token until Stop is called.
     /// Surface a safe manual retry only after the old transport has finished
@@ -284,6 +298,8 @@ public sealed class RemoteSession : IDisposable
             if (_a2854Mode)
             {
                 _touchBoundaryTrace.Reset();
+                _touchDiagnostics.Reset();
+                Interlocked.Exchange(ref _touchSessionStart, Stopwatch.GetTimestamp());
                 UsbHci? a2854Hci;
                 try { a2854Hci = UsbHci.OpenForUsbId(new UsbHci.UsbId(0x33FA, 0x0001)); }
                 catch (Exception e)
@@ -333,7 +349,7 @@ public sealed class RemoteSession : IDisposable
                         lock (_gate) _acceptA2854Input = false;
                         ReleaseA2854HeldInputs(); // independent fallback if GUI event callback threw
                     }, onReady: () => Interlocked.Exchange(ref _a2854HidReady, 1),
-                    onBattery: level => Battery?.Invoke(level));
+                    onBattery: level => Battery?.Invoke(level), touchDiagnostics: _touchDiagnostics);
                 _driverTask = Task.Run(async () =>
                 {
                     try { await a2854.RunAsync(transportFault.Token); }
@@ -355,10 +371,14 @@ public sealed class RemoteSession : IDisposable
                             }
                             finally { transportFault.Dispose(); }
                             usbCleanup.TrySetResult();
+                            try { Status?.Invoke("A2854: native USB cleanup completed."); }
+                            catch { /* Observers cannot turn completed native cleanup into failure. */ }
                         }
                         catch (Exception e)
                         {
                             usbCleanup.TrySetException(e);
+                            try { Status?.Invoke("A2854: native USB cleanup failed."); }
+                            catch { }
                             throw;
                         }
                     }
@@ -499,7 +519,14 @@ public sealed class RemoteSession : IDisposable
                     }
                 }
                 UsesBluetoothDirect = false;
-                try { Status?.Invoke(Loc.T("Status.Stopped")); }
+                try
+                {
+                    var cleanup = A2854CleanupPolicy.Assess(_a2854CleanupTask);
+                    Status?.Invoke(Loc.T(wasA2854 && cleanup == A2854CleanupState.Pending
+                        ? "Status.UsbClosing"
+                        : wasA2854 && cleanup == A2854CleanupState.Failed
+                            ? "Status.UsbCleanupFailed" : "Status.Stopped"));
+                }
                 catch { }
             }
         }
@@ -521,32 +548,32 @@ public sealed class RemoteSession : IDisposable
             {
                 foreach (RemoteEvent ev in _a2854Decoder.Decode(report))
                 {
+                    if (ev is TouchEvent) _touchDiagnostics.SessionDecoded();
                     var observation = default(A2854TouchObservation);
                     if (_a2854PointerEnabled &&
                         (ev is not ButtonsEvent ||
                          A2854ButtonRouting.PointerOwnsClick(_a2854PointerEnabled, _a2854ClickAsKeyboard)))
                     {
-                        _pointer.OnEvent(ev);
-                        if (ev is TouchEvent) observation = _pointer.LastTouchObservation;
+                        long pointerBegan = Stopwatch.GetTimestamp();
+                        try { _pointer.OnEvent(ev); }
+                        finally
+                        {
+                            if (ev is TouchEvent pointerTouch)
+                            {
+                                observation = _pointer.LastTouchObservation;
+                                _touchDiagnostics.PointerProcessed(pointerBegan);
+                                _touchDiagnostics.Observe(observation);
+                                RecordTouchBoundary(report, pointerTouch, observation, arrival);
+                            }
+                        }
                         if (ev is ButtonsEvent transition &&
                             (transition.Pressed.Contains("click") || transition.Released.Contains("click")) &&
                             !_pointer.LastButtonTransitionSucceeded)
                             Status?.Invoke("A2854: Windows rejected a mouse button transition; mouse-up is still pending.");
                     }
 
-                    if (ev is TouchEvent touch && report is { Length: > 1 } &&
-                        report[0] == A2854Decoder.TouchReportId &&
-                        A2854Decoder.ParseTouch(report.AsSpan(1)) is { } frame)
-                    {
-                        var contact = touch.Fingers.Count == 0 ? A2854TraceContact.Release
-                            : !touch.Down ? A2854TraceContact.Hover
-                            : touch.Fingers.Count == 1 ? A2854TraceContact.Single
-                            : A2854TraceContact.Multi;
-                        _touchBoundaryTrace.Record(frame.Sequence,
-                            Stopwatch.GetElapsedTime(0, arrival > 0 ? arrival : Stopwatch.GetTimestamp()),
-                            contact, observation.Kind, (A2854TraceSign)observation.XSign,
-                            (A2854TraceSign)observation.YSign, Stopwatch.GetElapsedTime(0));
-                    }
+                    if (ev is TouchEvent touch && !_a2854PointerEnabled)
+                        RecordTouchBoundary(report, touch, observation, arrival);
 
                     if (_keyboardEnabled)
                     {
@@ -586,6 +613,20 @@ public sealed class RemoteSession : IDisposable
                 catch { }
             }
         }
+    }
+
+    void RecordTouchBoundary(byte[]? report, TouchEvent touch, A2854TouchObservation observation, long arrival)
+    {
+        if (report is not { Length: > 1 } || report[0] != A2854Decoder.TouchReportId ||
+            A2854Decoder.ParseTouch(report.AsSpan(1)) is not { } frame) return;
+        var contact = touch.Fingers.Count == 0 ? A2854TraceContact.Release
+            : !touch.Down ? A2854TraceContact.Hover
+            : touch.Fingers.Count == 1 ? A2854TraceContact.Single : A2854TraceContact.Multi;
+        long start = Interlocked.Read(ref _touchSessionStart);
+        _touchBoundaryTrace.Record(frame.Sequence,
+            Stopwatch.GetElapsedTime(start, Math.Max(start, arrival > 0 ? arrival : Stopwatch.GetTimestamp())),
+            contact, observation.Kind, (A2854TraceSign)observation.XSign,
+            (A2854TraceSign)observation.YSign, TouchDiagnosticElapsed, observation.Acceptance);
     }
 
     // A terminal HID event and an independent InputGate fallback both reach

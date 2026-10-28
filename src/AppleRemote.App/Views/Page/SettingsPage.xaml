@@ -400,10 +400,14 @@
         </ui:CardControl>
 
         <TextBlock Text="{l:T Settings.Keyboard}" Style="{StaticResource Head}" />
+        <TextBlock Text="{Binding SettingsPersistenceMessage}" TextWrapping="Wrap" Foreground="#FFFF7373"
+                   Visibility="{Binding HasSettingsPersistenceError, Converter={StaticResource BoolToVisibility}}" />
         <ui:CardControl Icon="{ui:SymbolIcon Keyboard24}">
-            <ui:CardControl.Header><TextBlock Text="{l:T Settings.KeyboardCheck}" /></ui:CardControl.Header>
+            <ui:CardControl.Header><TextBlock Text="{Binding InputToggleTitle}" /></ui:CardControl.Header>
             <ui:ToggleSwitch IsChecked="{Binding KeyboardEnabled}" />
         </ui:CardControl>
+        <TextBlock Text="{Binding InputToggleHint}" TextWrapping="Wrap" Margin="8,0,8,8"
+                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
         <ui:CardControl Icon="{ui:SymbolIcon Map24}">
             <ui:CardControl.Header><TextBlock Text="{l:T Settings.Keyboard}" /></ui:CardControl.Header>
             <StackPanel Orientation="Horizontal">

@@ -13,6 +13,14 @@ public interface IRelativePointerSink
     bool LeftButton(bool down);
 }
 
+public interface IConfirmedRelativePointerSink : IRelativePointerSink
+{
+    bool CanConfirmMovement => true;
+    bool TryMove(int dx, int dy);
+}
+
+public enum A2854MoveAcceptance { NotAttempted, Unknown, Accepted, Rejected, Faulted }
+
 public enum A2854TouchObservationKind
 {
     None, TrackingReset, Anchor, JumpReanchor, ClickGuard, DragStarted,
@@ -20,7 +28,8 @@ public enum A2854TouchObservationKind
 }
 
 /// <summary>Touch outcome and signs of emitted relative pixels; no touch coordinates are exposed.</summary>
-public readonly record struct A2854TouchObservation(A2854TouchObservationKind Kind, int XSign = 0, int YSign = 0);
+public readonly record struct A2854TouchObservation(A2854TouchObservationKind Kind, int XSign = 0, int YSign = 0,
+    A2854MoveAcceptance Acceptance = A2854MoveAcceptance.NotAttempted);
 
 /// <summary>
 /// One-contact touchpad movement and click-button state for an A2854.
@@ -239,8 +248,25 @@ public sealed class A2854PointerMapper(IRelativePointerSink sink, double sensiti
             _remainderY = Math.Abs(movementY) >= MaxStep ? 0 : movementY - pixelsY;
             if (pixelsX != 0 || pixelsY != 0)
             {
-                _sink.Move(pixelsX, pixelsY);
-                LastTouchObservation = new(A2854TouchObservationKind.Move, Math.Sign(pixelsX), Math.Sign(pixelsY));
+                int xSign = Math.Sign(pixelsX), ySign = Math.Sign(pixelsY);
+                try
+                {
+                    A2854MoveAcceptance acceptance;
+                    if (_sink is IConfirmedRelativePointerSink confirmed && confirmed.CanConfirmMovement)
+                        acceptance = confirmed.TryMove(pixelsX, pixelsY)
+                            ? A2854MoveAcceptance.Accepted : A2854MoveAcceptance.Rejected;
+                    else
+                    {
+                        _sink.Move(pixelsX, pixelsY);
+                        acceptance = A2854MoveAcceptance.Unknown;
+                    }
+                    LastTouchObservation = new(A2854TouchObservationKind.Move, xSign, ySign, acceptance);
+                }
+                catch
+                {
+                    LastTouchObservation = new(A2854TouchObservationKind.Move, xSign, ySign, A2854MoveAcceptance.Faulted);
+                    throw;
+                }
             }
             else LastTouchObservation = new(A2854TouchObservationKind.NoPixelMove);
         }

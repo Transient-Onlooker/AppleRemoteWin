@@ -17,7 +17,8 @@ namespace AppleRemote.Windows;
 public sealed class A2854RemoteBle(
     HciHost host, Action<byte[]?, long> onReport, Action<string> onStatus,
     string? protectedBondPath = null, Action? onTerminalCleanup = null,
-    Action? onReady = null, Action<int>? onBattery = null)
+    Action? onReady = null, Action<int>? onBattery = null,
+    A2854TouchDiagnostics? touchDiagnostics = null)
 {
     readonly ProtectedBondStore _bonds = new(protectedBondPath ?? ProtectedBondStore.DefaultPath);
 
@@ -168,6 +169,8 @@ public sealed class A2854RemoteBle(
             gatt.Notification += (valueHandle, value) =>
             {
                 long notificationArrival = Stopwatch.GetTimestamp();
+                bool isTouch = valueHandle == inputMap.TouchValue;
+                if (isTouch) touchDiagnostics?.RawTouch();
                 lock (decoderLock)
                 {
                     if (inputGate.IsClosed) return;
@@ -176,9 +179,22 @@ public sealed class A2854RemoteBle(
                         return; // drop microphone/unknown/malformed without printing raw payloads
                     Interlocked.Exchange(ref lastInputAt, Stopwatch.GetTimestamp());
                     if (id == A2854Decoder.ButtonsReportId) Interlocked.Increment(ref buttonFrames);
-                    else if (id == A2854Decoder.TouchReportId) Interlocked.Increment(ref touchFrames);
+                    else if (id == A2854Decoder.TouchReportId)
+                    {
+                        Interlocked.Increment(ref touchFrames);
+                        touchDiagnostics?.HidAccepted();
+                    }
                     Volatile.Write(ref reportArrival, notificationArrival);
-                    inputGate.TryForward([id, .. value]);
+                    long began = isTouch ? Stopwatch.GetTimestamp() : 0;
+                    try
+                    {
+                        if (inputGate.TryForward([id, .. value]) && isTouch)
+                            touchDiagnostics?.InputGateDelivered();
+                    }
+                    finally
+                    {
+                        if (isTouch) touchDiagnostics?.ReceiverFinished(began);
+                    }
                 }
             };
 
@@ -211,21 +227,26 @@ public sealed class A2854RemoteBle(
                 // rather than sending CCCD writes behind an outstanding read.
                 using var batteryWindow = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
                 batteryWindow.CancelAfter(TimeSpan.FromSeconds(5));
-                int? battery = await A2854Battery.ReadOnceAsync(gatt, batteryWindow.Token);
-                if (battery is int level && !inputGate.IsClosed && !cancellationToken.IsCancellationRequested)
+                var battery = await A2854Battery.InspectOnceAsync(gatt, batteryWindow.Token);
+                if (battery.Outcome == A2854BatteryQueryOutcome.Success &&
+                    battery.LevelPercent is int level && !inputGate.IsClosed &&
+                    !cancellationToken.IsCancellationRequested)
                     onBattery?.Invoke(level);
-                else if (!cancellationToken.IsCancellationRequested)
-                    onStatus("A2854: battery level unavailable (standard readable characteristic absent or invalid).");
+                if (!cancellationToken.IsCancellationRequested)
+                    onStatus(BatteryDiagnostic(battery));
             }
             catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
             {
-                onStatus("A2854: battery read timed out; HID input remains active.");
+                onStatus("A2854: battery query outcome=timeout; level=unknown.");
             }
-            catch (Exception e) when (!cancellationToken.IsCancellationRequested)
+            catch (AttException) when (!cancellationToken.IsCancellationRequested)
             {
-                // Log only the exception type; ATT exceptions may contain
-                // sensitive identifiers. Battery failure is never fatal.
-                onStatus($"A2854: battery read unavailable ({e.GetType().Name}); HID input remains active.");
+                onStatus("A2854: battery query outcome=read_rejected; level=unknown.");
+            }
+            catch (Exception) when (!cancellationToken.IsCancellationRequested)
+            {
+                // Keep transport exception details out of diagnostics.
+                onStatus("A2854: battery query outcome=query_failed; level=unknown.");
             }
             
             // No auto-repair/re-pairing and no fixed polling duration. The existing
@@ -351,6 +372,24 @@ public sealed class A2854RemoteBle(
             }
             // inputGate.Close already delivered exactly one release marker.
         }
+    }
+
+    static string BatteryDiagnostic(A2854BatteryInspection battery)
+    {
+        string outcome = battery.Outcome switch
+        {
+            A2854BatteryQueryOutcome.BatteryServiceMissing => "battery_service_missing",
+            A2854BatteryQueryOutcome.BatteryServiceAmbiguous => "battery_service_ambiguous",
+            A2854BatteryQueryOutcome.BatteryLevelMissing => "battery_level_missing",
+            A2854BatteryQueryOutcome.BatteryLevelAmbiguous => "battery_level_ambiguous",
+            A2854BatteryQueryOutcome.BatteryLevelUnreadable => "battery_level_unreadable",
+            A2854BatteryQueryOutcome.InvalidPayload => "invalid_payload",
+            A2854BatteryQueryOutcome.Success => "success",
+            _ => "unknown"
+        };
+        string level = battery.Outcome == A2854BatteryQueryOutcome.Success &&
+            battery.LevelPercent is int percent ? percent.ToString() : "unknown";
+        return $"A2854: battery query outcome={outcome}; level={level}.";
     }
 
 }

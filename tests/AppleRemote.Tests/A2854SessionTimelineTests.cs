@@ -6,6 +6,41 @@ namespace AppleRemote.Tests;
 
 public sealed class A2854SessionTimelineTests
 {
+    [Theory]
+    [InlineData("success", "0", "Battery query=success; level=0%")]
+    [InlineData("success", "100", "Battery query=success; level=100%")]
+    [InlineData("battery_service_missing", "unknown", "Battery query=battery_service_missing; level=unknown")]
+    [InlineData("battery_level_missing", "unknown", "Battery query=battery_level_missing; level=unknown")]
+    [InlineData("timeout", "unknown", "Battery query=timeout; level=unknown")]
+    public void Battery_evidence_keeps_only_known_outcomes_and_valid_values(string outcome, string level, string expected)
+    {
+        string message = $"A2854: battery query outcome={outcome}; level={level}.";
+        Assert.Equal(expected, A2854SessionTimeline.Redact(message));
+        Assert.Equal("Battery query (details withheld)", A2854SessionTimeline.Redact(message + " LTK=SECRET"));
+    }
+
+    [Theory]
+    [InlineData("success", "101")]
+    [InlineData("success", "unknown")]
+    [InlineData("invalid_payload", "70")]
+    [InlineData("00:11:22:33:44:55", "unknown")]
+    public void Invalid_battery_evidence_is_not_exported(string outcome, string level)
+    {
+        Assert.Equal("Battery query (details withheld)",
+            A2854SessionTimeline.Redact($"A2854: battery query outcome={outcome}; level={level}."));
+    }
+
+    [Theory]
+    [InlineData("pending")]
+    [InlineData("completed")]
+    [InlineData("failed")]
+    public void USB_cleanup_observations_are_exact_allowlisted_constants(string state)
+    {
+        string message = $"A2854: USB cleanup {state}.";
+        Assert.Equal(message, A2854SessionTimeline.Redact(message));
+        Assert.Null(A2854SessionTimeline.Redact(message + " address=private"));
+    }
+
     [Fact]
     public void Captures_relative_event_order_without_wall_clock_or_device_identity()
     {
@@ -32,25 +67,25 @@ public sealed class A2854SessionTimelineTests
     public void Rejects_unrecognized_or_appended_private_content_even_with_known_prefix()
     {
         var log = new A2854SessionTimeline();
-        Assert.False(log.Record("Peer address 11:22:33:44:55:66"));
+        Assert.False(log.Record("Peer address 00:11:22:33:44:55"));
         Assert.False(log.Record("LTK: DEADBEEF1234"));
         Assert.True(log.Record("A2854: HCI error phase=connect opcode=0x200D status=0x3E; bond unchanged."));
         Assert.True(log.Record("A2854: early ATT request count=2. private:SECRETKEY"));
         Assert.True(log.Record("A2854: LE connection parameters LinkEstablished; association=unbound " +
             "elapsed=0.00s min=24 max=24 latency=0 timeout=200 status=0x00. " +
-            "peer address=11:22:33:44:55:66"));
+            "peer address=00:11:22:33:44:55"));
         string report = log.Export();
         Assert.Contains("status=0x3E", report);
         Assert.DoesNotContain("DEADBEEF1234", report);
         Assert.DoesNotContain("SECRETKEY", report);
-        Assert.DoesNotContain("11:22:33:44:55:66", report);
+        Assert.DoesNotContain("00:11:22:33:44:55", report);
     }
 
     [Theory]
     [InlineData("A2854: early ATT request count=2. private:SECRETKEY", "Early ATT count (details withheld)")]
     [InlineData("A2854: previous USB cleanup failed; SECRET-LTK", "Previous USB cleanup failed")]
-    [InlineData("A2854: transport error (Mac=11:22:33:44:55:66)", "A2854 transport error (details withheld)")]
-    [InlineData("A2854: dedicated Barrot WinUSB interface unavailable (MAC:11:22:33:44:55:66)", "Dedicated Barrot USB unavailable")]
+    [InlineData("A2854: transport error (Mac=00:11:22:33:44:55)", "A2854 transport error (details withheld)")]
+    [InlineData("A2854: dedicated Barrot WinUSB interface unavailable (M00:11:22:33:44:55:66)", "Dedicated Barrot USB unavailable")]
     public void Copy_result_redaction_never_returns_an_untrusted_suffix(string input, string expected)
     {
         Assert.Equal(expected, A2854SessionTimeline.Redact(input));
@@ -58,7 +93,7 @@ public sealed class A2854SessionTimelineTests
         Assert.True(timeline.Record(input));
         Assert.Contains(expected, timeline.Export());
         Assert.DoesNotContain("SECRET", timeline.Export());
-        Assert.DoesNotContain("11:22:33:44:55:66", timeline.Export());
+        Assert.DoesNotContain("00:11:22:33:44:55", timeline.Export());
     }
 
     [Fact]
@@ -75,7 +110,7 @@ public sealed class A2854SessionTimelineTests
             "connected=30.1s FB=78 FC=1553 last-input=0.1s ago; host Stop/CCCD disable not yet verified.";
         Assert.Contains("Peer disconnect=0x13", A2854SessionTimeline.Redact(peer));
         Assert.Equal("Peer disconnected (details withheld)",
-            A2854SessionTimeline.Redact(peer + " 11:22:33:44:55:66"));
+            A2854SessionTimeline.Redact(peer + " 00:11:22:33:44:55"));
     }
 
     [Theory]
@@ -94,7 +129,7 @@ public sealed class A2854SessionTimelineTests
     [Fact]
     public void Unknown_and_oversized_statuses_are_rejected()
     {
-        Assert.Null(A2854SessionTimeline.Redact("Address=11:22:33:44:55:66 LTK=ABCD"));
+        Assert.Null(A2854SessionTimeline.Redact("Address=00:11:22:33:44:55 LTK=ABCD"));
         Assert.Null(A2854SessionTimeline.Redact("A2854: encrypted LTK connection established. " + new string('x', 1200)));
         Assert.Equal("A2854: encrypted LTK connection established.",
             A2854SessionTimeline.Redact("A2854: encrypted LTK connection established."));

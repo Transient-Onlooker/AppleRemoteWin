@@ -44,6 +44,21 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
 
     /// <summary>Live remote, for the drawing behind the key pickers.</summary>
     public RemoteViewModel Remote { get; }
+    public bool HasSettingsPersistenceError => _settings.LastPersistenceError != SettingsPersistenceError.None;
+    public string SettingsPersistenceMessage => Loc.T(_settings.LastPersistenceError == SettingsPersistenceError.LoadFailed
+        ? "Settings.LoadFailed" : "Settings.SaveFailed");
+    public string InputToggleTitle => Loc.T(A2854Mode ? "A2854.Settings.InputEnable" : "Settings.KeyboardCheck");
+    public string InputToggleHint => Loc.T(A2854Mode ? "A2854.Settings.InputEnableHint" : "Settings.KeyboardHint");
+
+    void SettingsChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName != nameof(Settings.LastPersistenceError)) return;
+        System.Windows.Application.Current?.Dispatcher.InvokeAsync(() =>
+        {
+            OnPropertyChanged(nameof(HasSettingsPersistenceError));
+            OnPropertyChanged(nameof(SettingsPersistenceMessage));
+        });
+    }
 
     public string AppVersion { get; } = typeof(SettingsViewModel).Assembly.GetName().Version?.ToString(3) ?? "";
 
@@ -218,6 +233,8 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
     public string WindowTitle => Loc.T(A2854Mode ? "App.TitleA2854" : "App.Title");
     partial void OnA2854ModeChanged(bool value)
     {
+        OnPropertyChanged(nameof(InputToggleTitle));
+        OnPropertyChanged(nameof(InputToggleHint));
         _session.A2854Mode = value; // explicitly selected; no automatic pairing
         _settings.A2854Mode = value;
         KeyboardEnabled = value ? _settings.A2854KeyboardEnabled ?? _settings.KeyboardEnabled : _settings.KeyboardEnabled;
@@ -359,6 +376,7 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
     public SettingsViewModel(Settings settings, RemoteSession session, IDialogs dialogs, Action<string> log, RemoteViewModel remote)
     {
         _settings = settings;
+        _settings.PropertyChanged += SettingsChanged;
         _sensitivitySaveTimer.Tick += (_, _) =>
         {
             _sensitivitySaveTimer.Stop();
@@ -424,6 +442,7 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
             _settings.Save(); // flush last user selection on Quit
         }
         Macro.Renamed -= OnMacroRenamed;
+        _settings.PropertyChanged -= SettingsChanged;
     }
 
     // ---- key assignment ---------------------------------------------------------
