@@ -21,7 +21,30 @@
         <TextBlock Text="{l:T Debug.Diagnostic}" Style="{StaticResource Section}" />
         <WrapPanel Grid.Row="1" Margin="0,0,0,10">
             <Button Content="{l:T Debug.HidDevices}" Command="{Binding ListDevicesCommand}" />
-            <Button Content="{l:T Debug.BleScan}" Command="{Binding BleScanCommand}" />
+            <Button Content="{l:T Debug.BleScan}" Command="{Binding BleScanCommand}">
+                <Button.Style>
+                    <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                        <Setter Property="Visibility" Value="Visible" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding DataContext.A2854Mode, RelativeSource={RelativeSource AncestorType=Window}}" Value="True">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Button.Style>
+            </Button>
+            <TextBlock Text="{l:T A2854.Debug.Hint}" TextWrapping="Wrap" MaxWidth="460" VerticalAlignment="Center">
+                <TextBlock.Style>
+                    <Style TargetType="TextBlock">
+                        <Setter Property="Visibility" Value="Collapsed" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding DataContext.A2854Mode, RelativeSource={RelativeSource AncestorType=Window}}" Value="True">
+                                <Setter Property="Visibility" Value="Visible" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </TextBlock.Style>
+            </TextBlock>
         </WrapPanel>
 
         <Grid Grid.Row="2">

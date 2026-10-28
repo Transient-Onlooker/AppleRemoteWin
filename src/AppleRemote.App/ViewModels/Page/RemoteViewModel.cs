@@ -782,6 +782,7 @@ public sealed partial class RemoteViewModel : ObservableObject, IDisposable
         bool ok = new[] { "Status.ConnectedHid", "Status.ConnectedDirect", "Status.ConnectedDongle" }.Any(k => Loc.StartsWith(message, k));
         bool warn = new[] { "Status.WaitHid", "Status.WaitBonded", "Status.WaitPairing", "Status.Unreachable", "Status.Disconnected", "Status.DisconnectedReason", "Status.WaitDongle", "Status.DongleIdle" }
             .Any(k => Loc.StartsWith(message, k));
+        if (_session.A2854Mode && warn) BatteryLevel = null;
         // "Stopped" only if the session is really stopped: an unknown message keeps the current level.
         StatusLevel = !_session.IsRunning && _session.A2854UsbCleanupState == A2854CleanupState.Failed
             ? StatusLevel.Warn

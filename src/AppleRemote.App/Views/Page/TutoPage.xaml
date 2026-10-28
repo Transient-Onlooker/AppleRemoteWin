@@ -59,7 +59,17 @@
     </Page.Resources>
 
     <ScrollViewer VerticalScrollBarVisibility="Auto">
-        <TabControl Style="{StaticResource Carousel}" Margin="18" MaxWidth="820" VerticalAlignment="Center">
+        <Grid>
+        <TabControl x:Name="LegacyGuide" Margin="18" MaxWidth="820" VerticalAlignment="Center">
+        <TabControl.Style>
+            <Style TargetType="TabControl" BasedOn="{StaticResource Carousel}">
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding IsA2854Mode}" Value="True">
+                        <Setter Property="Visibility" Value="Collapsed" />
+                    </DataTrigger>
+                </Style.Triggers>
+            </Style>
+        </TabControl.Style>
         <TabItem Header="{l:T Guide.PairTitle}">
         <Grid>
             <Grid.RowDefinitions>
@@ -205,5 +215,31 @@
         </Grid>
         </TabItem>
         </TabControl>
+        <Border x:Name="A2854Guide" Margin="18" MaxWidth="820" VerticalAlignment="Center">
+            <Border.Style>
+                <Style TargetType="Border" BasedOn="{StaticResource Card}">
+                    <Setter Property="Visibility" Value="Collapsed" />
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding IsA2854Mode}" Value="True">
+                            <Setter Property="Visibility" Value="Visible" />
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </Border.Style>
+            <StackPanel>
+                <TextBlock Text="{l:T Guide.A2854.Title}" Style="{StaticResource Section}" TextWrapping="Wrap" />
+                <Viewbox Height="180" HorizontalAlignment="Center" Margin="0,0,0,12">
+                    <local:A2854RemoteDrawing />
+                </Viewbox>
+                <TextBlock Text="{l:T Guide.A2854.Setup}" TextWrapping="Wrap" Margin="0,0,0,12" />
+                <TextBlock Text="{l:T Guide.A2854.Start}" TextWrapping="Wrap" Margin="0,0,0,12" />
+                <TextBlock Text="{l:T Guide.A2854.Pointer}" TextWrapping="Wrap" Margin="0,0,0,12" />
+                <TextBlock Text="{l:T Guide.A2854.Buttons}" TextWrapping="Wrap" Margin="0,0,0,12" />
+                <TextBlock Text="{l:T Guide.A2854.Calibration}" TextWrapping="Wrap" Margin="0,0,0,12" />
+                <TextBlock Text="{l:T Guide.A2854.Stop}" TextWrapping="Wrap" Margin="0,0,0,12" />
+                <TextBlock Text="{l:T Guide.A2854.Troubleshooting}" TextWrapping="Wrap" />
+            </StackPanel>
+        </Border>
+        </Grid>
     </ScrollViewer>
 </Page>

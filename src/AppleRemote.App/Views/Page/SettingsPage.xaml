@@ -283,12 +283,22 @@
         <TextBlock Text="{l:T A2854.Settings.Title}" Style="{StaticResource Head}" Margin="1,2,0,8" />
         <Border Style="{StaticResource Card}" Padding="20,18" Margin="0,0,0,8">
             <StackPanel>
-                <TextBlock Text="{l:T A2854.Settings.Adapter}" Style="{StaticResource A2854CardTitle}" />
+                <TextBlock Text="{Binding A2854ModeTitle}" Style="{StaticResource A2854CardTitle}" />
                 <ui:ToggleSwitch IsChecked="{Binding A2854Mode, Mode=TwoWay}"
                                  IsEnabled="{Binding CanChangeAdapter}"
                                  Margin="0,11,0,4" />
                 <TextBlock Text="{l:T A2854.Settings.SwitchHint}" Style="{StaticResource A2854Description}" />
                 <TextBlock Text="{l:T A2854.Settings.LegacyHint}" Style="{StaticResource A2854Secondary}" />
+            </StackPanel>
+        </Border>
+        <Border x:Name="A2854AdapterStatusCard" Style="{StaticResource Card}" Padding="20,18" Margin="0,0,0,8"
+                Visibility="{Binding A2854Mode, Converter={StaticResource BoolToVisibility}}">
+            <StackPanel>
+                <TextBlock Text="{l:T A2854.Settings.Adapter}" Style="{StaticResource A2854CardTitle}" />
+                <TextBlock Text="{Binding A2854AdapterStatus}" Style="{StaticResource A2854Description}"
+                           Margin="0,4,0,0" />
+                <Button Content="{l:T Settings.Refresh}" Command="{Binding RefreshDriverCommand}"
+                        IsEnabled="{Binding DriverIdle}" HorizontalAlignment="Left" Margin="0,8,0,0" />
             </StackPanel>
         </Border>
         <Border Style="{StaticResource Card}" Padding="20,18" Margin="0,0,0,12">
@@ -408,6 +418,9 @@
         </ui:CardControl>
         <TextBlock Text="{Binding InputToggleHint}" TextWrapping="Wrap" Margin="8,0,8,8"
                    Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+        <TextBlock Text="{Binding A2854UnsupportedButtonsHint}" TextWrapping="Wrap" Margin="8,0,8,8"
+                   Visibility="{Binding A2854Mode, Converter={StaticResource BoolToVisibility}}"
+                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
         <ui:CardControl Icon="{ui:SymbolIcon Map24}">
             <ui:CardControl.Header><TextBlock Text="{l:T Settings.Keyboard}" /></ui:CardControl.Header>
             <StackPanel Orientation="Horizontal">
@@ -417,6 +430,8 @@
             </StackPanel>
         </ui:CardControl>
 
+        <StackPanel x:Name="LegacyDriverSection"
+                    Visibility="{Binding ShowLegacyDriverSettings, Converter={StaticResource BoolToVisibility}}">
         <StackPanel Orientation="Horizontal" Margin="1,14,0,6">
             <TextBlock Text="{l:T Settings.Driver}" Style="{StaticResource Section}" Margin="0" VerticalAlignment="Center" />
             <Button Command="{Binding RefreshDriverCommand}" IsEnabled="{Binding DriverIdle}" ToolTip="{l:T Settings.Refresh}"
@@ -465,6 +480,7 @@
                 <Grid Margin="0,2"><TextBlock Text="{l:T Settings.AvailableVersion}" Foreground="{DynamicResource TextFillColorSecondaryBrush}" /><TextBlock Text="{Binding DongleAvailable}" HorizontalAlignment="Right" /></Grid>
             </StackPanel>
         </ui:CardExpander>
+        </StackPanel>
         </StackPanel>
         </Grid>
     </Grid>

@@ -24,11 +24,17 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
 #endif
         _viewModel = new MainViewModel(new Dialogs(this));
         DataContext = _viewModel.Preferences; // model-aware window and TitleBar captions
-        AppTrayIcon.TooltipText = _viewModel.Preferences.WindowTitle;
+        UpdateTrayTooltip();
         _viewModel.Preferences.PropertyChanged += (_, e) =>
         {
             if (e.PropertyName is nameof(SettingsViewModel.WindowTitle) or "")
-                AppTrayIcon.TooltipText = _viewModel.Preferences.WindowTitle;
+                UpdateTrayTooltip();
+        };
+        _viewModel.Remote.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName is nameof(RemoteViewModel.StatusTitle) or nameof(RemoteViewModel.BatteryText)
+                or nameof(RemoteViewModel.StatusLevel) or nameof(RemoteViewModel.IsA2854Mode) or "")
+                UpdateTrayTooltip();
         };
         TrayMenu.DataContext = _viewModel.Remote;   // the notification-area menu doesn't inherit the window's DataContext
         // Each page gets its own view-model and keeps its state between visits.
@@ -36,6 +42,19 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
         Application.Current.SessionEnding += (_, _) => _quitting = true;   // Windows shutdown: don't hold back the close
         SystemEvents.PowerModeChanged += SystemEvents_PowerModeChanged;
         SystemEvents.SessionSwitch += SystemEvents_SessionSwitch;
+    }
+
+    void UpdateTrayTooltip()
+    {
+        var remote = _viewModel.Remote;
+        string battery = remote.StatusLevel == StatusLevel.Ok ? remote.BatteryText : Loc.T("Remote.BatteryUnknown");
+        string text = $"{_viewModel.Preferences.WindowTitle}\n{remote.StatusTitle} · {battery}";
+        if (text.Length > 127)
+        {
+            int length = char.IsHighSurrogate(text[125]) ? 125 : 126;
+            text = text[..length] + "…";
+        }
+        AppTrayIcon.TooltipText = text;
     }
 
     void SystemEvents_PowerModeChanged(object sender, PowerModeChangedEventArgs e)

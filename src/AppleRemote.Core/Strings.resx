@@ -373,7 +373,7 @@ Une confirmation administrateur (UAC) va s'afficher.</value></data>
   <data name="A2854.Remote.IncidentCapture" xml:space="preserve"><value>Capturer les incidents tactiles (mémoire uniquement)</value></data>
   <data name="A2854.Remote.CopyIncident" xml:space="preserve"><value>Copier l’incident</value></data>
   <data name="A2854.Remote.ClearIncident" xml:space="preserve"><value>Effacer l’incident</value></data>
-  <data name="A2854.Settings.InputEnable" xml:space="preserve"><value>Activer les affectations des boutons</value></data>
+  <data name="A2854.Settings.InputEnable" xml:space="preserve"><value>Activer les boutons et leurs actions affectées</value></data>
   <data name="A2854.Settings.InputEnableHint" xml:space="preserve"><value>La désactivation bloque les touches, raccourcis, boutons de souris et défilements affectés. Le déplacement du pointeur est réglé séparément.</value></data>
   <data name="Settings.KeyboardHint" xml:space="preserve"><value>Activer les touches de clavier affectées à la télécommande.</value></data>
   <data name="Settings.LoadFailed" xml:space="preserve"><value>Impossible de lire les paramètres. L’enregistrement est bloqué pour protéger le fichier d’origine.</value></data>
@@ -383,4 +383,22 @@ Une confirmation administrateur (UAC) va s'afficher.</value></data>
   <data name="A2854.Remote.IncidentWaiting" xml:space="preserve"><value>En attente d’un signal de diagnostic</value></data>
   <data name="A2854.Remote.IncidentOff" xml:space="preserve"><value>Capture des incidents désactivée</value></data>
   <data name="A2854.Remote.Diagnostics" xml:space="preserve"><value>Diagnostic tactile</value></data>
+  <data name="A2854.Debug.Hint" xml:space="preserve"><value>Utilisez la page Télécommande pour diagnostiquer la connexion et le tactile de troisième génération. Cette recherche BLE concerne la première génération.</value></data>
+  <data name="Guide.A2854.Title" xml:space="preserve"><value>Guide de la Siri Remote 3ᵉ génération (A2854)</value></data>
+  <data name="Guide.A2854.Setup" xml:space="preserve"><value>Sélectionnez A2854 dans les paramètres. Vérifiez que l’adaptateur Barrot WinUSB dédié et les données de liaison protégées de l’utilisateur Windows actuel sont disponibles.</value></data>
+  <data name="Guide.A2854.Start" xml:space="preserve"><value>Appuyez sur Démarrer dans la page Télécommande. Si nécessaire, appuyez sur un bouton ordinaire pour la réveiller. Appuyez sur Arrêter avant de changer de modèle.</value></data>
+  <data name="Guide.A2854.Pointer" xml:space="preserve"><value>Activez le pointeur de souris dans les paramètres pour le déplacer avec la surface tactile. Le bouton central effectue normalement un clic gauche ; maintenez-le enfoncé en bougeant pour faire glisser.</value></data>
+  <data name="Guide.A2854.Buttons" xml:space="preserve"><value>Activez les boutons et leurs actions affectées, puis attribuez des touches, défilements ou actions de souris. Pour attribuer une touche au bouton central lorsque le pointeur est actif, activez aussi l’option correspondante.</value></data>
+  <data name="Guide.A2854.Calibration" xml:space="preserve"><value>Un étalonnage enregistré valide en cinq points est appliqué à l’affichage et, par défaut, aux axes du pointeur. Vous pouvez désactiver l’étalonnage du pointeur ; s’il est absent ou invalide, les coordonnées par défaut sont utilisées.</value></data>
+  <data name="Guide.A2854.Stop" xml:space="preserve"><value>Lorsque vous avez terminé, appuyez sur Arrêter dans la page Télécommande. Fermer la fenêtre peut laisser l’application dans la zone de notification ; choisissez Quitter pour la fermer complètement.</value></data>
+  <data name="Guide.A2854.Troubleshooting" xml:space="preserve"><value>Si la télécommande ne se connecte pas, vérifiez l’adaptateur dédié et les données de liaison existantes. Si elles sont absentes, l’application ne lance pas automatiquement l’appairage. Ne les supprimez pas et ne les réinitialisez pas ; demandez une aide distincte.</value></data>
+  <data name="A2854.Settings.ModeTitle" xml:space="preserve"><value>Utiliser le mode Siri Remote 3ᵉ génération (A2854)</value></data>
+  <data name="A2854.Settings.AdapterChecking" xml:space="preserve"><value>Vérification de l’adaptateur…</value></data>
+  <data name="A2854.Settings.AdapterAbsent" xml:space="preserve"><value>Barrot est absent de la liste des adaptateurs Bluetooth. Vérifiez la connexion puis actualisez.</value></data>
+  <data name="A2854.Settings.AdapterUnavailable" xml:space="preserve"><value>Impossible de déterminer la disponibilité de l’adaptateur. Vérifiez la connexion puis actualisez.</value></data>
+  <data name="A2854.Settings.AdapterWrongDriver" xml:space="preserve"><value>Barrot est détecté, mais son service WinUSB n’a pas pu être confirmé.</value></data>
+  <data name="A2854.Settings.AdapterWinUsbReady" xml:space="preserve"><value>Le service WinUSB est associé à Barrot. L’état de l’appareil et la connexion de la télécommande restent à vérifier.</value></data>
+  <data name="A2854.Settings.AdapterCheckFailed" xml:space="preserve"><value>Impossible de vérifier l’adaptateur.</value></data>
+  <data name="A2854.Settings.AdapterMultiple" xml:space="preserve"><value>Plusieurs adaptateurs Barrot correspondants ont été détectés. Vérifiez l’appareil correct.</value></data>
+  <data name="A2854.Settings.UnsupportedButtons" xml:space="preserve"><value>TV, Siri et Marche apparaissent sur le dessin mais ne peuvent pas encore être affectés à des entrées Windows. Leur réception doit être vérifiée séparément.</value></data>
 </root>

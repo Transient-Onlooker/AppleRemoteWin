@@ -373,7 +373,7 @@ WinUSB가 제거되고 Windows가 해당 어댑터를 다시 사용합니다(직
   <data name="A2854.Remote.IncidentCapture" xml:space="preserve"><value>터치 이상 전후 기록 (메모리에만 보관)</value></data>
   <data name="A2854.Remote.CopyIncident" xml:space="preserve"><value>기록 복사</value></data>
   <data name="A2854.Remote.ClearIncident" xml:space="preserve"><value>기록 지우기</value></data>
-  <data name="A2854.Settings.InputEnable" xml:space="preserve"><value>버튼 할당 실행</value></data>
+  <data name="A2854.Settings.InputEnable" xml:space="preserve"><value>버튼 입력 및 할당 동작 활성화</value></data>
   <data name="A2854.Settings.InputEnableHint" xml:space="preserve"><value>끄면 할당한 키, 단축키, 마우스 버튼과 스크롤이 실행되지 않습니다. 포인터 이동은 별도 설정입니다.</value></data>
   <data name="Settings.KeyboardHint" xml:space="preserve"><value>리모컨에 할당된 키보드 입력을 실행합니다.</value></data>
   <data name="Settings.LoadFailed" xml:space="preserve"><value>설정을 읽지 못해 원본을 보호하고 저장을 중단했습니다. 설정 파일을 확인해 주세요.</value></data>
@@ -383,4 +383,22 @@ WinUSB가 제거되고 Windows가 해당 어댑터를 다시 사용합니다(직
   <data name="A2854.Remote.IncidentWaiting" xml:space="preserve"><value>의심 신호 대기 중</value></data>
   <data name="A2854.Remote.IncidentOff" xml:space="preserve"><value>이상 기록 꺼짐</value></data>
   <data name="A2854.Remote.Diagnostics" xml:space="preserve"><value>터치 진단</value></data>
+  <data name="A2854.Debug.Hint" xml:space="preserve"><value>3세대 연결·터치 진단은 리모컨 화면에서 확인하세요. 이 BLE 검색은 1세대용입니다.</value></data>
+  <data name="Guide.A2854.Title" xml:space="preserve"><value>Siri Remote 3세대(A2854) 사용 안내</value></data>
+  <data name="Guide.A2854.Setup" xml:space="preserve"><value>설정에서 A2854를 선택하고 전용 Barrot WinUSB 어댑터와 현재 Windows 사용자에게 저장된 기존 보호 연결 정보가 준비되어 있는지 확인하세요.</value></data>
+  <data name="Guide.A2854.Start" xml:space="preserve"><value>리모컨 화면에서 시작을 누르세요. 필요하면 리모컨의 일반 버튼을 눌러 깨우세요. 모델을 바꾸기 전에는 중지를 누르세요.</value></data>
+  <data name="Guide.A2854.Pointer" xml:space="preserve"><value>설정에서 마우스 포인터를 켜면 터치패드로 커서를 움직일 수 있습니다. 중앙 버튼은 기본적으로 왼쪽 클릭이며, 누른 채 움직여 드래그할 수 있습니다.</value></data>
+  <data name="Guide.A2854.Buttons" xml:space="preserve"><value>버튼 입력 및 할당 동작을 활성화한 뒤 원하는 버튼에 키, 스크롤이나 마우스 동작을 지정하세요. 포인터가 켜진 상태에서 중앙 버튼에 키를 지정하려면 중앙 버튼 옵션도 켜야 합니다.</value></data>
+  <data name="Guide.A2854.Calibration" xml:space="preserve"><value>유효한 저장된 5점 보정은 화면 표시와 기본 포인터 설정에 적용됩니다. 포인터 보정은 설정에서 끌 수 있으며 보정이 없거나 유효하지 않으면 기본 좌표를 사용합니다.</value></data>
+  <data name="Guide.A2854.Stop" xml:space="preserve"><value>사용을 마치면 리모컨 화면에서 중지를 누르세요. 창을 닫아도 앱이 트레이에 남을 수 있습니다. 완전히 종료하려면 트레이 메뉴에서 종료를 선택하세요.</value></data>
+  <data name="Guide.A2854.Troubleshooting" xml:space="preserve"><value>연결되지 않으면 전용 어댑터와 기존 연결 정보를 확인하세요. 연결 정보가 없으면 자동으로 페어링하지 않습니다. 기존 정보를 삭제하거나 초기화하지 말고 별도의 도움을 받으세요.</value></data>
+  <data name="A2854.Settings.ModeTitle" xml:space="preserve"><value>Siri Remote 3세대(A2854) 모드 사용</value></data>
+  <data name="A2854.Settings.AdapterChecking" xml:space="preserve"><value>어댑터를 확인하는 중…</value></data>
+  <data name="A2854.Settings.AdapterAbsent" xml:space="preserve"><value>Bluetooth 어댑터 목록에서 Barrot을 찾지 못했습니다. 연결을 확인한 뒤 새로 고침하세요.</value></data>
+  <data name="A2854.Settings.AdapterUnavailable" xml:space="preserve"><value>어댑터 상태를 확인할 수 없습니다. 연결을 확인한 뒤 새로 고침하세요.</value></data>
+  <data name="A2854.Settings.AdapterWrongDriver" xml:space="preserve"><value>Barrot이 발견됐지만 WinUSB 서비스가 확인되지 않았습니다.</value></data>
+  <data name="A2854.Settings.AdapterWinUsbReady" xml:space="preserve"><value>Barrot에 WinUSB 서비스가 연결되어 있습니다. 장치 작동 상태와 리모컨 연결은 별도 확인이 필요합니다.</value></data>
+  <data name="A2854.Settings.AdapterCheckFailed" xml:space="preserve"><value>어댑터 상태 확인에 실패했습니다.</value></data>
+  <data name="A2854.Settings.AdapterMultiple" xml:space="preserve"><value>같은 Barrot 어댑터가 둘 이상 발견되었습니다. 정확한 장치를 확인하세요.</value></data>
+  <data name="A2854.Settings.UnsupportedButtons" xml:space="preserve"><value>TV·Siri·전원 버튼은 그림에 표시되지만 현재 Windows 입력 동작을 할당할 수 없습니다. 버튼 수신 여부는 별도 확인이 필요합니다.</value></data>
 </root>

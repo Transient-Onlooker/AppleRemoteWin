@@ -97,7 +97,17 @@
             </Border>
 
             <!-- Gesture card: touchpad and last gesture -->
-            <Border Style="{StaticResource Card}">
+            <Border x:Name="LegacyGestureCard">
+                <Border.Style>
+                    <Style TargetType="Border" BasedOn="{StaticResource Card}">
+                        <Setter Property="Visibility" Value="Visible" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding IsA2854Mode}" Value="True">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Border.Style>
                 <StackPanel>
                     <TextBlock Text="{l:T Remote.Gesture}" Style="{StaticResource Section}" />
                     <Border Height="190" CornerRadius="10" ClipToBounds="True" Margin="0,4,0,12"

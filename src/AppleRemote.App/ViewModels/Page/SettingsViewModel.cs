@@ -49,6 +49,9 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
         ? "Settings.LoadFailed" : "Settings.SaveFailed");
     public string InputToggleTitle => Loc.T(A2854Mode ? "A2854.Settings.InputEnable" : "Settings.KeyboardCheck");
     public string InputToggleHint => Loc.T(A2854Mode ? "A2854.Settings.InputEnableHint" : "Settings.KeyboardHint");
+    public string A2854ModeTitle => Loc.T("A2854.Settings.ModeTitle");
+    public string A2854UnsupportedButtonsHint => Loc.T("A2854.Settings.UnsupportedButtons");
+    public bool ShowLegacyDriverSettings => !A2854Mode;
 
     void SettingsChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
@@ -235,6 +238,7 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
     {
         OnPropertyChanged(nameof(InputToggleTitle));
         OnPropertyChanged(nameof(InputToggleHint));
+        OnPropertyChanged(nameof(ShowLegacyDriverSettings));
         _session.A2854Mode = value; // explicitly selected; no automatic pairing
         _settings.A2854Mode = value;
         KeyboardEnabled = value ? _settings.A2854KeyboardEnabled ?? _settings.KeyboardEnabled : _settings.KeyboardEnabled;
@@ -242,6 +246,7 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
         Remote.OnRemoteModeChanged(value); // stop internal Windows BLE scanning in A2854 mode
         Remote.RefreshTexts();
         OnPropertyChanged(nameof(WindowTitle));
+        _ = RefreshDriver();
     }
 
     /// <summary>Pointer synthesis remains disabled until separately enabled by the user.</summary>
@@ -558,6 +563,9 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
     // ---- adapter driver (Zadig equivalent) --------------------------------------
 
     [ObservableProperty] string _driverText = Loc.T("Driver.Checking");
+    string _a2854AdapterStatusKey = "A2854.Settings.AdapterChecking";
+    int _adapterRefreshGeneration;
+    public string A2854AdapterStatus => Loc.T(_a2854AdapterStatusKey);
     [ObservableProperty, NotifyPropertyChangedFor(nameof(DriverIdle)), NotifyPropertyChangedFor(nameof(CanChangeAdapter))] bool _driverBusy;
     public bool DriverIdle => !DriverBusy;
     /// <summary>The adapter is chosen with the session stopped: stop, change, start again.</summary>
@@ -624,35 +632,61 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
     [RelayCommand]
     async Task RefreshDriver()
     {
+        int generation = ++_adapterRefreshGeneration;
+        if (!A2854Mode)
+        {
+            try
+            {
+                FilterOn = await Task.Run(() => FilterInstaller.IsInstalled());
+                FilterText = Loc.T(FilterOn ? "Filter.Installed" : "Filter.NotInstalled");
+            }
+            catch (Exception ex) { FilterText = Loc.T("Driver.Unknown", ex.Message); }
+            try
+            {
+                DongleFirmware = await Task.Run(EspDongle.ReadFirmwareVersion);
+                DongleOn = DongleFirmware is not null || await Task.Run(() => EspDongle.Find() is not null);
+            }
+            catch (Exception) { DongleOn = false; }
+            if (UpdateAvailable && _announcedFirmware != DongleFirmware)
+            {
+                _announcedFirmware = DongleFirmware;
+                _log(Loc.T("Log.FirmwareAvailable", FirmwareImage.Version(BundledFirmware.Value!), DongleFirmware));
+            }
+        }
         try
         {
-            FilterOn = await Task.Run(() => FilterInstaller.IsInstalled());
-            FilterText = Loc.T(FilterOn ? "Filter.Installed" : "Filter.NotInstalled");
-        }
-        catch (Exception ex) { FilterText = Loc.T("Driver.Unknown", ex.Message); }
-        try
-        {
-            DongleFirmware = await Task.Run(EspDongle.ReadFirmwareVersion);
-            DongleOn = DongleFirmware is not null || await Task.Run(() => EspDongle.Find() is not null);
-        }
-        catch (Exception) { DongleOn = false; }   // HID enumeration failed: shown as absent
-        if (UpdateAvailable && _announcedFirmware != DongleFirmware)
-        {
-            _announcedFirmware = DongleFirmware;
-            _log(Loc.T("Log.FirmwareAvailable", FirmwareImage.Version(BundledFirmware.Value!), DongleFirmware));
-        }
-        try
-        {
-            Adapters = await Task.Run(() => WinUsbDriver.List());
+            var adapters = await Task.Run(() => WinUsbDriver.List());
+            if (generation != _adapterRefreshGeneration) return;
+            var a2854Adapters = adapters.Where(a => a.Id.Vid == 0x33FA && a.Id.Pid == 0x0001).ToArray();
+            _a2854AdapterStatusKey = a2854Adapters.Length > 1
+                ? "A2854.Settings.AdapterMultiple"
+                : a2854Adapters.Length == 1
+                ? a2854Adapters[0].Driver == AdapterDriver.WinUsb
+                    ? "A2854.Settings.AdapterWinUsbReady"
+                    : "A2854.Settings.AdapterWrongDriver"
+                : adapters.Count > 0
+                    ? "A2854.Settings.AdapterAbsent"
+                    : "A2854.Settings.AdapterUnavailable";
+            OnPropertyChanged(nameof(A2854AdapterStatus));
             // The saved adapter, otherwise the one the session would open (first under WinUSB), otherwise the first one.
             // Not saved: a refresh must not overwrite the saved choice (adapter unplugged for now).
             _refreshingAdapters = true;
-            SelectedAdapter = Adapters.FirstOrDefault(a => a.InstanceId.Equals(_settings.Adapter, StringComparison.OrdinalIgnoreCase))
-                ?? Adapters.FirstOrDefault(a => a.Driver == AdapterDriver.WinUsb) ?? Adapters.FirstOrDefault();
-            _refreshingAdapters = false;
+            try
+            {
+                Adapters = adapters;
+                SelectedAdapter = Adapters.FirstOrDefault(a => a.InstanceId.Equals(_settings.Adapter, StringComparison.OrdinalIgnoreCase))
+                    ?? Adapters.FirstOrDefault(a => a.Driver == AdapterDriver.WinUsb) ?? Adapters.FirstOrDefault();
+            }
+            finally { _refreshingAdapters = false; }
             ShowAdapterState();
         }
-        catch (Exception ex) { DriverText = Loc.T("Driver.Unknown", ex.Message); }
+        catch (Exception ex)
+        {
+            if (generation != _adapterRefreshGeneration) return;
+            DriverText = Loc.T("Driver.Unknown", ex.Message);
+            _a2854AdapterStatusKey = "A2854.Settings.AdapterCheckFailed";
+            OnPropertyChanged(nameof(A2854AdapterStatus));
+        }
     }
 
     [ObservableProperty, NotifyPropertyChangedFor(nameof(SeveralAdapters))] IReadOnlyList<WinUsbDriver.Adapter> _adapters = [];

@@ -373,7 +373,7 @@ An administrator confirmation (UAC) will appear.</value></data>
   <data name="A2854.Remote.IncidentCapture" xml:space="preserve"><value>Capture touch incidents (memory only)</value></data>
   <data name="A2854.Remote.CopyIncident" xml:space="preserve"><value>Copy incident</value></data>
   <data name="A2854.Remote.ClearIncident" xml:space="preserve"><value>Clear incident</value></data>
-  <data name="A2854.Settings.InputEnable" xml:space="preserve"><value>Enable button assignments</value></data>
+  <data name="A2854.Settings.InputEnable" xml:space="preserve"><value>Enable button input and assigned actions</value></data>
   <data name="A2854.Settings.InputEnableHint" xml:space="preserve"><value>Turning this off disables assigned keys, shortcuts, mouse buttons and scrolling. Pointer movement is controlled separately.</value></data>
   <data name="Settings.KeyboardHint" xml:space="preserve"><value>Enable keyboard input assigned to the remote.</value></data>
   <data name="Settings.LoadFailed" xml:space="preserve"><value>Settings could not be read. Saving is blocked to protect the original file.</value></data>
@@ -383,4 +383,22 @@ An administrator confirmation (UAC) will appear.</value></data>
   <data name="A2854.Remote.IncidentWaiting" xml:space="preserve"><value>Waiting for a diagnostic signal</value></data>
   <data name="A2854.Remote.IncidentOff" xml:space="preserve"><value>Incident capture off</value></data>
   <data name="A2854.Remote.Diagnostics" xml:space="preserve"><value>Touch diagnostics</value></data>
+  <data name="A2854.Debug.Hint" xml:space="preserve"><value>Use the Remote page for third-generation connection and touch diagnostics. This BLE scan is for the first generation.</value></data>
+  <data name="Guide.A2854.Title" xml:space="preserve"><value>Siri Remote 3rd generation (A2854) guide</value></data>
+  <data name="Guide.A2854.Setup" xml:space="preserve"><value>Select A2854 in Settings. Make sure the dedicated Barrot WinUSB adapter and the existing protected bond for the current Windows user are available.</value></data>
+  <data name="Guide.A2854.Start" xml:space="preserve"><value>Press Start on the Remote page. If needed, press an ordinary remote button to wake it. Press Stop before switching models.</value></data>
+  <data name="Guide.A2854.Pointer" xml:space="preserve"><value>Enable the mouse pointer in Settings to move it with the touchpad. The center button normally performs a left click; hold it while moving to drag.</value></data>
+  <data name="Guide.A2854.Buttons" xml:space="preserve"><value>Enable button input and assigned actions in Settings, then assign keys, scrolling or mouse actions. To use a keyboard binding for the center button while the pointer is enabled, also enable the center-button option.</value></data>
+  <data name="Guide.A2854.Calibration" xml:space="preserve"><value>A valid saved five-point calibration is applied to the on-screen display and, by default, to pointer axes. Pointer calibration can be disabled; missing or invalid calibration falls back to the default coordinates.</value></data>
+  <data name="Guide.A2854.Stop" xml:space="preserve"><value>Press Stop on the Remote page when finished. Closing the window may leave the app in the tray; choose Quit from the tray menu to exit completely.</value></data>
+  <data name="Guide.A2854.Troubleshooting" xml:space="preserve"><value>If the remote does not connect, check the dedicated adapter and existing bond. If the bond is missing, the app will not pair automatically. Do not delete or reset existing bond data; seek separate assistance.</value></data>
+  <data name="A2854.Settings.ModeTitle" xml:space="preserve"><value>Use Siri Remote 3rd generation (A2854) mode</value></data>
+  <data name="A2854.Settings.AdapterChecking" xml:space="preserve"><value>Checking the adapter…</value></data>
+  <data name="A2854.Settings.AdapterAbsent" xml:space="preserve"><value>Barrot was not found in the Bluetooth adapter list. Check the connection and refresh.</value></data>
+  <data name="A2854.Settings.AdapterUnavailable" xml:space="preserve"><value>Adapter availability could not be determined. Check the connection and refresh.</value></data>
+  <data name="A2854.Settings.AdapterWrongDriver" xml:space="preserve"><value>Barrot was detected, but its WinUSB service could not be confirmed.</value></data>
+  <data name="A2854.Settings.AdapterWinUsbReady" xml:space="preserve"><value>Barrot has the WinUSB service. Device health and remote connection require separate verification.</value></data>
+  <data name="A2854.Settings.AdapterCheckFailed" xml:space="preserve"><value>Could not check adapter availability.</value></data>
+  <data name="A2854.Settings.AdapterMultiple" xml:space="preserve"><value>More than one matching Barrot adapter was found. Verify the correct device.</value></data>
+  <data name="A2854.Settings.UnsupportedButtons" xml:space="preserve"><value>TV, Siri and Power appear on the drawing but cannot currently be assigned to Windows input actions. Button reception requires separate verification.</value></data>
 </root>
