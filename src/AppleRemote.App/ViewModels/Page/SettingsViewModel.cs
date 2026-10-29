@@ -48,6 +48,7 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
     public string SettingsPersistenceMessage => Loc.T(_settings.LastPersistenceError == SettingsPersistenceError.LoadFailed
         ? "Settings.LoadFailed" : "Settings.SaveFailed");
     public string InputToggleTitle => Loc.T(A2854Mode ? "A2854.Settings.InputEnable" : "Settings.KeyboardCheck");
+    public string InputSectionTitle => Loc.T(A2854Mode ? "A2854.Settings.InputSection" : "Settings.Keyboard");
     public string InputToggleHint => Loc.T(A2854Mode ? "A2854.Settings.InputEnableHint" : "Settings.KeyboardHint");
     public string A2854ModeTitle => Loc.T("A2854.Settings.ModeTitle");
     public string A2854UnsupportedButtonsHint => Loc.T("A2854.Settings.UnsupportedButtons");
@@ -237,6 +238,7 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
     partial void OnA2854ModeChanged(bool value)
     {
         OnPropertyChanged(nameof(InputToggleTitle));
+        OnPropertyChanged(nameof(InputSectionTitle));
         OnPropertyChanged(nameof(InputToggleHint));
         OnPropertyChanged(nameof(ShowLegacyDriverSettings));
         _session.A2854Mode = value; // explicitly selected; no automatic pairing

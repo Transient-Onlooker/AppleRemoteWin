@@ -382,7 +382,16 @@ An administrator confirmation (UAC) will appear.</value></data>
   <data name="A2854.Remote.IncidentReady" xml:space="preserve"><value>Incident captured — this does not confirm a fault</value></data>
   <data name="A2854.Remote.IncidentWaiting" xml:space="preserve"><value>Waiting for a diagnostic signal</value></data>
   <data name="A2854.Remote.IncidentOff" xml:space="preserve"><value>Incident capture off</value></data>
-  <data name="A2854.Remote.Diagnostics" xml:space="preserve"><value>Touch diagnostics</value></data>
+  <data name="A2854.Remote.Diagnostics" xml:space="preserve"><value>Connection and touch diagnostics</value></data>
+  <data name="A2854.Remote.WakeHint" xml:space="preserve"><value>After starting, press a regular remote button to wake it. Pairing mode is not needed.</value></data>
+  <data name="A2854.Remote.InputsTitle" xml:space="preserve"><value>Input settings</value></data>
+  <data name="A2854.Remote.PointerToggle" xml:space="preserve"><value>Mouse pointer</value></data>
+  <data name="A2854.Remote.ButtonsToggle" xml:space="preserve"><value>Buttons, scrolling and assigned actions</value></data>
+  <data name="A2854.Remote.InputsHint" xml:space="preserve"><value>Pointer and assigned actions can be turned on or off separately.</value></data>
+  <data name="A2854.Settings.InputSection" xml:space="preserve"><value>Remote input</value></data>
+  <data name="A2854.Settings.ModelLocked" xml:space="preserve"><value>You can change the model after stopping the connection and completing adapter operations.</value></data>
+  <data name="Settings.CloseToTrayHint" xml:space="preserve"><value>Closing with X keeps the app running in the background. To quit completely, choose Quit from the tray menu.</value></data>
+  <data name="Remote.ModelHint" xml:space="preserve"><value>To use a different remote model, change it in Settings.</value></data>
   <data name="A2854.Debug.Hint" xml:space="preserve"><value>Use the Remote page for third-generation connection and touch diagnostics. This BLE scan is for the first generation.</value></data>
   <data name="Guide.A2854.Title" xml:space="preserve"><value>Siri Remote 3rd generation (A2854) guide</value></data>
   <data name="Guide.A2854.Setup" xml:space="preserve"><value>Select A2854 in Settings. Make sure the dedicated Barrot WinUSB adapter and the existing protected bond for the current Windows user are available.</value></data>

@@ -382,7 +382,16 @@ Une confirmation administrateur (UAC) va s'afficher.</value></data>
   <data name="A2854.Remote.IncidentReady" xml:space="preserve"><value>Incident capturé — cela ne confirme pas une panne</value></data>
   <data name="A2854.Remote.IncidentWaiting" xml:space="preserve"><value>En attente d’un signal de diagnostic</value></data>
   <data name="A2854.Remote.IncidentOff" xml:space="preserve"><value>Capture des incidents désactivée</value></data>
-  <data name="A2854.Remote.Diagnostics" xml:space="preserve"><value>Diagnostic tactile</value></data>
+  <data name="A2854.Remote.Diagnostics" xml:space="preserve"><value>Diagnostic de connexion et tactile</value></data>
+  <data name="A2854.Remote.WakeHint" xml:space="preserve"><value>Après le démarrage, appuyez sur un bouton ordinaire de la télécommande pour la réveiller. Le mode jumelage n’est pas nécessaire.</value></data>
+  <data name="A2854.Remote.InputsTitle" xml:space="preserve"><value>Paramètres des entrées</value></data>
+  <data name="A2854.Remote.PointerToggle" xml:space="preserve"><value>Pointeur de souris</value></data>
+  <data name="A2854.Remote.ButtonsToggle" xml:space="preserve"><value>Boutons, défilement et actions attribuées</value></data>
+  <data name="A2854.Remote.InputsHint" xml:space="preserve"><value>Le pointeur et les actions attribuées peuvent être activés séparément.</value></data>
+  <data name="A2854.Settings.InputSection" xml:space="preserve"><value>Entrées de la télécommande</value></data>
+  <data name="A2854.Settings.ModelLocked" xml:space="preserve"><value>Vous pouvez changer de modèle après avoir arrêté la connexion et terminé les opérations sur l’adaptateur.</value></data>
+  <data name="Settings.CloseToTrayHint" xml:space="preserve"><value>Fermer avec X laisse l’application active en arrière-plan. Pour la quitter complètement, choisissez Quitter dans le menu de la zone de notification.</value></data>
+  <data name="Remote.ModelHint" xml:space="preserve"><value>Pour utiliser un autre modèle de télécommande, changez-le dans les paramètres.</value></data>
   <data name="A2854.Debug.Hint" xml:space="preserve"><value>Utilisez la page Télécommande pour diagnostiquer la connexion et le tactile de troisième génération. Cette recherche BLE concerne la première génération.</value></data>
   <data name="Guide.A2854.Title" xml:space="preserve"><value>Guide de la Siri Remote 3ᵉ génération (A2854)</value></data>
   <data name="Guide.A2854.Setup" xml:space="preserve"><value>Sélectionnez A2854 dans les paramètres. Vérifiez que l’adaptateur Barrot WinUSB dédié et les données de liaison protégées de l’utilisateur Windows actuel sont disponibles.</value></data>

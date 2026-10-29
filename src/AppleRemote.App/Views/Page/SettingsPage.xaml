@@ -288,6 +288,18 @@
                                  IsEnabled="{Binding CanChangeAdapter}"
                                  Margin="0,11,0,4" />
                 <TextBlock Text="{l:T A2854.Settings.SwitchHint}" Style="{StaticResource A2854Description}" />
+                <TextBlock Text="{l:T A2854.Settings.ModelLocked}">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock" BasedOn="{StaticResource A2854Secondary}">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding CanChangeAdapter}" Value="False">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
                 <TextBlock Text="{l:T A2854.Settings.LegacyHint}" Style="{StaticResource A2854Secondary}" />
             </StackPanel>
         </Border>
@@ -394,6 +406,9 @@
             <ui:CardControl.Header><TextBlock Text="{l:T Settings.CloseToTray}" /></ui:CardControl.Header>
             <ui:ToggleSwitch IsChecked="{Binding CloseToTray}" />
         </ui:CardControl>
+        <TextBlock Text="{l:T Settings.CloseToTrayHint}" TextWrapping="Wrap" Margin="8,0,8,8"
+                   Visibility="{Binding CloseToTray, Converter={StaticResource BoolToVisibility}}"
+                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
         <ui:CardControl Icon="{ui:SymbolIcon FolderZip24}">
             <ui:CardControl.Header><TextBlock Text="{l:T Settings.ExportAll}" /></ui:CardControl.Header>
             <StackPanel Orientation="Horizontal">
@@ -409,7 +424,7 @@
                       SelectedValue="{Binding Language}" MinWidth="200" />
         </ui:CardControl>
 
-        <TextBlock Text="{l:T Settings.Keyboard}" Style="{StaticResource Head}" />
+        <TextBlock Text="{Binding InputSectionTitle}" Style="{StaticResource Head}" />
         <TextBlock Text="{Binding SettingsPersistenceMessage}" TextWrapping="Wrap" Foreground="#FFFF7373"
                    Visibility="{Binding HasSettingsPersistenceError, Converter={StaticResource BoolToVisibility}}" />
         <ui:CardControl Icon="{ui:SymbolIcon Keyboard24}">
